@@ -1,0 +1,33 @@
+{
+  "clients": [
+    {
+      "id": "cliente_exemplo",
+      "name": "Loja Exemplo",
+      "instagram": {
+        "enabled": true,
+        "username": "loja_exemplo",
+        "password": "SENHA_SEGURA_AQUI"
+      },
+      "facebook": {
+        "enabled": true,
+        "page_id": "SEU_PAGE_ID_AQUI",
+        "access_token": "SEU_PAGE_ACCESS_TOKEN_AQUI"
+      },
+      "folders": {
+        "entrada": "clients/cliente_exemplo/entrada",
+        "postados": "clients/cliente_exemplo/postados"
+      },
+      "caption_settings": {
+        "ai_provider": "groq",
+        "default_hashtags": ["#loja", "#exemplo", "#vendas"],
+        "tone": "profissional e amigável",
+        "language": "pt-br",
+        "use_ai_caption": true
+      },
+      "posting_schedule": {
+        "enabled": true,
+        "max_posts_per_day": 5
+      }
+    }
+  ]
+}

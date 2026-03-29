@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostSocial — Automação de Instagram para Negócios</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #e0e0e0; }
+        a { color: #7c5cff; text-decoration: none; }
+
+        .hero { text-align: center; padding: 5rem 2rem 3rem; max-width: 800px; margin: 0 auto; }
+        .hero h1 { font-size: 3rem; font-weight: 800; margin-bottom: 1.2rem; }
+        .hero h1 span { color: #7c5cff; }
+        .hero p { font-size: 1.2rem; color: #aaa; margin-bottom: 2rem; line-height: 1.6; }
+        .hero .cta { display: inline-block; padding: 1rem 2.5rem; background: #7c5cff; color: #fff; border-radius: 10px; font-size: 1.1rem; font-weight: 700; transition: background 0.2s; }
+        .hero .cta:hover { background: #6b4cee; text-decoration: none; }
+        .hero .cta-outline { display: inline-block; padding: 1rem 2.5rem; border: 2px solid #3a3a5a; color: #ccc; border-radius: 10px; font-size: 1.1rem; font-weight: 600; margin-left: 1rem; transition: all 0.2s; }
+        .hero .cta-outline:hover { border-color: #7c5cff; color: #7c5cff; text-decoration: none; }
+
+        .features { max-width: 900px; margin: 3rem auto; padding: 0 2rem; }
+        .features h2 { text-align: center; font-size: 2rem; margin-bottom: 2rem; color: #fff; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+        .feature-card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 1.5rem; }
+        .feature-card .icon { font-size: 2rem; margin-bottom: 0.8rem; }
+        .feature-card h3 { color: #fff; margin-bottom: 0.5rem; font-size: 1.1rem; }
+        .feature-card p { color: #888; font-size: 0.9rem; line-height: 1.5; }
+
+        .pricing { max-width: 700px; margin: 4rem auto; padding: 0 2rem; }
+        .pricing h2 { text-align: center; font-size: 2rem; margin-bottom: 2rem; color: #fff; }
+        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .price-card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 2rem; text-align: center; }
+        .price-card.featured { border-color: #7c5cff; background: #1a1a3e; }
+        .price-card h3 { color: #fff; font-size: 1.3rem; margin-bottom: 0.5rem; }
+        .price-card .price { font-size: 2.5rem; font-weight: 800; color: #7c5cff; margin: 1rem 0; }
+        .price-card .price small { font-size: 1rem; color: #888; }
+        .price-card ul { list-style: none; text-align: left; margin: 1.5rem 0; }
+        .price-card ul li { padding: 0.4rem 0; color: #ccc; font-size: 0.9rem; }
+        .price-card ul li::before { content: "✓ "; color: #4ade80; font-weight: bold; }
+        .price-card .btn { display: block; padding: 0.8rem; background: #7c5cff; color: #fff; border-radius: 8px; font-weight: 700; }
+        .price-card .btn:hover { background: #6b4cee; text-decoration: none; }
+
+        .testimonials { max-width: 800px; margin: 4rem auto; padding: 0 2rem; }
+        .testimonials h2 { text-align: center; font-size: 2rem; margin-bottom: 2rem; color: #fff; }
+        .testimonial { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+        .testimonial p { color: #ccc; font-style: italic; line-height: 1.5; }
+        .testimonial .author { color: #7c5cff; font-weight: 600; margin-top: 0.8rem; font-style: normal; }
+
+        .footer { text-align: center; padding: 3rem 2rem; color: #666; font-size: 0.85rem; border-top: 1px solid #1a1a2e; margin-top: 3rem; }
+        .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 2rem; max-width: 1000px; margin: 0 auto; }
+        .nav .logo { font-size: 1.5rem; font-weight: 800; color: #7c5cff; }
+        .nav .links { display: flex; gap: 1.5rem; align-items: center; }
+        .nav .links a { color: #aaa; font-size: 0.9rem; }
+        .nav .links .btn-login { padding: 0.5rem 1.2rem; border: 1px solid #3a3a5a; border-radius: 8px; }
+
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 2rem; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .hero .cta-outline { margin-left: 0; margin-top: 0.8rem; display: block; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <span class="logo">PostSocial</span>
+        <div class="links">
+            <a href="#features">Recursos</a>
+            <a href="#pricing">Planos</a>
+            <a href="{{ url_for('auth.login') }}" class="btn-login">Entrar</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <h1>Automatize seu <span>Instagram</span> e cresça seu negócio</h1>
+        <p>Agende posts, carrosséis, reels e stories. Legendas geradas por IA. Tudo no piloto automático — para que você foque no que importa.</p>
+        <a href="{{ url_for('auth.register') }}" class="cta">Começar Grátis</a>
+        <a href="#features" class="cta-outline">Ver Recursos</a>
+    </section>
+
+    <section class="features" id="features">
+        <h2>Tudo que você precisa</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="icon">📸</div>
+                <h3>Posts Automáticos</h3>
+                <p>Suba suas fotos, escolha o horário e deixe o PostSocial postar automaticamente no Instagram e Facebook.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🤖</div>
+                <h3>Legendas com IA</h3>
+                <p>Gere 3 opções de legendas criativas usando inteligência artificial. Escolha a melhor com um clique.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🎠</div>
+                <h3>Carrosséis e Reels</h3>
+                <p>Poste álbuns com até 10 fotos e vídeos como Reels — tudo a partir do painel web.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">📅</div>
+                <h3>Agendamento</h3>
+                <p>Agende semanas de conteúdo de uma vez. Visualize tudo no calendário integrado.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">📊</div>
+                <h3>Stories Automáticos</h3>
+                <p>Publique nos Stories ao mesmo tempo que no feed, sem esforço adicional.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">📁</div>
+                <h3>Import CSV em Massa</h3>
+                <p>Planeje 30 posts de uma vez via planilha. Upload em lote com legendas e agendamento.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🎨</div>
+                <h3>Marca d'Água</h3>
+                <p>Aplique sua logo automaticamente em todas as fotos com posição e opacidade personalizáveis.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">👥</div>
+                <h3>Múltiplas Contas</h3>
+                <p>Gerencie várias contas de Instagram em um único painel. Ideal para agências.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🏷️</div>
+                <h3>White Label</h3>
+                <p>Personalize o painel com sua marca: nome, cores e logo. Seus clientes nem sabem que é PostSocial.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing" id="pricing">
+        <h2>Planos simples e transparentes</h2>
+        <div class="pricing-grid">
+            <div class="price-card">
+                <h3>Free</h3>
+                <div class="price">R$0<small>/mês</small></div>
+                <ul>
+                    <li>30 posts por mês</li>
+                    <li>1 conta Instagram</li>
+                    <li>Agendamento de posts</li>
+                    <li>Legendas com IA</li>
+                    <li>Carrossel e Reels</li>
+                </ul>
+                <a href="{{ url_for('auth.register') }}" class="btn">Criar Conta</a>
+            </div>
+            <div class="price-card featured">
+                <h3>Pro</h3>
+                <div class="price">R$49<small>/mês</small></div>
+                <ul>
+                    <li>Posts ilimitados</li>
+                    <li>Múltiplas contas IG</li>
+                    <li>Stories automáticos</li>
+                    <li>Import CSV em massa</li>
+                    <li>Marca d'água</li>
+                    <li>White Label</li>
+                    <li>Relatórios semanais</li>
+                    <li>Suporte prioritário</li>
+                </ul>
+                <a href="{{ url_for('auth.register') }}" class="btn">Começar Pro</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="testimonials">
+        <h2>O que nossos clientes dizem</h2>
+        <div class="testimonial">
+            <p>"Economizo 5 horas por semana desde que comecei a usar o PostSocial. As legendas da IA são incríveis!"</p>
+            <div class="author">— Marina S., Loja de Roupas</div>
+        </div>
+        <div class="testimonial">
+            <p>"Gerencio 8 contas de clientes em um só painel. O agendamento em massa mudou meu fluxo de trabalho."</p>
+            <div class="author">— Pedro L., Social Media Manager</div>
+        </div>
+        <div class="testimonial">
+            <p>"O melhor custo-benefício do mercado. Funciona de verdade, sem complicação."</p>
+            <div class="author">— Ana R., Confeitaria Artesanal</div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>PostSocial &copy; 2026 — Automação inteligente para Instagram</p>
+    </footer>
+</body>
+</html>

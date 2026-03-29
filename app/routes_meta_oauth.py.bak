@@ -1,0 +1,222 @@
+"""
+Meta OAuth2 — Conecta Instagram Business + Páginas do Facebook.
+Fluxo:
+  1. Cliente clica "Conectar Facebook/Instagram"
+  2. Redireciona para Meta Login
+  3. Callback recebe token de curta duração
+  4. Troca por token de longa duração (60 dias)
+  5. Busca páginas do Facebook e conta Instagram Business vinculada
+  6. Salva tokens no banco
+"""
+
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
+
+import requests
+from flask import Blueprint, redirect, request, flash, url_for, current_app
+from flask_login import login_required, current_user
+
+from .models import db, SocialAccount
+
+meta_bp = Blueprint("meta", __name__, url_prefix="/auth/meta")
+
+GRAPH_API = "https://graph.facebook.com/v21.0"
+
+# Permissões necessárias para postar em Páginas e Instagram Business
+SCOPES = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "pages_manage_posts",
+    "instagram_basic",
+    "instagram_content_publish",
+]
+
+
+@meta_bp.route("/connect")
+@login_required
+def connect():
+    """Redireciona o cliente para o login do Meta."""
+    app_id = current_app.config["META_APP_ID"]
+    redirect_uri = current_app.config["META_REDIRECT_URI"]
+
+    if not app_id:
+        flash("Meta App ID não configurado. Contate o administrador.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    params = {
+        "client_id": app_id,
+        "redirect_uri": redirect_uri,
+        "scope": ",".join(SCOPES),
+        "response_type": "code",
+        "state": str(current_user.id),
+    }
+
+    auth_url = f"https://www.facebook.com/v21.0/dialog/oauth?{urlencode(params)}"
+    return redirect(auth_url)
+
+
+@meta_bp.route("/callback")
+@login_required
+def callback():
+    """Recebe o código do Meta e troca por tokens."""
+    code = request.args.get("code")
+    error = request.args.get("error")
+
+    if error:
+        flash(f"Erro na conexão: {request.args.get('error_description', error)}", "error")
+        return redirect(url_for("dashboard.index"))
+
+    if not code:
+        flash("Código de autorização não recebido.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    app_id = current_app.config["META_APP_ID"]
+    app_secret = current_app.config["META_APP_SECRET"]
+    redirect_uri = current_app.config["META_REDIRECT_URI"]
+
+    # 1. Trocar code por short-lived token
+    resp = requests.get(
+        f"{GRAPH_API}/oauth/access_token",
+        params={
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "redirect_uri": redirect_uri,
+            "code": code,
+        },
+    )
+
+    if resp.status_code != 200:
+        flash("Erro ao obter token do Meta.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    short_token = resp.json()["access_token"]
+
+    # 2. Trocar por long-lived token (60 dias)
+    resp = requests.get(
+        f"{GRAPH_API}/oauth/access_token",
+        params={
+            "grant_type": "fb_exchange_token",
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "fb_exchange_token": short_token,
+        },
+    )
+
+    if resp.status_code != 200:
+        flash("Erro ao gerar token de longa duração.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    long_token_data = resp.json()
+    long_token = long_token_data["access_token"]
+    expires_in = long_token_data.get("expires_in", 5184000)  # 60 dias padrão
+    token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+    # 3. Buscar Páginas do Facebook do usuário
+    resp = requests.get(
+        f"{GRAPH_API}/me/accounts",
+        params={"access_token": long_token, "fields": "id,name,access_token"},
+    )
+
+    if resp.status_code != 200:
+        flash("Erro ao buscar páginas do Facebook.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    pages = resp.json().get("data", [])
+    saved_count = 0
+
+    for page in pages:
+        page_id = page["id"]
+        page_token = page["access_token"]
+        page_name = page["name"]
+
+        # Salvar Página do Facebook
+        _save_social_account(
+            client_id=current_user.id,
+            platform="facebook",
+            platform_user_id=page_id,
+            platform_username=page_name,
+            page_name=page_name,
+            access_token=page_token,
+            token_expires_at=token_expires_at,
+        )
+        saved_count += 1
+
+        # 4. Buscar conta Instagram Business vinculada à página
+        ig_resp = requests.get(
+            f"{GRAPH_API}/{page_id}",
+            params={
+                "fields": "instagram_business_account",
+                "access_token": page_token,
+            },
+        )
+
+        if ig_resp.status_code == 200:
+            ig_data = ig_resp.json().get("instagram_business_account")
+            if ig_data:
+                ig_id = ig_data["id"]
+
+                # Buscar username do Instagram
+                ig_info = requests.get(
+                    f"{GRAPH_API}/{ig_id}",
+                    params={"fields": "username,name", "access_token": page_token},
+                )
+
+                ig_username = ""
+                ig_name = ""
+                if ig_info.status_code == 200:
+                    ig_username = ig_info.json().get("username", "")
+                    ig_name = ig_info.json().get("name", "")
+
+                _save_social_account(
+                    client_id=current_user.id,
+                    platform="instagram",
+                    platform_user_id=ig_id,
+                    platform_username=ig_username,
+                    page_name=ig_name or page_name,
+                    access_token=page_token,  # usa o token da página
+                    token_expires_at=token_expires_at,
+                )
+                saved_count += 1
+
+    if saved_count > 0:
+        flash(f"{saved_count} conta(s) conectada(s) com sucesso!", "success")
+    else:
+        flash("Nenhuma página encontrada. Verifique se você tem uma Página no Facebook.", "error")
+
+    return redirect(url_for("dashboard.index"))
+
+
+@meta_bp.route("/disconnect/<int:account_id>", methods=["POST"])
+@login_required
+def disconnect(account_id):
+    """Remove uma conta social."""
+    account = SocialAccount.query.filter_by(
+        id=account_id, client_id=current_user.id
+    ).first()
+
+    if account:
+        db.session.delete(account)
+        db.session.commit()
+        flash(f"Conta {account.platform_username} desconectada.", "info")
+
+    return redirect(url_for("dashboard.index"))
+
+
+def _save_social_account(**kwargs):
+    """Salva ou atualiza uma conta social."""
+    existing = SocialAccount.query.filter_by(
+        client_id=kwargs["client_id"],
+        platform=kwargs["platform"],
+        platform_user_id=kwargs["platform_user_id"],
+    ).first()
+
+    if existing:
+        existing.access_token = kwargs["access_token"]
+        existing.token_expires_at = kwargs["token_expires_at"]
+        existing.platform_username = kwargs["platform_username"]
+        existing.page_name = kwargs["page_name"]
+    else:
+        account = SocialAccount(**kwargs)
+        db.session.add(account)
+
+    db.session.commit()

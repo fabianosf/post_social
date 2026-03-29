@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Estatísticas{% endblock %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+    <h1 style="margin:0; font-size:1.5rem;">Estatísticas</h1>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline btn-sm">Voltar ao Painel</a>
+</div>
+
+<!-- Cards resumo -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-number" style="color:#4ade80;">{{ stats.today }}</span>
+        <span class="stat-label">Hoje</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#60a5fa;">{{ stats.this_week }}</span>
+        <span class="stat-label">7 dias</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number">{{ stats.this_month }}</span>
+        <span class="stat-label">30 dias</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number">{{ stats.total }}</span>
+        <span class="stat-label">Total</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#fbbf24;">{{ stats.pending }}</span>
+        <span class="stat-label">Na Fila</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#f87171;">{{ stats.failed }}</span>
+        <span class="stat-label">Erros</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:{% if success_rate >= 90 %}#4ade80{% elif success_rate >= 70 %}#fbbf24{% else %}#f87171{% endif %};">{{ success_rate }}%</span>
+        <span class="stat-label">Sucesso</span>
+    </div>
+</div>
+
+<!-- Gráfico 14 dias -->
+<div class="card">
+    <h2>Posts por dia (últimos 14 dias)</h2>
+    <div style="display:flex; align-items:flex-end; gap:4px; height:140px; padding-top:0.5rem;">
+        {% set max_count = daily_chart|map(attribute='count')|max if daily_chart else 1 %}
+        {% for day in daily_chart %}
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+            <span style="font-size:0.65rem; color:#888; margin-bottom:2px;">{{ day.count }}</span>
+            <div style="width:100%; background:{{ brand.color }}; border-radius:4px 4px 0 0; min-height:4px; height:{{ (day.count / max_count * 100) if max_count > 0 else 0 }}%;"></div>
+            <span style="font-size:0.6rem; color:#666; margin-top:4px; writing-mode:vertical-rl; text-orientation:mixed; height:30px;">{{ day.day }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Posts por tipo + Horários -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+    <div class="card">
+        <h2>Posts por Tipo</h2>
+        {% for ptype, count in by_type.items() %}
+        {% if count > 0 %}
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid #1a1a2e;">
+            <span style="display:flex; align-items:center; gap:0.5rem;">
+                <span style="font-size:1.2rem;">
+                    {% if ptype == 'photo' %}&#128247;{% elif ptype == 'album' %}&#127912;{% elif ptype == 'reels' %}&#127910;{% elif ptype == 'story' %}&#128247;{% endif %}
+                </span>
+                <span style="text-transform:capitalize;">{{ ptype }}</span>
+            </span>
+            <span style="color:{{ brand.color }}; font-weight:700; font-size:1.1rem;">{{ count }}</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% if not by_type.values()|select('gt', 0)|list %}
+        <p style="color:#666;">Nenhum post ainda.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Melhores Horários</h2>
+        {% if top_hours %}
+        {% for hour, count in top_hours %}
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid #1a1a2e;">
+            <span>{{ '%02d'|format(hour) }}:00 - {{ '%02d'|format(hour) }}:59</span>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <div style="height:8px; border-radius:4px; background:{{ brand.color }}; width:{{ (count / top_hours[0][1] * 80)|int }}px;"></div>
+                <span style="color:{{ brand.color }}; font-weight:700;">{{ count }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color:#666;">Sem dados suficientes.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Limites Anti-Bloqueio -->
+<div class="card">
+    <h2>Proteção Anti-Bloqueio</h2>
+    <p style="color:#888; font-size:0.85rem; margin-bottom:1rem;">
+        Limites ativos para manter sua conta segura no Instagram/Facebook.
+    </p>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
+            <span style="font-size:1.5rem; color:#4ade80; font-weight:700;">{{ safe_info.max_posts_per_day }}</span>
+            <br><small style="color:#888;">Posts/dia (máx)</small>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
+            <span style="font-size:1.5rem; color:#60a5fa; font-weight:700;">{{ safe_info.max_stories_per_day }}</span>
+            <br><small style="color:#888;">Stories/dia (máx)</small>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
+            <span style="font-size:1.5rem; color:#fbbf24; font-weight:700;">{{ safe_info.min_interval_minutes }}min</span>
+            <br><small style="color:#888;">Intervalo mínimo</small>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
+            <span style="font-size:1.5rem; color:#c084fc; font-weight:700;">&#177;{{ safe_info.random_delay_minutes }}min</span>
+            <br><small style="color:#888;">Variação aleatória</small>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
+            <span style="font-size:1.5rem; color:#ccc; font-weight:700;">{{ safe_info.safe_hours_start }}h-{{ safe_info.safe_hours_end }}h</span>
+            <br><small style="color:#888;">Horário seguro</small>
+        </div>
+    </div>
+</div>
+
+<!-- Próximos agendados -->
+{% if scheduled_upcoming %}
+<div class="card">
+    <h2>Próximos Agendados</h2>
+    {% for post in scheduled_upcoming %}
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid #1a1a2e;">
+        <div>
+            <span style="color:#ccc;">{{ post.image_filename[:30] }}</span>
+            {% if post.post_type != 'photo' %}
+            <span class="badge" style="background:#2a2a4a; color:#ccc; font-size:0.55rem; margin-left:0.3rem;">{{ post.post_type }}</span>
+            {% endif %}
+        </div>
+        <span style="color:#60a5fa; font-size:0.85rem; font-weight:600;">
+            {{ post.scheduled_at.strftime('%d/%m %H:%M') }}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

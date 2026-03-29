@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: postsocial-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    depends_on:
+      - worker
+
+  worker:
+    build: .
+    container_name: postsocial-worker
+    restart: unless-stopped
+    command: python worker.py --daemon --interval=300
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs

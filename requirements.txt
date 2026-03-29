@@ -1,0 +1,29 @@
+# PostSocial — Dependências
+
+# Flask + extensões
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+flask-login>=0.6.3
+python-dotenv>=1.0.0
+werkzeug>=3.0.0
+gunicorn>=22.0.0
+
+# Criptografia (senhas Instagram)
+cryptography>=42.0.0
+
+# Instagram
+instagrapi>=2.1.2
+
+# Imagens
+Pillow>=10.0.0
+
+# PIX QR Code
+qrcode[pil]>=7.4.0
+
+# HTTP client (Facebook poster)
+httpx>=0.27.0
+
+# IA para legendas (Groq usa SDK OpenAI)
+openai>=1.30.0
+# anthropic>=0.40.0     # ai_provider: "anthropic" → ANTHROPIC_API_KEY
+# google-genai>=1.0.0   # ai_provider: "gemini" → GOOGLE_API_KEY

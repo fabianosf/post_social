@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Cadastro{% endblock %}
+{% block content %}
+<div class="auth-container">
+    <div class="logo-big">PostSocial</div>
+    <div class="card">
+        <h2>Criar Conta</h2>
+        <form method="POST">
+            <label>Seu nome ou nome do negócio</label>
+            <input type="text" name="name" required placeholder="Padaria do Silva">
+            <label>Email</label>
+            <input type="email" name="email" required placeholder="seu@email.com">
+            <label>Senha</label>
+            <input type="password" name="password" required placeholder="Mínimo 6 caracteres" minlength="6">
+            <button type="submit" class="btn" style="width:100%; margin-top:0.5rem;">Criar Conta</button>
+        </form>
+        <p style="text-align:center; margin-top:1rem; color:#888; font-size:0.9rem;">
+            Já tem conta? <a href="{{ url_for('auth.login') }}">Entrar</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

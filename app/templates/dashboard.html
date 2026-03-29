@@ -1,0 +1,750 @@
+{% extends "base.html" %}
+{% block title %}Painel{% endblock %}
+{% block content %}
+
+<!-- Alertas de Token/Sessão -->
+{% if token_alerts %}
+<div class="card" style="border-color:#f87171; background:#2a1a1a;">
+    <h2 style="margin:0 0 0.5rem; color:#f87171;">Alertas de Sessão</h2>
+    {% for alert in token_alerts %}
+    <div class="notification-item notif-error">
+        <span class="notif-icon">&#9888;</span>
+        <div>
+            <strong>@{{ alert.username }}</strong> — sessão com {{ alert.days }} dias.
+            <br><small style="color:#f87171;">{% if alert.status == 'critical' %}Sessão prestes a expirar! Reconecte agora.{% else %}Recomendado reconectar em breve.{% endif %}</small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Notificações -->
+{% if notifications %}
+<div class="card" style="border-color:#7c5cff; background:#1a1a3e;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+        <h2 style="margin:0;">Notificações</h2>
+        <form method="POST" action="{{ url_for('dashboard.dismiss_notifications') }}">
+            <button class="btn btn-outline btn-sm" type="submit">Marcar como lidas</button>
+        </form>
+    </div>
+    {% for n in notifications %}
+    <div class="notification-item {{ 'notif-success' if n.status == 'posted' else 'notif-error' }}">
+        <span class="notif-icon">{{ '&#10004;' if n.status == 'posted' else '&#10008;' }}</span>
+        <div>
+            {% if n.status == 'posted' %}
+                <strong>{{ n.image_filename }}</strong> postada no Instagram!
+                {% if n.post_to_facebook %}<br><small style="color:#1877f2;">+ Facebook</small>{% endif %}
+                <br><small style="color:#888;">{{ n.posted_at.strftime('%d/%m %H:%M') if n.posted_at }}</small>
+            {% else %}
+                <strong>{{ n.image_filename }}</strong> falhou.
+                <br><small style="color:#f87171;">{{ n.error_message or 'Erro' }}</small>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Estatísticas + Plano -->
+<div style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
+    <a href="{{ url_for('dashboard.stats_page') }}" class="btn btn-outline btn-sm">Ver Estatísticas Completas</a>
+</div>
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-number">{{ stats.total }}</span>
+        <span class="stat-label">Total</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#4ade80;">{{ stats.posted }}</span>
+        <span class="stat-label">Postadas</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#fbbf24;">{{ stats.pending }}</span>
+        <span class="stat-label">Na fila</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#60a5fa;">{{ stats.scheduled }}</span>
+        <span class="stat-label">Agendadas</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#fbbf24;">{{ stats.draft }}</span>
+        <span class="stat-label">Rascunhos</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#f87171;">{{ stats.failed }}</span>
+        <span class="stat-label">Erros</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number">{{ plan_info.used }}/{{ plan_info.limit if plan_info.limit < 99999 else '&infin;' }}</span>
+        <span class="stat-label">Mês ({{ plan_info.plan }})</span>
+    </div>
+</div>
+
+{% if plan_info.plan == 'free' %}
+<div class="card" style="border-color:#7c5cff; background:linear-gradient(135deg, #1a1a3e, #2a1a4e); text-align:center; padding:1.5rem;">
+    <h2 style="margin-bottom:0.5rem;">Desbloqueie o Plano Pro</h2>
+    <p style="color:#aaa; margin-bottom:1rem; font-size:0.9rem;">Posts ilimitados, Stories, CSV, White Label e muito mais!</p>
+    <a href="{{ url_for('payment.index') }}" class="btn" style="padding:0.8rem 2rem; font-size:1rem;">
+        Fazer Upgrade — R$ 49,90/mês
+    </a>
+</div>
+{% elif plan_info.plan == 'pending_pro' %}
+<div class="card" style="border-color:#fbbf24; background:#2a2a1a; text-align:center;">
+    <h2 style="color:#fbbf24;">Pagamento em análise</h2>
+    <p style="color:#aaa; font-size:0.9rem;">Seu PIX está sendo verificado. O plano Pro será ativado em breve!</p>
+</div>
+{% endif %}
+
+<!-- Contas Instagram -->
+<div class="card">
+    <h2>Contas Instagram</h2>
+    {% for acc in accounts %}
+    <div class="account-card">
+        <div class="account-info">
+            <span class="badge badge-ig">IG</span>
+            <span>@{{ acc.ig_username }}</span>
+            {% if acc.label and acc.label != acc.ig_username %}<small style="color:#888;">({{ acc.label }})</small>{% endif %}
+            {% if acc.share_to_facebook %}<span class="badge badge-fb" style="font-size:0.6rem;">+FB</span>{% endif %}
+            <span class="badge badge-{{ 'posted' if acc.status == 'active' else 'failed' }}" style="font-size:0.6rem;">{{ acc.status }}</span>
+            {% if acc.last_login_at %}<small style="color:#666; font-size:0.65rem;">login: {{ acc.last_login_at.strftime('%d/%m') }}</small>{% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.disconnect_instagram', account_id=acc.id) }}">
+            <button class="btn btn-outline btn-sm" type="submit">Remover</button>
+        </form>
+    </div>
+    {% if acc.status_message %}
+    <p style="color:#f87171; font-size:0.8rem; margin-bottom:0.5rem;">{{ acc.status_message }}</p>
+    {% endif %}
+    {% endfor %}
+
+    <details style="margin-top:0.5rem;">
+        <summary>{{ 'Adicionar outra conta' if accounts else 'Conectar Instagram' }}</summary>
+        <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}" style="margin-top:0.8rem;">
+            <label>Apelido (ex: "Loja Principal")</label>
+            <input type="text" name="label" placeholder="Opcional">
+            <label>Usuário Instagram</label>
+            <input type="text" name="ig_username" required placeholder="seu_usuario">
+            <label>Senha</label>
+            <input type="password" name="ig_password" required>
+            <div class="checkbox-row">
+                <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+            </div>
+            <button type="submit" class="btn btn-meta btn-sm">Conectar</button>
+        </form>
+    </details>
+</div>
+
+<!-- Limite Diário Anti-Bloqueio -->
+{% if accounts and daily_usage %}
+<div class="card" style="border-color:#7c5cff;">
+    <h2 style="display:flex; align-items:center; gap:0.5rem;">
+        &#128737; Limite Diário — Proteção Anti-Bloqueio
+    </h2>
+    <p style="color:#888; font-size:0.8rem; margin-bottom:1rem;">
+        Para proteger suas contas, o PostSocial distribui automaticamente suas postagens ao longo do dia com intervalos seguros.
+    </p>
+    {% for acc in accounts %}
+    {% set usage = daily_usage.get(acc.id, {}) %}
+    {% if usage %}
+    <div style="background:#0f0f1a; border-radius:10px; padding:1rem; margin-bottom:0.8rem; {% if usage.blocked %}border:1px solid #f87171;{% else %}border:1px solid #2a2a4a;{% endif %}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+            <strong style="color:#ccc; font-size:0.9rem;">@{{ usage.username }}</strong>
+            {% if usage.blocked %}
+            <span class="badge badge-failed" style="font-size:0.7rem;">LIMITE ATINGIDO</span>
+            {% else %}
+            <span class="badge badge-posted" style="font-size:0.7rem;">DISPONÍVEL</span>
+            {% endif %}
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.8rem;">
+            <!-- Feed posts -->
+            <div>
+                <small style="color:#888;">Posts no Feed</small>
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
+                    <div style="flex:1; height:8px; background:#2a2a4a; border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; border-radius:4px; width:{{ ((usage.feed_used / usage.feed_max) * 100)|int }}%;
+                            background:{% if usage.feed_remaining == 0 %}#f87171{% elif usage.feed_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
+                    </div>
+                    <span style="color:#ccc; font-size:0.85rem; font-weight:600; white-space:nowrap;">{{ usage.feed_used }}/{{ usage.feed_max }}</span>
+                </div>
+                <small style="color:{% if usage.feed_remaining == 0 %}#f87171{% elif usage.feed_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %}; font-size:0.75rem;">
+                    {% if usage.feed_remaining > 0 %}{{ usage.feed_remaining }} restante(s) hoje{% else %}Esgotado hoje{% endif %}
+                </small>
+            </div>
+            <!-- Stories -->
+            <div>
+                <small style="color:#888;">Stories</small>
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
+                    <div style="flex:1; height:8px; background:#2a2a4a; border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; border-radius:4px; width:{{ ((usage.stories_used / usage.stories_max) * 100)|int }}%;
+                            background:{% if usage.stories_remaining == 0 %}#f87171{% elif usage.stories_remaining <= 2 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
+                    </div>
+                    <span style="color:#ccc; font-size:0.85rem; font-weight:600; white-space:nowrap;">{{ usage.stories_used }}/{{ usage.stories_max }}</span>
+                </div>
+                <small style="color:{% if usage.stories_remaining == 0 %}#f87171{% elif usage.stories_remaining <= 2 %}#fbbf24{% else %}#4ade80{% endif %}; font-size:0.75rem;">
+                    {% if usage.stories_remaining > 0 %}{{ usage.stories_remaining }} restante(s) hoje{% else %}Esgotado hoje{% endif %}
+                </small>
+            </div>
+            <!-- Próximo horário -->
+            <div>
+                <small style="color:#888;">Próximo horário</small>
+                <div style="margin-top:0.3rem;">
+                    <span style="color:#60a5fa; font-size:1.1rem; font-weight:700;">{{ usage.next_available }}</span>
+                </div>
+                <small style="color:#888; font-size:0.75rem;">Intervalo mín: {{ safe_limits.min_interval_minutes }}min</small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    <div style="background:#1a1a2e; border-radius:8px; padding:0.8rem; margin-top:0.3rem;">
+        <small style="color:#7c5cff; font-weight:600;">Regras de proteção:</small>
+        <div style="color:#888; font-size:0.78rem; margin-top:0.3rem; line-height:1.6;">
+            &#8226; Máximo <strong style="color:#ccc;">{{ safe_limits.max_posts_per_day }} posts/dia</strong> no feed por conta<br>
+            &#8226; Máximo <strong style="color:#ccc;">{{ safe_limits.max_stories_per_day }} stories/dia</strong> por conta<br>
+            &#8226; Intervalo mínimo de <strong style="color:#ccc;">~{{ safe_limits.min_interval_minutes }} minutos</strong> entre posts<br>
+            &#8226; Horários seguros: <strong style="color:#ccc;">{{ safe_limits.safe_hours_start }}h às {{ safe_limits.safe_hours_end }}h</strong><br>
+            &#8226; Variação aleatória de <strong style="color:#ccc;">±{{ safe_limits.random_delay_minutes }}min</strong> para parecer natural
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Nova Postagem -->
+<div class="card">
+    <h2>Nova Postagem</h2>
+    {% if accounts %}
+    <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data">
+        <div class="upload-area" onclick="document.getElementById('photos').click()">
+            <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
+            <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
+            <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">
+        </div>
+        <div id="preview-container" class="preview-grid"></div>
+
+        <!-- Preview Instagram Feed Mockup -->
+        <div id="ig-preview" style="display:none; margin-bottom:1rem;">
+            <label style="color:#7c5cff; font-size:0.85rem; margin-bottom:0.5rem;">Preview do Feed</label>
+            <div style="background:#000; border-radius:12px; overflow:hidden; max-width:350px;">
+                <div style="display:flex; align-items:center; gap:0.5rem; padding:0.6rem 0.8rem;">
+                    <div style="width:28px; height:28px; border-radius:50%; background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); padding:2px;">
+                        <div style="width:100%; height:100%; border-radius:50%; background:#000;"></div>
+                    </div>
+                    <span style="color:#fff; font-size:0.85rem; font-weight:600;" id="ig-preview-username">{{ accounts[0].ig_username if accounts else 'usuario' }}</span>
+                </div>
+                <div id="ig-preview-image" style="width:100%; aspect-ratio:1; background:#1a1a2e; display:flex; align-items:center; justify-content:center;">
+                    <span style="color:#444; font-size:0.8rem;">Selecione uma foto</span>
+                </div>
+                <div style="padding:0.6rem 0.8rem;">
+                    <div style="display:flex; gap:1rem; margin-bottom:0.5rem;">
+                        <span style="color:#fff; font-size:1.2rem;">&#9825;</span>
+                        <span style="color:#fff; font-size:1.2rem;">&#128172;</span>
+                        <span style="color:#fff; font-size:1.2rem;">&#9993;</span>
+                    </div>
+                    <p id="ig-preview-caption" style="color:#fff; font-size:0.8rem; line-height:1.4; max-height:60px; overflow:hidden;">
+                        <strong id="ig-preview-user2">{{ accounts[0].ig_username if accounts else 'usuario' }}</strong>
+                        <span id="ig-preview-text">Sua legenda aparecerá aqui...</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {% if accounts|length > 1 %}
+        <label>Conta</label>
+        <select name="account_id" id="account-select">
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}" data-username="{{ acc.ig_username }}">@{{ acc.ig_username }}{% if acc.label %} ({{ acc.label }}){% endif %}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <label>Legenda (vazio = gerar com IA)</label>
+        <textarea name="caption" id="caption-input" placeholder="Escreva ou deixe vazio..."></textarea>
+
+        <!-- Container para 3 opções de IA -->
+        <div id="ai-options" style="display:none; margin-bottom:0.8rem;">
+            <label style="color:#7c5cff; font-size:0.85rem;">Escolha uma legenda:</label>
+            <div id="ai-options-list"></div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" id="ai-gen-btn" onclick="generateAICaption()">Gerar 3 opções com IA</button>
+            {% if templates %}
+            <select id="template-select" onchange="applyTemplate()" style="width:auto; margin:0; padding:0.4rem; font-size:0.8rem;">
+                <option value="">Usar template...</option>
+                {% for t in templates %}
+                <option value="{{ t.content }}|{{ t.hashtags or '' }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+        </div>
+
+        <label>Hashtags</label>
+        <input type="text" name="hashtags" id="hashtags-input" placeholder="#seunegocio #suacidade">
+
+        <label>Agendar a partir de (opcional — o sistema distribui automaticamente)</label>
+        <input type="datetime-local" name="scheduled_at" id="scheduled-input">
+
+        <div class="checkbox-row" style="flex-wrap:wrap;">
+            {% if accounts[0].share_to_facebook %}
+            <label><input type="checkbox" name="share_facebook" checked> Facebook</label>
+            {% endif %}
+            <label><input type="checkbox" name="post_story"> Stories</label>
+            <label><input type="checkbox" name="needs_approval"> Revisar antes</label>
+        </div>
+
+        <div style="background:#0f0f1a; border:1px solid #3a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">
+            <small style="color:#7c5cff; font-weight:600;">&#128737; Agendamento automático ativo</small>
+            <p style="color:#888; font-size:0.8rem; margin-top:0.3rem;">
+                Seus posts serão distribuídos automaticamente em horários seguros para proteger sua conta:<br>
+                &#8226; Máx <strong>{{ safe_limits.max_posts_per_day }} posts/dia</strong> no feed<br>
+                &#8226; Intervalo de <strong>~{{ safe_limits.min_interval_minutes }}min</strong> entre posts<br>
+                &#8226; Apenas entre <strong>{{ safe_limits.safe_hours_start }}h e {{ safe_limits.safe_hours_end }}h</strong><br>
+                &#8226; Horários levemente aleatórios para parecer natural
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn-success" style="width:100%;">Enviar</button>
+    </form>
+    {% else %}
+    <p style="color:#888;">Conecte seu Instagram acima.</p>
+    {% endif %}
+</div>
+
+<!-- Ferramentas: Melhor Horário + Google Drive -->
+{% if accounts %}
+<div class="card">
+    <h2>Ferramentas</h2>
+    <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="suggestBestTime()" id="best-time-btn">Melhor horário para postar</button>
+        <form method="POST" action="{{ url_for('dashboard.gdrive_import') }}" style="margin:0;">
+            <button type="submit" class="btn btn-outline btn-sm">Importar do Google Drive</button>
+        </form>
+    </div>
+    <div id="best-time-result" style="display:none; margin-top:0.8rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">
+        <small style="color:#7c5cff; font-weight:600;">Sugestão de horário:</small>
+        <p id="best-time-text" style="color:#ccc; font-size:0.9rem; margin-top:0.3rem; white-space:pre-wrap;"></p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Import CSV em Massa -->
+{% if accounts %}
+<div class="card">
+    <h2>Import CSV em Massa</h2>
+    <details>
+        <summary>Importar postagens via planilha</summary>
+        <div style="margin-top:0.8rem;">
+            <p style="color:#888; font-size:0.85rem; margin-bottom:0.8rem;">
+                Crie um CSV com as colunas: <strong>filename</strong>, <strong>caption</strong>, <strong>hashtags</strong>, <strong>scheduled_at</strong> (YYYY-MM-DD HH:MM).<br>
+                Envie as imagens junto com o CSV.
+            </p>
+            <form method="POST" action="{{ url_for('dashboard.csv_import') }}" enctype="multipart/form-data">
+                <label>Arquivo CSV</label>
+                <input type="file" name="csv_file" accept=".csv" style="border:none; padding:0; margin-bottom:0.5rem;">
+
+                <label>Imagens (selecione todas referenciadas no CSV)</label>
+                <input type="file" name="csv_images" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="border:none; padding:0; margin-bottom:0.5rem;">
+
+                {% if accounts|length > 1 %}
+                <label>Conta</label>
+                <select name="account_id">
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}">@{{ acc.ig_username }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+
+                <button type="submit" class="btn btn-sm" style="margin-top:0.5rem;">Importar CSV</button>
+            </form>
+
+            <details style="margin-top:0.8rem;">
+                <summary style="font-size:0.8rem;">Exemplo de CSV</summary>
+                <pre style="background:#0f0f1a; padding:0.8rem; border-radius:8px; font-size:0.75rem; color:#ccc; overflow-x:auto; margin-top:0.5rem;">filename,caption,hashtags,scheduled_at
+foto1.jpg,Confira nossa novidade!,#loja #novidade,2026-04-01 10:00
+foto2.jpg,,,2026-04-02 14:00
+video.mp4,Veja este reel!,#reels #viral,</pre>
+            </details>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<!-- Templates de Legenda -->
+<div class="card">
+    <h2>Templates de Legenda</h2>
+    {% for t in templates %}
+    <div class="template-item">
+        <div>
+            <span class="template-name">{{ t.name }}</span>
+            <div class="template-preview">{{ t.content[:60] }}...</div>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.delete_template', template_id=t.id) }}" style="margin:0;">
+            <button class="btn btn-outline btn-sm btn-delete" type="submit">&#10005;</button>
+        </form>
+    </div>
+    {% endfor %}
+    <details>
+        <summary>Criar template</summary>
+        <form method="POST" action="{{ url_for('dashboard.save_template') }}" style="margin-top:0.8rem;">
+            <input type="text" name="template_name" required placeholder="Nome (ex: Promoção)">
+            <textarea name="template_content" required placeholder="Texto da legenda..."></textarea>
+            <input type="text" name="template_hashtags" placeholder="#hashtags">
+            <button type="submit" class="btn btn-sm">Salvar</button>
+        </form>
+    </details>
+</div>
+
+<!-- Watermark -->
+<div class="card">
+    <h2>Watermark (Marca d'água)</h2>
+    <form method="POST" action="{{ url_for('dashboard.update_watermark') }}" enctype="multipart/form-data">
+        <div class="checkbox-row">
+            <label><input type="checkbox" name="watermark_enabled" {{ 'checked' if current_user.watermark_enabled }}> Ativar watermark</label>
+        </div>
+        <label>Imagem da marca (PNG transparente ideal)</label>
+        <input type="file" name="watermark_file" accept=".png,.jpg,.jpeg,.webp" style="border:none; padding:0;">
+        <label>Posição</label>
+        <select name="watermark_position">
+            {% for pos in ['bottom-right','bottom-left','top-right','top-left','center'] %}
+            <option value="{{ pos }}" {{ 'selected' if current_user.watermark_position == pos }}>{{ pos }}</option>
+            {% endfor %}
+        </select>
+        <label>Opacidade: <span id="opacity-val">{{ current_user.watermark_opacity or 80 }}%</span></label>
+        <input type="range" name="watermark_opacity" min="10" max="100" value="{{ current_user.watermark_opacity or 80 }}" oninput="document.getElementById('opacity-val').textContent=this.value+'%'">
+        <button type="submit" class="btn btn-sm">Salvar</button>
+    </form>
+</div>
+
+<!-- White Label -->
+<div class="card">
+    <h2>Personalizar Marca (White Label)</h2>
+    <form method="POST" action="{{ url_for('dashboard.update_whitelabel') }}">
+        <label>Nome da sua marca</label>
+        <input type="text" name="brand_name" value="{{ brand.name }}" placeholder="PostSocial">
+        <label>Cor principal</label>
+        <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.8rem;">
+            <input type="color" name="brand_color" value="{{ brand.color }}" style="width:50px; height:36px; padding:2px; border-radius:6px; cursor:pointer;">
+            <span style="color:#888; font-size:0.85rem;">{{ brand.color }}</span>
+        </div>
+        <button type="submit" class="btn btn-sm">Salvar</button>
+    </form>
+</div>
+
+<!-- Calendário -->
+{% if calendar_data %}
+<div class="card">
+    <h2>Calendário de Postagens</h2>
+    <div class="calendar-grid">
+        {% for day_name in ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+        <div class="cal-header">{{ day_name }}</div>
+        {% endfor %}
+    </div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+        {% for item in calendar_data %}
+        <div style="padding:0.3rem 0.6rem; border-radius:6px; font-size:0.75rem;
+            {% if item.status == 'posted' %}background:#1a3a2a; color:#4ade80;
+            {% elif item.status == 'pending' %}background:#1a2a3a; color:#60a5fa;
+            {% else %}background:#3a3a1a; color:#fbbf24;{% endif %}">
+            {{ item.date[5:] }} — {{ item.title }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Postagens -->
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+        <h2 style="margin:0;">Postagens</h2>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+            <a href="?status=all" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'all' }}">Todas</a>
+            <a href="?status=draft" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'draft' }}">Rascunhos</a>
+            <a href="?status=pending" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'pending' }}">Fila</a>
+            <a href="?status=posted" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'posted' }}">Postadas</a>
+            <a href="?status=failed" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'failed' }}">Erros</a>
+        </div>
+    </div>
+
+    {% if stats.posted > 0 or stats.failed > 0 %}
+    <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+        {% if stats.posted > 0 %}
+        <form method="POST" action="{{ url_for('dashboard.clear_posted') }}" onsubmit="return confirm('Limpar postagens publicadas?')">
+            <button class="btn btn-outline btn-sm">Limpar postadas ({{ stats.posted }})</button>
+        </form>
+        {% endif %}
+        {% if stats.failed > 0 %}
+        <form method="POST" action="{{ url_for('dashboard.clear_failed') }}" onsubmit="return confirm('Limpar erros?')">
+            <button class="btn btn-outline btn-sm btn-delete">Limpar erros ({{ stats.failed }})</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if posts %}
+        {% for post in posts %}
+        <div class="post-item">
+            <div class="post-thumb">
+                {% set thumb_path = post.image_path.split('|')[0].split('/uploads/')[-1] if '/uploads/' in post.image_path else '' %}
+                {% if thumb_path %}
+                <img src="{{ url_for('dashboard.uploaded_file', filename=thumb_path) }}" onerror="this.style.display='none'">
+                {% endif %}
+            </div>
+            <div class="post-details">
+                <span class="filename">
+                    {{ post.image_filename[:40] }}
+                    {% if post.post_type != 'photo' %}<span class="badge" style="background:#2a2a4a; color:#ccc; font-size:0.6rem;">{{ post.post_type }}</span>{% endif %}
+                </span>
+                <div class="caption-preview">
+                    {% if post.caption %}{{ post.caption[:80] }}{% else %}<em>IA</em>{% endif %}
+                </div>
+                <div style="margin-top:0.2rem; display:flex; gap:0.2rem; align-items:center;">
+                    <span class="badge badge-ig" style="font-size:0.6rem;">IG</span>
+                    {% if post.post_to_facebook %}<span class="badge badge-fb" style="font-size:0.6rem;">FB</span>{% endif %}
+                    {% if post.scheduled_at %}<span style="color:#60a5fa; font-size:0.65rem;">{{ post.scheduled_at.strftime('%d/%m %H:%M') }}</span>{% endif %}
+                    {% if post.posted_at %}<span style="color:#666; font-size:0.65rem;">{{ post.posted_at.strftime('%d/%m %H:%M') }}</span>{% endif %}
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
+                <span class="badge badge-{{ post.status }}">
+                    {% if post.status == 'posted' %}postado{% elif post.status == 'pending' %}fila{% elif post.status == 'processing' %}postando{% elif post.status == 'failed' %}erro{% elif post.status == 'draft' %}rascunho{% endif %}
+                </span>
+                {% if post.status == 'draft' %}
+                <form method="POST" action="{{ url_for('dashboard.approve_post', post_id=post.id) }}" style="margin:0;">
+                    <button class="btn btn-sm btn-success" type="submit" style="padding:0.3rem 0.6rem;">Aprovar</button>
+                </form>
+                {% endif %}
+                {% if post.status == 'posted' and post.instagram_media_id %}
+                <button class="btn btn-outline btn-sm" type="button" title="Ver métricas" onclick="fetchMetrics({{ post.id }}, this)" style="font-size:0.7rem;">&#128200;</button>
+                {% endif %}
+                {% if post.status == 'failed' %}
+                <form method="POST" action="{{ url_for('dashboard.retry_post', post_id=post.id) }}" style="margin:0;">
+                    <button class="btn btn-outline btn-sm" type="submit" title="Tentar novamente">&#8635;</button>
+                </form>
+                {% endif %}
+                <!-- Duplicar post -->
+                <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
+                    <button class="btn btn-outline btn-sm" type="submit" title="Postar novamente" style="font-size:0.7rem;">&#128260;</button>
+                </form>
+                <form method="POST" action="{{ url_for('dashboard.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover?')" style="margin:0;">
+                    <button class="btn btn-outline btn-sm btn-delete" type="submit">&#10005;</button>
+                </form>
+            </div>
+        </div>
+        {% if post.status == 'failed' and post.error_message %}
+        <div style="background:#2a1a1a; padding:0.3rem 1rem; border-radius:0 0 8px 8px; margin-top:-0.5rem; margin-bottom:0.5rem;">
+            <small style="color:#f87171;">{{ post.error_message }}</small>
+        </div>
+        {% endif %}
+        {% endfor %}
+    {% else %}
+        <p style="color:#888;">Nenhuma postagem{% if status_filter != 'all' %} com esse filtro{% endif %}.</p>
+    {% endif %}
+</div>
+
+<script>
+/* ── File Preview + Instagram Mockup ── */
+const photosInput = document.getElementById('photos');
+if (photosInput) {
+    photosInput.addEventListener('change', function(e) {
+        const container = document.getElementById('preview-container');
+        const label = document.getElementById('upload-label');
+        const igPreview = document.getElementById('ig-preview');
+        container.innerHTML = '';
+
+        if (e.target.files.length > 0) {
+            const count = e.target.files.length;
+            const type = count > 1 ? 'Carrossel' : (e.target.files[0].name.match(/\.(mp4|mov)$/i) ? 'Reels' : 'Post');
+            label.innerHTML = '<strong>' + count + ' arquivo(s) — ' + type + '</strong>';
+
+            Array.from(e.target.files).forEach((file, idx) => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        const div = document.createElement('div');
+                        div.className = 'preview-item';
+                        div.innerHTML = '<img src="' + ev.target.result + '"><span>' + file.name + '</span>';
+                        container.appendChild(div);
+
+                        // Mostrar preview do Instagram com a primeira imagem
+                        if (idx === 0) {
+                            igPreview.style.display = 'block';
+                            document.getElementById('ig-preview-image').innerHTML =
+                                '<img src="' + ev.target.result + '" style="width:100%; height:100%; object-fit:cover;">';
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        } else {
+            igPreview.style.display = 'none';
+        }
+    });
+}
+
+/* ── Drag & Drop ── */
+const area = document.querySelector('.upload-area');
+if (area) {
+    area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
+    area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
+    area.addEventListener('drop', (e) => {
+        e.preventDefault(); area.style.borderColor = '#3a3a5a';
+        document.getElementById('photos').files = e.dataTransfer.files;
+        document.getElementById('photos').dispatchEvent(new Event('change'));
+    });
+}
+
+/* ── Caption input atualiza preview ── */
+const captionInput = document.getElementById('caption-input');
+if (captionInput) {
+    captionInput.addEventListener('input', function() {
+        const previewText = document.getElementById('ig-preview-text');
+        if (previewText) {
+            previewText.textContent = this.value || 'Sua legenda aparecerá aqui...';
+        }
+    });
+}
+
+/* ── Account select atualiza preview username ── */
+const accountSelect = document.getElementById('account-select');
+if (accountSelect) {
+    accountSelect.addEventListener('change', function() {
+        const username = this.options[this.selectedIndex].dataset.username;
+        const el1 = document.getElementById('ig-preview-username');
+        const el2 = document.getElementById('ig-preview-user2');
+        if (el1) el1.textContent = username;
+        if (el2) el2.textContent = username;
+    });
+}
+
+/* ── Gerar 3 Opções de Legenda com IA ── */
+function generateAICaption() {
+    const files = document.getElementById('photos');
+    const filename = (files && files.files.length > 0) ? files.files[0].name : 'produto.jpg';
+    const btn = document.getElementById('ai-gen-btn');
+    btn.textContent = 'Gerando 3 opções...';
+    btn.disabled = true;
+
+    fetch('/api/ai-caption', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filename: filename, multiple: true})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.textContent = 'Gerar 3 opções com IA';
+        btn.disabled = false;
+
+        if (data.captions && data.captions.length > 1) {
+            const container = document.getElementById('ai-options');
+            const list = document.getElementById('ai-options-list');
+            container.style.display = 'block';
+            list.innerHTML = '';
+
+            data.captions.forEach((caption, i) => {
+                const opt = document.createElement('div');
+                opt.style.cssText = 'background:#0f0f1a; border:1px solid #3a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.5rem; cursor:pointer; transition:border-color 0.2s;';
+                opt.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:flex-start;"><div style="flex:1;"><small style="color:#7c5cff; font-weight:600;">Opção ' + (i+1) + '</small><p style="color:#ccc; font-size:0.85rem; margin-top:0.3rem; white-space:pre-wrap;">' + caption.substring(0, 200) + (caption.length > 200 ? '...' : '') + '</p></div><button type="button" class="btn btn-outline btn-sm" style="flex-shrink:0; margin-left:0.5rem;" onclick="selectCaption(this)">Usar</button></div>';
+                opt.dataset.caption = caption;
+                opt.addEventListener('click', function(e) {
+                    if (e.target.tagName !== 'BUTTON') selectCaption(opt.querySelector('button'));
+                });
+                list.appendChild(opt);
+            });
+        } else {
+            document.getElementById('caption-input').value = data.caption || data.captions[0];
+            document.getElementById('ai-options').style.display = 'none';
+        }
+    })
+    .catch(() => {
+        btn.textContent = 'Gerar 3 opções com IA';
+        btn.disabled = false;
+    });
+}
+
+function selectCaption(btn) {
+    const caption = btn.closest('[data-caption]').dataset.caption;
+    document.getElementById('caption-input').value = caption;
+    document.getElementById('ai-options').style.display = 'none';
+
+    // Atualizar preview
+    const previewText = document.getElementById('ig-preview-text');
+    if (previewText) previewText.textContent = caption.substring(0, 100);
+
+    // Highlight selecionado
+    document.querySelectorAll('#ai-options-list > div').forEach(d => d.style.borderColor = '#3a3a5a');
+    btn.closest('div[data-caption]').style.borderColor = '#7c5cff';
+}
+
+/* ── Template ── */
+function applyTemplate() {
+    const sel = document.getElementById('template-select');
+    if (sel.value) {
+        const parts = sel.value.split('|');
+        document.getElementById('caption-input').value = parts[0];
+        if (parts[1]) document.getElementById('hashtags-input').value = parts[1];
+    }
+    sel.value = '';
+}
+
+/* ── Métricas do post ── */
+function fetchMetrics(postId, btn) {
+    btn.textContent = '...';
+    btn.disabled = true;
+    fetch('/api/post-metrics/' + postId)
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            btn.textContent = '\u{1F4C8}';
+            btn.disabled = false;
+            alert(data.error);
+            return;
+        }
+        const row = btn.closest('.post-item');
+        let metricsDiv = row.nextElementSibling;
+        if (metricsDiv && metricsDiv.classList.contains('metrics-row')) {
+            metricsDiv.remove();
+        }
+        const div = document.createElement('div');
+        div.className = 'metrics-row';
+        div.style.cssText = 'background:#1a2a3a; padding:0.5rem 1rem; border-radius:0 0 8px 8px; margin-top:-0.5rem; margin-bottom:0.5rem; display:flex; gap:1.5rem;';
+        div.innerHTML = '<span style="color:#f87171; font-size:0.85rem;">\u2764 ' + (data.likes || 0) + '</span>' +
+            '<span style="color:#60a5fa; font-size:0.85rem;">\u{1F4AC} ' + (data.comments || 0) + '</span>' +
+            '<span style="color:#ccc; font-size:0.85rem;">\u{1F441} ' + (data.views || 0) + '</span>';
+        row.after(div);
+        btn.textContent = '\u{1F4C8}';
+        btn.disabled = false;
+    })
+    .catch(() => { btn.textContent = '\u{1F4C8}'; btn.disabled = false; });
+}
+
+/* ── Melhor horário ── */
+function suggestBestTime() {
+    const btn = document.getElementById('best-time-btn');
+    btn.textContent = 'Analisando...';
+    btn.disabled = true;
+    fetch('/api/best-time', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: '{}'
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('best-time-result').style.display = 'block';
+        document.getElementById('best-time-text').textContent = data.suggestion;
+        btn.textContent = 'Melhor horário para postar';
+        btn.disabled = false;
+    })
+    .catch(() => { btn.textContent = 'Melhor horário para postar'; btn.disabled = false; });
+}
+
+/* ── Auto-refresh ── */
+setInterval(() => {
+    fetch('/api/status').then(r => r.json()).then(data => {
+        if (data.pending_notifications > 0) {
+            document.title = '(' + data.pending_notifications + ') PostSocial';
+            location.reload();
+        }
+    }).catch(() => {});
+}, 30000);
+</script>
+{% endblock %}
