@@ -210,15 +210,20 @@ GOOGLE_API_KEY=
 ## Planos
 
 | Recurso | Free | Pro |
-|---------|------|-----|
-| Posts/mês | 30 | Ilimitado |
+|---------|:----:|:---:|
+| Posts no feed/mês | 30 | Ilimitado |
+| Stories | — | Sim |
 | Contas Instagram | 1 | Ilimitado |
-| Stories | Não | Sim |
-| Import CSV | Não | Sim |
-| White Label | Não | Sim |
-| Google Drive | Não | Sim |
-| Relatório semanal | Não | Sim |
+| Import CSV em massa | — | Sim |
+| Import Google Drive | — | Sim |
+| White Label | — | Sim |
+| Agendamento automático | Sim | Sim |
+| Legendas com IA | Sim | Sim |
+| Métricas de posts | Sim | Sim |
+| Notificações | Sim | Sim |
 | Preço | Grátis | R$ 49,90/mês (PIX) |
+
+> Upgrade via PIX com QR Code gerado automaticamente em `/pagamento`. O admin aprova o pagamento no painel `/admin`.
 
 ---
 

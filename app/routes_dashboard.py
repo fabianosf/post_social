@@ -355,6 +355,20 @@ def connect_instagram():
         flash("Preencha usuário e senha.", "error")
         return redirect(url_for("dashboard.index"))
 
+    # Plano Free: apenas 1 conta
+    existing_count = InstagramAccount.query.filter_by(client_id=current_user.id).count()
+    if existing_count >= current_user.max_accounts():
+        already = InstagramAccount.query.filter_by(
+            client_id=current_user.id, ig_username=ig_username
+        ).first()
+        if not already:
+            flash(
+                "Plano Free permite apenas 1 conta Instagram. "
+                "Faça upgrade para o Plano Pro para adicionar mais contas.",
+                "error",
+            )
+            return redirect(url_for("dashboard.index"))
+
     # Verificar se já existe essa conta
     existing = InstagramAccount.query.filter_by(
         client_id=current_user.id, ig_username=ig_username
@@ -411,6 +425,11 @@ def upload():
     hashtags = request.form.get("hashtags", "").strip()
     post_fb = request.form.get("share_facebook") == "on"
     post_story = request.form.get("post_story") == "on"
+
+    # Stories apenas para Pro
+    if post_story and not current_user.is_pro():
+        flash("Stories é um recurso exclusivo do Plano Pro. Faça upgrade para usar!", "error")
+        return redirect(url_for("dashboard.index"))
     account_id = request.form.get("account_id", type=int)
     scheduled_str = request.form.get("scheduled_at", "").strip()
     needs_approval = request.form.get("needs_approval") == "on"
@@ -859,6 +878,10 @@ def api_generate_caption():
 @login_required
 def csv_import():
     """Importa postagens em massa via CSV (colunas: filename, caption, hashtags, scheduled_at)."""
+    if not current_user.is_pro():
+        flash("Import CSV é um recurso exclusivo do Plano Pro. Faça upgrade para usar!", "error")
+        return redirect(url_for("dashboard.index"))
+
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id, status="active").all()
     if not accounts:
         flash("Conecte seu Instagram primeiro.", "error")
@@ -943,6 +966,10 @@ def csv_import():
 @login_required
 def update_whitelabel():
     """Salva configurações de white label."""
+    if not current_user.is_pro():
+        flash("White Label é um recurso exclusivo do Plano Pro. Faça upgrade para usar!", "error")
+        return redirect(url_for("dashboard.index"))
+
     brand_name = request.form.get("brand_name", "").strip()
     brand_color = request.form.get("brand_color", "").strip()
 
@@ -1032,6 +1059,10 @@ def api_best_time():
 @login_required
 def gdrive_import():
     """Importa fotos de uma pasta do Google Drive."""
+    if not current_user.is_pro():
+        flash("Import do Google Drive é um recurso exclusivo do Plano Pro. Faça upgrade para usar!", "error")
+        return redirect(url_for("dashboard.index"))
+
     from modules.gdrive_import import import_from_drive
 
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id, status="active").all()

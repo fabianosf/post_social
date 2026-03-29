@@ -73,6 +73,12 @@ class Client(UserMixin, db.Model):
             self.month_reset = now
         self.posts_this_month += 1
 
+    def is_pro(self) -> bool:
+        return self.plan == "pro"
+
+    def max_accounts(self) -> int:
+        return 999 if self.is_pro() else 1
+
 
 class InstagramAccount(db.Model):
     __tablename__ = "instagram_accounts"

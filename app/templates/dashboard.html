@@ -119,6 +119,12 @@
 
     <details style="margin-top:0.5rem;">
         <summary>{{ 'Adicionar outra conta' if accounts else 'Conectar Instagram' }}</summary>
+        {% if accounts and not current_user.is_pro() %}
+        <div style="margin-top:0.8rem; background:#1a1a2e; border:1px dashed #3a3a5a; border-radius:8px; padding:1rem; text-align:center;">
+            <p style="color:#888; font-size:0.85rem; margin:0 0 0.5rem;">O Plano Free permite apenas 1 conta Instagram. Adicione contas ilimitadas com o Pro.</p>
+            <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
+        </div>
+        {% else %}
         <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}" style="margin-top:0.8rem;">
             <label>Apelido (ex: "Loja Principal")</label>
             <input type="text" name="label" placeholder="Opcional">
@@ -131,6 +137,7 @@
             </div>
             <button type="submit" class="btn btn-meta btn-sm">Conectar</button>
         </form>
+        {% endif %}
     </details>
 </div>
 
@@ -288,7 +295,14 @@
             {% if accounts[0].share_to_facebook %}
             <label><input type="checkbox" name="share_facebook" checked> Facebook</label>
             {% endif %}
+            {% if current_user.is_pro() %}
             <label><input type="checkbox" name="post_story"> Stories</label>
+            {% else %}
+            <label style="opacity:0.5; cursor:not-allowed;" title="Recurso Pro">
+                <input type="checkbox" disabled> Stories
+                <a href="{{ url_for('payment.index') }}" style="color:#7c5cff; font-size:0.75rem; text-decoration:none;"> &#128274; Pro</a>
+            </label>
+            {% endif %}
             <label><input type="checkbox" name="needs_approval"> Revisar antes</label>
         </div>
 
@@ -316,9 +330,13 @@
     <h2>Ferramentas</h2>
     <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
         <button type="button" class="btn btn-outline btn-sm" onclick="suggestBestTime()" id="best-time-btn">Melhor horário para postar</button>
+        {% if current_user.is_pro() %}
         <form method="POST" action="{{ url_for('dashboard.gdrive_import') }}" style="margin:0;">
             <button type="submit" class="btn btn-outline btn-sm">Importar do Google Drive</button>
         </form>
+        {% else %}
+        <a href="{{ url_for('payment.index') }}" class="btn btn-outline btn-sm" style="opacity:0.6;">&#128274; Google Drive (Pro)</a>
+        {% endif %}
     </div>
     <div id="best-time-result" style="display:none; margin-top:0.8rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">
         <small style="color:#7c5cff; font-weight:600;">Sugestão de horário:</small>
@@ -330,7 +348,13 @@
 <!-- Import CSV em Massa -->
 {% if accounts %}
 <div class="card">
-    <h2>Import CSV em Massa</h2>
+    <h2>Import CSV em Massa {% if not current_user.is_pro() %}<a href="{{ url_for('payment.index') }}" style="color:#7c5cff; font-size:0.75rem; text-decoration:none; font-weight:normal;">&#128274; Apenas Pro</a>{% endif %}</h2>
+    {% if not current_user.is_pro() %}
+    <div style="background:#1a1a2e; border:1px dashed #3a3a5a; border-radius:8px; padding:1rem; text-align:center;">
+        <p style="color:#888; font-size:0.85rem; margin:0 0 0.5rem;">Importe dezenas de posts de uma vez via planilha CSV.</p>
+        <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
+    </div>
+    {% else %}
     <details>
         <summary>Importar postagens via planilha</summary>
         <div style="margin-top:0.8rem;">
@@ -366,6 +390,7 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
             </details>
         </div>
     </details>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -417,7 +442,8 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
 
 <!-- White Label -->
 <div class="card">
-    <h2>Personalizar Marca (White Label)</h2>
+    <h2>Personalizar Marca (White Label) {% if not current_user.is_pro() %}<a href="{{ url_for('payment.index') }}" style="color:#7c5cff; font-size:0.75rem; text-decoration:none; font-weight:normal;">&#128274; Apenas Pro</a>{% endif %}</h2>
+    {% if current_user.is_pro() %}
     <form method="POST" action="{{ url_for('dashboard.update_whitelabel') }}">
         <label>Nome da sua marca</label>
         <input type="text" name="brand_name" value="{{ brand.name }}" placeholder="PostSocial">
@@ -428,6 +454,12 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
         </div>
         <button type="submit" class="btn btn-sm">Salvar</button>
     </form>
+    {% else %}
+    <div style="background:#1a1a2e; border:1px dashed #3a3a5a; border-radius:8px; padding:1rem; text-align:center;">
+        <p style="color:#888; font-size:0.85rem; margin:0 0 0.5rem;">Personalize o nome e a cor do painel para a sua marca.</p>
+        <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Calendário -->
