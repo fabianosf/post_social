@@ -29,7 +29,7 @@
     </div>
     {% for n in notifications %}
     <div class="notification-item {{ 'notif-success' if n.status == 'posted' else 'notif-error' }}">
-        <span class="notif-icon">{{ '&#10004;' if n.status == 'posted' else '&#10008;' }}</span>
+        <span class="notif-icon">{{ '✔' if n.status == 'posted' else '✘' }}</span>
         <div>
             {% if n.status == 'posted' %}
                 <strong>{{ n.image_filename }}</strong> postada no Instagram!
@@ -75,7 +75,7 @@
         <span class="stat-label">Erros</span>
     </div>
     <div class="stat-card">
-        <span class="stat-number">{{ plan_info.used }}/{{ plan_info.limit if plan_info.limit < 99999 else '&infin;' }}</span>
+        <span class="stat-number">{{ plan_info.used }}/{{ plan_info.limit if plan_info.limit < 99999 else '∞' }}</span>
         <span class="stat-label">Mês ({{ plan_info.plan }})</span>
     </div>
 </div>
@@ -125,18 +125,68 @@
             <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
         </div>
         {% else %}
-        <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}" style="margin-top:0.8rem;">
-            <label>Apelido (ex: "Loja Principal")</label>
-            <input type="text" name="label" placeholder="Opcional">
-            <label>Usuário Instagram</label>
-            <input type="text" name="ig_username" required placeholder="seu_usuario">
-            <label>Senha</label>
-            <input type="password" name="ig_password" required>
-            <div class="checkbox-row">
-                <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+        <!-- Abas: Session ID (recomendado) ou Usuário/Senha -->
+        <div style="display:flex; gap:0; margin-top:0.8rem; margin-bottom:0.8rem;">
+            <button onclick="showTab('tab-session')" id="btn-tab-session"
+                style="flex:1; padding:0.5rem; border:1px solid #7c5cff; border-radius:8px 0 0 8px;
+                       background:#7c5cff; color:#fff; cursor:pointer; font-size:0.85rem; font-weight:600;">
+                🍪 Session ID (Recomendado)
+            </button>
+            <button onclick="showTab('tab-password')" id="btn-tab-password"
+                style="flex:1; padding:0.5rem; border:1px solid #3a3a5a; border-radius:0 8px 8px 0;
+                       background:#1a1a2e; color:#888; cursor:pointer; font-size:0.85rem;">
+                🔑 Usuário + Senha
+            </button>
+        </div>
+
+        <!-- Tab Session ID -->
+        <div id="tab-session">
+            <div style="background:#0f1a2e; border:1px solid #2a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem; font-size:0.82rem; color:#aaa; line-height:1.7;">
+                <strong style="color:#7c5cff;">Como pegar o Session ID:</strong><br>
+                1. Abra <strong style="color:#eee;">instagram.com</strong> no navegador e faça login<br>
+                2. Pressione <strong style="color:#eee;">F12</strong> → aba <strong style="color:#eee;">Application</strong> (Chrome) ou <strong style="color:#eee;">Storage</strong> (Firefox)<br>
+                3. Clique em <strong style="color:#eee;">Cookies → https://www.instagram.com</strong><br>
+                4. Copie o valor de <strong style="color:#4ade80;">sessionid</strong>
             </div>
-            <button type="submit" class="btn btn-meta btn-sm">Conectar</button>
-        </form>
+            <form method="POST" action="{{ url_for('dashboard.connect_instagram_session') }}">
+                <label>Session ID</label>
+                <input type="text" name="session_id" required placeholder="Cole aqui o valor do sessionid..."
+                       style="font-size:0.8rem; font-family:monospace;">
+                <div class="checkbox-row">
+                    <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+                </div>
+                <button type="submit" class="btn btn-sm" style="width:100%;">Conectar via Session ID</button>
+            </form>
+        </div>
+
+        <!-- Tab Usuário + Senha -->
+        <div id="tab-password" style="display:none;">
+            <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}">
+                <label>Apelido (ex: "Loja Principal")</label>
+                <input type="text" name="label" placeholder="Opcional">
+                <label>Usuário Instagram</label>
+                <input type="text" name="ig_username" required placeholder="seu_usuario">
+                <label>Senha</label>
+                <input type="password" name="ig_password" required>
+                <div class="checkbox-row">
+                    <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+                </div>
+                <button type="submit" class="btn btn-meta btn-sm">Conectar</button>
+            </form>
+        </div>
+
+        <script>
+        function showTab(tab) {
+            document.getElementById('tab-session').style.display = tab === 'tab-session' ? 'block' : 'none';
+            document.getElementById('tab-password').style.display = tab === 'tab-password' ? 'block' : 'none';
+            document.getElementById('btn-tab-session').style.background = tab === 'tab-session' ? '#7c5cff' : '#1a1a2e';
+            document.getElementById('btn-tab-session').style.color = tab === 'tab-session' ? '#fff' : '#888';
+            document.getElementById('btn-tab-session').style.borderColor = tab === 'tab-session' ? '#7c5cff' : '#3a3a5a';
+            document.getElementById('btn-tab-password').style.background = tab === 'tab-password' ? '#7c5cff' : '#1a1a2e';
+            document.getElementById('btn-tab-password').style.color = tab === 'tab-password' ? '#fff' : '#888';
+            document.getElementById('btn-tab-password').style.borderColor = tab === 'tab-password' ? '#7c5cff' : '#3a3a5a';
+        }
+        </script>
         {% endif %}
     </details>
 </div>
@@ -144,77 +194,209 @@
 <!-- Limite Diário Anti-Bloqueio -->
 {% if accounts and daily_usage %}
 <div class="card" style="border-color:#7c5cff;">
-    <h2 style="display:flex; align-items:center; gap:0.5rem;">
-        &#128737; Limite Diário — Proteção Anti-Bloqueio
-    </h2>
-    <p style="color:#888; font-size:0.8rem; margin-bottom:1rem;">
-        Para proteger suas contas, o PostSocial distribui automaticamente suas postagens ao longo do dia com intervalos seguros.
-    </p>
+    <h2>&#128737; Uso Diário por Plataforma</h2>
+
+    <!-- Aviso de risco -->
+    <div style="background:#2a1a0a; border:1px solid #f59e0b; border-radius:8px; padding:0.8rem; margin-bottom:1rem; display:flex; gap:0.6rem; align-items:flex-start;">
+        <span style="font-size:1.1rem; flex-shrink:0;">&#9888;&#65039;</span>
+        <div style="font-size:0.78rem; color:#fbbf24; line-height:1.5;">
+            <strong>Risco de Shadowban e Suspensão:</strong> Instagram e Facebook detectam automações por volume de posts e podem
+            <strong>suspender a conta</strong> ou aplicar <strong>shadowban</strong> (conta fica invisível para novos seguidores),
+            reduzindo drasticamente o alcance. O limite de <strong>{{ safe_limits.max_posts_per_day }} posts/dia por plataforma</strong>
+            existe para manter sua conta segura e ativa.
+        </div>
+    </div>
+
     {% for acc in accounts %}
     {% set usage = daily_usage.get(acc.id, {}) %}
     {% if usage %}
-    <div style="background:#0f0f1a; border-radius:10px; padding:1rem; margin-bottom:0.8rem; {% if usage.blocked %}border:1px solid #f87171;{% else %}border:1px solid #2a2a4a;{% endif %}">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
-            <strong style="color:#ccc; font-size:0.9rem;">@{{ usage.username }}</strong>
-            {% if usage.blocked %}
-            <span class="badge badge-failed" style="font-size:0.7rem;">LIMITE ATINGIDO</span>
+    <div style="background:#0f0f1a; border-radius:10px; padding:1rem; margin-bottom:0.8rem;
+        border:1px solid {% if usage.ig_blocked %}#f87171{% else %}#2a2a4a{% endif %};">
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+            <strong style="color:#ccc;">@{{ usage.username }}</strong>
+            {% if usage.ig_blocked %}
+            <span class="badge badge-failed" style="font-size:0.65rem;">BLOQUEADO HOJE</span>
             {% else %}
-            <span class="badge badge-posted" style="font-size:0.7rem;">DISPONÍVEL</span>
+            <span class="badge badge-posted" style="font-size:0.65rem;">DISPONÍVEL</span>
             {% endif %}
         </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.8rem;">
-            <!-- Feed posts -->
-            <div>
-                <small style="color:#888;">Posts no Feed</small>
-                <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
-                    <div style="flex:1; height:8px; background:#2a2a4a; border-radius:4px; overflow:hidden;">
-                        <div style="height:100%; border-radius:4px; width:{{ ((usage.feed_used / usage.feed_max) * 100)|int }}%;
-                            background:{% if usage.feed_remaining == 0 %}#f87171{% elif usage.feed_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
-                    </div>
-                    <span style="color:#ccc; font-size:0.85rem; font-weight:600; white-space:nowrap;">{{ usage.feed_used }}/{{ usage.feed_max }}</span>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.8rem;">
+
+            <!-- Instagram -->
+            <div style="background:#0a0a1a; border-radius:8px; padding:0.6rem;">
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">
+                    <span style="font-size:0.8rem;">📸</span>
+                    <small style="color:#c084fc; font-weight:600;">Instagram</small>
                 </div>
-                <small style="color:{% if usage.feed_remaining == 0 %}#f87171{% elif usage.feed_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %}; font-size:0.75rem;">
-                    {% if usage.feed_remaining > 0 %}{{ usage.feed_remaining }} restante(s) hoje{% else %}Esgotado hoje{% endif %}
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
+                    <div style="flex:1; height:6px; background:#2a2a4a; border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; border-radius:3px; width:{{ ((usage.ig_used / usage.ig_max) * 100)|int }}%;
+                            background:{% if usage.ig_remaining == 0 %}#f87171{% elif usage.ig_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
+                    </div>
+                    <span style="color:#ccc; font-size:0.8rem; font-weight:700; white-space:nowrap;">{{ usage.ig_used }}/{{ usage.ig_max }}</span>
+                </div>
+                <small style="font-size:0.72rem; color:{% if usage.ig_remaining == 0 %}#f87171{% elif usage.ig_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};">
+                    {% if usage.ig_remaining > 0 %}{{ usage.ig_remaining }} post(s) restante(s){% else %}Esgotado hoje{% endif %}
                 </small>
             </div>
-            <!-- Stories -->
-            <div>
-                <small style="color:#888;">Stories</small>
-                <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
-                    <div style="flex:1; height:8px; background:#2a2a4a; border-radius:4px; overflow:hidden;">
-                        <div style="height:100%; border-radius:4px; width:{{ ((usage.stories_used / usage.stories_max) * 100)|int }}%;
-                            background:{% if usage.stories_remaining == 0 %}#f87171{% elif usage.stories_remaining <= 2 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
-                    </div>
-                    <span style="color:#ccc; font-size:0.85rem; font-weight:600; white-space:nowrap;">{{ usage.stories_used }}/{{ usage.stories_max }}</span>
+
+            <!-- Facebook -->
+            <div style="background:#0a0a1a; border-radius:8px; padding:0.6rem;">
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">
+                    <span style="font-size:0.8rem;">👥</span>
+                    <small style="color:#60a5fa; font-weight:600;">Facebook</small>
                 </div>
-                <small style="color:{% if usage.stories_remaining == 0 %}#f87171{% elif usage.stories_remaining <= 2 %}#fbbf24{% else %}#4ade80{% endif %}; font-size:0.75rem;">
-                    {% if usage.stories_remaining > 0 %}{{ usage.stories_remaining }} restante(s) hoje{% else %}Esgotado hoje{% endif %}
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
+                    <div style="flex:1; height:6px; background:#2a2a4a; border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; border-radius:3px; width:{{ ((usage.fb_used / usage.fb_max) * 100)|int }}%;
+                            background:{% if usage.fb_remaining == 0 %}#f87171{% elif usage.fb_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};"></div>
+                    </div>
+                    <span style="color:#ccc; font-size:0.8rem; font-weight:700; white-space:nowrap;">{{ usage.fb_used }}/{{ usage.fb_max }}</span>
+                </div>
+                <small style="font-size:0.72rem; color:{% if usage.fb_remaining == 0 %}#f87171{% elif usage.fb_remaining <= 1 %}#fbbf24{% else %}#4ade80{% endif %};">
+                    {% if usage.fb_remaining > 0 %}{{ usage.fb_remaining }} post(s) restante(s){% else %}Esgotado hoje{% endif %}
                 </small>
             </div>
+
             <!-- Próximo horário -->
-            <div>
-                <small style="color:#888;">Próximo horário</small>
-                <div style="margin-top:0.3rem;">
-                    <span style="color:#60a5fa; font-size:1.1rem; font-weight:700;">{{ usage.next_available }}</span>
+            <div style="background:#0a0a1a; border-radius:8px; padding:0.6rem;">
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">
+                    <span style="font-size:0.8rem;">🕐</span>
+                    <small style="color:#888; font-weight:600;">Próximo slot</small>
                 </div>
-                <small style="color:#888; font-size:0.75rem;">Intervalo mín: {{ safe_limits.min_interval_minutes }}min</small>
+                <div style="color:#60a5fa; font-size:1.1rem; font-weight:700;">{{ usage.next_available }}</div>
+                <small style="font-size:0.72rem; color:#888;">{{ usage.next_available_day }}</small>
             </div>
+
         </div>
     </div>
     {% endif %}
     {% endfor %}
-    <div style="background:#1a1a2e; border-radius:8px; padding:0.8rem; margin-top:0.3rem;">
-        <small style="color:#7c5cff; font-weight:600;">Regras de proteção:</small>
-        <div style="color:#888; font-size:0.78rem; margin-top:0.3rem; line-height:1.6;">
-            &#8226; Máximo <strong style="color:#ccc;">{{ safe_limits.max_posts_per_day }} posts/dia</strong> no feed por conta<br>
-            &#8226; Máximo <strong style="color:#ccc;">{{ safe_limits.max_stories_per_day }} stories/dia</strong> por conta<br>
-            &#8226; Intervalo mínimo de <strong style="color:#ccc;">~{{ safe_limits.min_interval_minutes }} minutos</strong> entre posts<br>
-            &#8226; Horários seguros: <strong style="color:#ccc;">{{ safe_limits.safe_hours_start }}h às {{ safe_limits.safe_hours_end }}h</strong><br>
-            &#8226; Variação aleatória de <strong style="color:#ccc;">±{{ safe_limits.random_delay_minutes }}min</strong> para parecer natural
+
+    <!-- Regras resumidas -->
+    <div style="background:#1a1a2e; border-radius:8px; padding:0.8rem; margin-top:0.2rem;">
+        <small style="color:#7c5cff; font-weight:600;">Estratégia recomendada:</small>
+        <div style="color:#888; font-size:0.78rem; margin-top:0.4rem; line-height:1.8;">
+            &#8226; <strong style="color:#ccc;">Máx. {{ safe_limits.max_posts_per_day }} posts/dia</strong> por plataforma (Instagram e Facebook separados)<br>
+            &#8226; Horários sugeridos: <strong style="color:#4ade80;">9h</strong> e <strong style="color:#4ade80;">17h</strong> — melhor engajamento do dia<br>
+            &#8226; Intervalo mínimo de <strong style="color:#ccc;">{{ safe_limits.min_interval_minutes // 60 }}h</strong> entre posts<br>
+            &#8226; Postagens de segunda a domingo, todos os dias
         </div>
     </div>
 </div>
 {% endif %}
+
+<!-- Grade Semanal -->
+{% if accounts %}
+<div class="card" id="week-grid-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+        <h2 style="margin:0;">📅 Agendamento Semanal</h2>
+        {% if accounts|length > 1 %}
+        <select id="week-account-select" onchange="loadWeekGrid()" style="width:auto; margin:0; font-size:0.8rem; padding:0.4rem 0.6rem;">
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}">@{{ acc.ig_username }}</option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <small style="color:#888;">@{{ accounts[0].ig_username }}</small>
+        <input type="hidden" id="week-account-select" value="{{ accounts[0].id }}">
+        {% endif %}
+    </div>
+
+    <!-- Legenda de cores -->
+    <div style="display:flex; gap:0.8rem; flex-wrap:wrap; margin-bottom:0.8rem; font-size:0.72rem; color:#888;">
+        <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:10px; height:10px; background:#1a3a1a; border:1px solid #2a5a2a; border-radius:3px; display:inline-block;"></span> Livre</span>
+        <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:10px; height:10px; background:#3a2e00; border:1px solid #5a4800; border-radius:3px; display:inline-block;"></span> 1 post</span>
+        <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:10px; height:10px; background:#3a1010; border:1px solid #6a1f1f; border-radius:3px; display:inline-block;"></span> Completo</span>
+    </div>
+
+    <!-- Grid 7 colunas -->
+    <div id="week-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:0.5rem; min-height:160px;">
+        <div style="grid-column:1/-1; text-align:center; color:#555; padding:2rem 0; font-size:0.85rem;">Carregando semana...</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal: Agendar no dia -->
+<div id="modal-week-day" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:2000; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#1a1a2e; border:1px solid #3a3a5a; border-radius:14px; padding:1.5rem; width:100%; max-width:480px; max-height:90vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h3 id="modal-week-title" style="margin:0; color:#ccc; font-size:1rem;">Agendar</h3>
+            <button onclick="closeWeekModal()" style="background:none; border:none; color:#888; font-size:1.3rem; cursor:pointer; line-height:1;">&#10005;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="week-form">
+            <input type="hidden" name="account_id" id="week-acc-id" value="{{ accounts[0].id if accounts else '' }}">
+            <input type="hidden" name="scheduled_at" id="week-sched-at">
+
+            <!-- Upload -->
+            <div id="week-upload-area" onclick="document.getElementById('week-photos').click()"
+                style="border:2px dashed #3a3a5a; border-radius:8px; padding:1.2rem; text-align:center; cursor:pointer; margin-bottom:0.8rem; transition:border-color 0.2s;">
+                <p id="week-upload-label" style="margin:0; color:#888; font-size:0.85rem;">📁 Clique para selecionar foto ou vídeo</p>
+                <input type="file" id="week-photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none;">
+            </div>
+            <div id="week-preview-wrap" style="display:none; margin-bottom:0.8rem; text-align:center;">
+                <img id="week-preview-img" style="max-height:160px; max-width:100%; border-radius:8px; object-fit:cover; border:1px solid #3a3a5a;">
+            </div>
+
+            <!-- Horário -->
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Horário <small style="color:#7c5cff;">(sugerido: 9h ou 17h)</small></label>
+            <input type="time" id="week-time" value="09:00" oninput="updateSchedAt()" style="margin-bottom:0.8rem;">
+
+            <!-- Legenda -->
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Legenda</label>
+            <textarea name="caption" id="week-caption" placeholder="Escreva a legenda..." rows="3" style="margin-bottom:0.8rem;"></textarea>
+
+            <!-- Hashtags -->
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Hashtags</label>
+            <input type="text" name="hashtags" placeholder="#seunegocio #marca" style="margin-bottom:0.8rem;">
+
+            <!-- Plataformas -->
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.4rem;">Plataformas</label>
+            <div class="checkbox-row" style="margin-bottom:1rem;">
+                <label style="font-size:0.85rem;"><span style="font-size:0.9rem;">📸</span> Instagram (sempre)</label>
+                <label style="font-size:0.85rem;"><input type="checkbox" name="share_facebook" id="week-fb-check"> <span style="font-size:0.9rem;">👥</span> Facebook</label>
+            </div>
+
+            <!-- Aviso -->
+            <div style="background:#0f0f1a; border:1px solid #2a2a4a; border-radius:6px; padding:0.6rem; margin-bottom:1rem;">
+                <small style="color:#666; font-size:0.72rem;">
+                    &#128737; Posts agendados automaticamente com intervalo de <strong style="color:#888;">{{ safe_limits.min_interval_minutes // 60 }}h</strong> entre publicações.
+                    Máx. <strong style="color:#888;">{{ safe_limits.max_posts_per_day }}</strong> posts/dia por plataforma.
+                </small>
+            </div>
+
+            <div style="display:flex; gap:0.5rem;">
+                <button type="submit" class="btn btn-success" style="flex:1;">Agendar</button>
+                <button type="button" class="btn btn-outline" onclick="closeWeekModal()" style="flex:1;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Limite atingido -->
+<div id="modal-week-limit" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2100; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#1a0a0a; border:1px solid #f87171; border-radius:14px; padding:1.5rem; width:100%; max-width:420px;">
+        <h3 style="margin:0 0 0.8rem; color:#f87171; font-size:1.1rem;">&#9888;&#65039; Limite Diário Atingido</h3>
+        <p style="color:#ccc; font-size:0.9rem; margin-bottom:0.8rem;">
+            Você já tem <strong id="limit-msg-count">2 posts</strong> agendados para <strong id="limit-msg-day">este dia</strong>.
+        </p>
+        <div style="background:#2a0a0a; border:1px solid #7f1d1d; border-radius:8px; padding:0.9rem; margin-bottom:1.2rem;">
+            <p style="color:#fca5a5; font-size:0.82rem; margin:0; line-height:1.7;">
+                &#128683; O <strong>Instagram</strong> e o <strong>Facebook</strong> monitoram o volume de posts automáticos.
+                Ultrapassar o limite pode fazer sua conta ser <strong>suspensa</strong> temporariamente
+                ou receber <strong>shadowban</strong> — tornando seus posts invisíveis para novos seguidores
+                e reduzindo drasticamente o alcance orgânico.
+            </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn btn-success" style="flex:1;" onclick="scheduleLimitTomorrow()">&#128197; Agendar para amanhã</button>
+            <button class="btn btn-outline" style="flex:1;" onclick="closeLimitModal()">Fechar</button>
+        </div>
+    </div>
+</div>
 
 <!-- Nova Postagem -->
 <div class="card">
@@ -288,8 +470,52 @@
         <label>Hashtags</label>
         <input type="text" name="hashtags" id="hashtags-input" placeholder="#seunegocio #suacidade">
 
-        <label>Agendar a partir de (opcional — o sistema distribui automaticamente)</label>
-        <input type="datetime-local" name="scheduled_at" id="scheduled-input">
+        <label>Quando postar?</label>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+            <button type="button" onclick="setWhen('now')"    id="when-now"    class="btn btn-outline btn-sm when-btn" style="flex:1;">⚡ Agora</button>
+            <button type="button" onclick="setWhen('9')"      id="when-9"      class="btn btn-outline btn-sm when-btn" style="flex:1;">🕘 Hoje 9h</button>
+            <button type="button" onclick="setWhen('17')"     id="when-17"     class="btn btn-outline btn-sm when-btn" style="flex:1;">🕔 Hoje 17h</button>
+            <button type="button" onclick="setWhen('custom')" id="when-custom" class="btn btn-outline btn-sm when-btn" style="flex:1;">📅 Escolher</button>
+        </div>
+        <input type="datetime-local" name="scheduled_at" id="scheduled-input" style="display:none;">
+        <div id="when-label" style="font-size:0.8rem; color:#7c5cff; margin-bottom:0.3rem;"></div>
+        <script>
+        function setWhen(v) {
+            document.querySelectorAll('.when-btn').forEach(b => {
+                b.style.background = '';
+                b.style.color = '';
+                b.style.borderColor = '';
+            });
+            const active = document.getElementById('when-' + v);
+            if (active) {
+                active.style.background = '#7c5cff';
+                active.style.color = '#fff';
+                active.style.borderColor = '#7c5cff';
+            }
+            const inp = document.getElementById('scheduled-input');
+            const lbl = document.getElementById('when-label');
+            const now = new Date();
+            if (v === 'now') {
+                inp.style.display = 'none';
+                // scheduled_at vazio = postar agora
+                inp.value = '';
+                lbl.textContent = '⚡ Será publicado assim que o worker rodar (até 5 min)';
+            } else if (v === '9' || v === '17') {
+                inp.style.display = 'none';
+                const h = parseInt(v);
+                const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, 0, 0);
+                if (t <= now) t.setDate(t.getDate() + 1); // amanhã se já passou
+                const pad = n => String(n).padStart(2,'0');
+                inp.value = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${pad(h)}:00`;
+                lbl.textContent = `📅 Agendado para ${t.toLocaleDateString('pt-BR')} às ${pad(h)}:00`;
+            } else {
+                inp.style.display = 'block';
+                lbl.textContent = '';
+            }
+        }
+        // Selecionar "Agora" por padrão
+        setWhen('now');
+        </script>
 
         <div class="checkbox-row" style="flex-wrap:wrap;">
             {% if accounts[0].share_to_facebook %}
@@ -307,13 +533,12 @@
         </div>
 
         <div style="background:#0f0f1a; border:1px solid #3a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">
-            <small style="color:#7c5cff; font-weight:600;">&#128737; Agendamento automático ativo</small>
-            <p style="color:#888; font-size:0.8rem; margin-top:0.3rem;">
-                Seus posts serão distribuídos automaticamente em horários seguros para proteger sua conta:<br>
-                &#8226; Máx <strong>{{ safe_limits.max_posts_per_day }} posts/dia</strong> no feed<br>
-                &#8226; Intervalo de <strong>~{{ safe_limits.min_interval_minutes }}min</strong> entre posts<br>
-                &#8226; Apenas entre <strong>{{ safe_limits.safe_hours_start }}h e {{ safe_limits.safe_hours_end }}h</strong><br>
-                &#8226; Horários levemente aleatórios para parecer natural
+            <small style="color:#7c5cff; font-weight:600;">&#128737; Agendamento automático — Proteção ativa</small>
+            <p style="color:#888; font-size:0.8rem; margin-top:0.3rem; line-height:1.6;">
+                &#8226; Máx <strong style="color:#ccc;">{{ safe_limits.max_posts_per_day }} posts/dia</strong> por plataforma (Instagram e Facebook separados)<br>
+                &#8226; Horários sugeridos: <strong style="color:#4ade80;">9h</strong> e <strong style="color:#4ade80;">17h</strong><br>
+                &#8226; Intervalo mínimo de <strong style="color:#ccc;">{{ safe_limits.min_interval_minutes // 60 }}h</strong> entre posts<br>
+                &#8226; 3º post no mesmo dia será <strong style="color:#f87171;">bloqueado automaticamente</strong> para evitar shadowban
             </p>
         </div>
 
@@ -324,19 +549,12 @@
     {% endif %}
 </div>
 
-<!-- Ferramentas: Melhor Horário + Google Drive -->
+<!-- Ferramentas: Melhor Horário -->
 {% if accounts %}
 <div class="card">
     <h2>Ferramentas</h2>
     <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
         <button type="button" class="btn btn-outline btn-sm" onclick="suggestBestTime()" id="best-time-btn">Melhor horário para postar</button>
-        {% if current_user.is_pro() %}
-        <form method="POST" action="{{ url_for('dashboard.gdrive_import') }}" style="margin:0;">
-            <button type="submit" class="btn btn-outline btn-sm">Importar do Google Drive</button>
-        </form>
-        {% else %}
-        <a href="{{ url_for('payment.index') }}" class="btn btn-outline btn-sm" style="opacity:0.6;">&#128274; Google Drive (Pro)</a>
-        {% endif %}
     </div>
     <div id="best-time-result" style="display:none; margin-top:0.8rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">
         <small style="color:#7c5cff; font-weight:600;">Sugestão de horário:</small>
@@ -344,6 +562,46 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Google Drive -->
+<div class="card">
+    <h2>Google Drive
+        {% if not current_user.is_pro() %}<a href="{{ url_for('payment.index') }}" style="color:#7c5cff; font-size:0.75rem; text-decoration:none; font-weight:normal;">&#128274; Apenas Pro</a>{% endif %}
+    </h2>
+    {% if current_user.is_pro() %}
+    <p style="color:#888; font-size:0.85rem; margin:0 0 1rem;">
+        Configure sua pasta do Google Drive para importar fotos e vídeos automaticamente.
+        Compartilhe a pasta com o e-mail da Service Account configurado no servidor.
+    </p>
+    <form method="POST" action="{{ url_for('dashboard.save_gdrive_folder') }}" style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-bottom:1rem;">
+        <input type="text" name="gdrive_folder_url"
+               placeholder="Cole aqui o link da pasta do Google Drive"
+               value="{{ current_user.gdrive_folder_id or '' }}"
+               style="flex:1; min-width:260px; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.5rem 0.8rem; color:#eee; font-size:0.9rem;">
+        <button type="submit" class="btn btn-outline btn-sm">Salvar pasta</button>
+    </form>
+    {% if current_user.gdrive_folder_id %}
+    <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+        <span style="font-size:0.8rem; color:#4ade80;">&#10003; Pasta configurada</span>
+        <form method="POST" action="{{ url_for('dashboard.gdrive_import') }}" style="margin:0;">
+            <button type="submit" class="btn btn-sm" style="padding:0.4rem 1rem; font-size:0.85rem;">Sincronizar agora</button>
+        </form>
+        <button type="button" class="btn btn-outline btn-sm" onclick="previewDriveFiles()" style="font-size:0.85rem;">Ver arquivos</button>
+    </div>
+    <div id="drive-preview" style="display:none; margin-top:0.8rem; background:#0f0f1a; border-radius:8px; padding:0.8rem; max-height:200px; overflow-y:auto;">
+        <small style="color:#7c5cff; font-weight:600;">Arquivos na pasta:</small>
+        <ul id="drive-file-list" style="margin:0.4rem 0 0; padding-left:1.2rem; color:#ccc; font-size:0.82rem;"></ul>
+    </div>
+    {% else %}
+    <p style="color:#888; font-size:0.82rem; margin:0;">Nenhuma pasta configurada ainda. Cole o link acima e clique em Salvar.</p>
+    {% endif %}
+    {% else %}
+    <div style="background:#1a1a2e; border:1px dashed #3a3a5a; border-radius:8px; padding:1rem; text-align:center;">
+        <p style="color:#888; font-size:0.85rem; margin:0 0 0.5rem;">Importe fotos e vídeos diretamente da sua pasta do Google Drive.</p>
+        <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
+    </div>
+    {% endif %}
+</div>
 
 <!-- Import CSV em Massa -->
 {% if accounts %}
@@ -557,8 +815,16 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
                 <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
                     <button class="btn btn-outline btn-sm" type="submit" title="Postar novamente" style="font-size:0.7rem;">&#128260;</button>
                 </form>
-                <form method="POST" action="{{ url_for('dashboard.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover?')" style="margin:0;">
-                    <button class="btn btn-outline btn-sm btn-delete" type="submit">&#10005;</button>
+                {% if post.status in ('pending', 'draft', 'failed') %}
+                <button type="button" title="Editar horário/legenda"
+                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }})"
+                        class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.25rem 0.5rem;">✏</button>
+                {% endif %}
+                <form method="POST" action="{{ url_for('dashboard.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover este post da fila?')" style="margin:0;">
+                    <button class="btn btn-sm" type="submit" title="Remover post"
+                            style="background:#7f1d1d; border-color:#ef4444; color:#fca5a5; padding:0.25rem 0.6rem; font-size:0.8rem;">
+                        🗑 Remover
+                    </button>
                 </form>
             </div>
         </div>
@@ -769,6 +1035,23 @@ function suggestBestTime() {
     .catch(() => { btn.textContent = 'Melhor horário para postar'; btn.disabled = false; });
 }
 
+/* ── Google Drive preview ── */
+function previewDriveFiles() {
+    const box = document.getElementById('drive-preview');
+    const list = document.getElementById('drive-file-list');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    list.innerHTML = '<li style="color:#888;">Carregando...</li>';
+    box.style.display = 'block';
+    fetch('/gdrive/list-files')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { list.innerHTML = '<li style="color:#f87171;">' + data.error + '</li>'; return; }
+            if (!data.files || !data.files.length) { list.innerHTML = '<li style="color:#888;">Nenhum arquivo encontrado.</li>'; return; }
+            list.innerHTML = data.files.map(f => '<li>' + f.name + ' <span style="color:#555;">(' + (f.mimeType || '') + ')</span></li>').join('');
+        })
+        .catch(() => { list.innerHTML = '<li style="color:#f87171;">Erro ao carregar arquivos.</li>'; });
+}
+
 /* ── Auto-refresh ── */
 setInterval(() => {
     fetch('/api/status').then(r => r.json()).then(data => {
@@ -778,5 +1061,266 @@ setInterval(() => {
         }
     }).catch(() => {});
 }, 30000);
+
+/* ════════════════════════════════════════════════
+   GRADE SEMANAL
+   ════════════════════════════════════════════════ */
+let _weekData = [];
+let _weekDate = '';
+let _weekDayName = '';
+
+function getWeekAccountId() {
+    const el = document.getElementById('week-account-select');
+    return el ? el.value : '';
+}
+
+function loadWeekGrid() {
+    const accId = getWeekAccountId();
+    const grid = document.getElementById('week-grid');
+    if (!grid) return;
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#555;padding:2rem 0;font-size:0.85rem;">Carregando...</div>';
+
+    fetch('/api/week-schedule' + (accId ? '?account_id=' + accId : ''))
+        .then(r => r.json())
+        .then(data => { _weekData = data; renderWeekGrid(data); })
+        .catch(() => { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#f87171;padding:1rem;">Erro ao carregar.</div>'; });
+}
+
+function renderWeekGrid(data) {
+    const grid = document.getElementById('week-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const MAX = {{ safe_limits.max_posts_per_day }};
+
+    data.forEach(day => {
+        const count = Math.max(day.ig_count, day.fb_count);
+        const full  = count >= MAX;
+        const half  = count === 1;
+        const past  = day.is_past;
+
+        /* Cores por estado */
+        let border = '#2a5a2a', bg = '#0a1a0a', countClr = '#4ade80';
+        if (past)       { border = '#2a2a2a'; bg = '#0d0d0d'; countClr = '#444'; }
+        else if (full)  { border = '#6a1f1f'; bg = '#1a0808'; countClr = '#f87171'; }
+        else if (half)  { border = '#5a4200'; bg = '#1a1200'; countClr = '#fbbf24'; }
+
+        /* Thumbnails */
+        let thumbs = '';
+        day.posts.slice(0, 2).forEach(p => {
+            if (p.thumb_url) {
+                const icon = p.is_video ? '🎬' : '';
+                thumbs += `<div style="position:relative;display:inline-block;">
+                    <img src="${p.thumb_url}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #333;"
+                         onerror="this.parentNode.innerHTML='<span style=\\'font-size:1.2rem\\'>${icon || '🖼️'}</span>'">
+                    ${p.time ? `<div style="position:absolute;bottom:-1px;left:0;right:0;background:rgba(0,0,0,0.7);font-size:0.52rem;color:#ccc;text-align:center;border-radius:0 0 4px 4px;">${p.time}</div>` : ''}
+                </div>`;
+            } else {
+                thumbs += `<div style="width:36px;height:36px;background:#1a1a2e;border-radius:5px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:#555;">${p.is_video ? '🎬' : '📷'}</div>`;
+            }
+        });
+
+        /* Plataformas usadas */
+        let platforms = '';
+        if (day.ig_count > 0) platforms += `<span style="font-size:0.6rem;color:#c084fc;">📸${day.ig_count}</span> `;
+        if (day.fb_count > 0) platforms += `<span style="font-size:0.6rem;color:#60a5fa;">👥${day.fb_count}</span>`;
+
+        /* Botão de ação */
+        let actionBtn = '';
+        if (!past && !full) {
+            actionBtn = `<button type="button"
+                onclick="event.stopPropagation();openWeekModal('${day.date}','${day.day_name}',${day.ig_count},${day.fb_count})"
+                style="margin-top:auto;width:100%;background:transparent;border:1px dashed ${border};
+                       color:${countClr};border-radius:6px;padding:0.25rem 0;font-size:0.75rem;cursor:pointer;font-weight:600;">
+                + Agendar
+            </button>`;
+        } else if (full && !past) {
+            actionBtn = `<div style="margin-top:auto;text-align:center;font-size:0.75rem;color:#f87171;">🔒 Completo</div>`;
+        }
+
+        const todayBadge = day.is_today
+            ? `<span style="background:#7c5cff;color:#fff;font-size:0.55rem;padding:0.1rem 0.35rem;border-radius:4px;margin-left:0.3rem;">HOJE</span>`
+            : '';
+
+        const card = document.createElement('div');
+        card.style.cssText = `background:${bg};border:1px solid ${border};border-radius:10px;padding:0.6rem 0.5rem;
+            display:flex;flex-direction:column;gap:0.35rem;min-height:160px;
+            cursor:${(!past && !full) ? 'pointer' : 'default'};transition:border-color 0.2s;`;
+
+        card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                    <div style="font-weight:700;color:${past ? '#555' : '#ddd'};font-size:0.82rem;line-height:1.2;">
+                        ${day.day_name}${todayBadge}
+                    </div>
+                    <div style="font-size:0.68rem;color:#555;">${day.day_short}</div>
+                </div>
+                <div style="text-align:right;line-height:1.4;">
+                    <div style="font-size:0.8rem;font-weight:700;color:${countClr};">${count}/${MAX}</div>
+                    ${platforms}
+                </div>
+            </div>
+            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;min-height:36px;">${thumbs || (past ? '' : `<span style="font-size:0.7rem;color:#444;">Nenhum post</span>`)}</div>
+            ${actionBtn}
+        `;
+
+        if (!past && !full) {
+            card.addEventListener('click', () => openWeekModal(day.date, day.day_name, day.ig_count, day.fb_count));
+        }
+
+        grid.appendChild(card);
+    });
+}
+
+function openWeekModal(date, dayName, igCount, fbCount) {
+    const MAX = {{ safe_limits.max_posts_per_day }};
+    if (igCount >= MAX) {
+        openLimitModal(date, dayName, igCount);
+        return;
+    }
+
+    _weekDate    = date;
+    _weekDayName = dayName;
+
+    document.getElementById('modal-week-title').textContent = '📅 Agendar — ' + dayName;
+    document.getElementById('week-acc-id').value = getWeekAccountId();
+
+    /* Sugerir horário: 1º post → 9h, 2º post → 17h */
+    const suggested = [
+        '{{ safe_limits.suggested_times[0] }}:00',
+        '{{ safe_limits.suggested_times[1] }}:00'
+    ];
+    const timeEl = document.getElementById('week-time');
+    timeEl.value = igCount === 0 ? suggested[0] : suggested[1];
+
+    updateSchedAt();
+
+    /* Resetar form */
+    document.getElementById('week-photos').value = '';
+    document.getElementById('week-upload-label').textContent = '📁 Clique para selecionar foto ou vídeo';
+    document.getElementById('week-preview-wrap').style.display = 'none';
+    document.getElementById('week-caption').value = '';
+
+    const modal = document.getElementById('modal-week-day');
+    modal.style.display = 'flex';
+}
+
+function closeWeekModal() {
+    document.getElementById('modal-week-day').style.display = 'none';
+}
+
+function openLimitModal(date, dayName, count) {
+    _weekDate    = date;
+    _weekDayName = dayName;
+    const MAX = {{ safe_limits.max_posts_per_day }};
+    document.getElementById('limit-msg-count').textContent = count + '/' + MAX + ' posts';
+    document.getElementById('limit-msg-day').textContent   = dayName;
+    document.getElementById('modal-week-limit').style.display = 'flex';
+}
+
+function closeLimitModal() {
+    document.getElementById('modal-week-limit').style.display = 'none';
+}
+
+function scheduleLimitTomorrow() {
+    closeLimitModal();
+    const d = new Date(_weekDate);
+    d.setDate(d.getDate() + 1);
+    const nextDate = d.toISOString().split('T')[0];
+    const nextDay  = _weekData.find(x => x.date === nextDate);
+    if (nextDay) {
+        openWeekModal(nextDay.date, nextDay.day_name, nextDay.ig_count, nextDay.fb_count);
+    } else {
+        /* Próxima semana */
+        const names = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+        openWeekModal(nextDate, names[d.getDay() === 0 ? 6 : d.getDay() - 1], 0, 0);
+    }
+}
+
+function updateSchedAt() {
+    const time = document.getElementById('week-time').value || '09:00';
+    document.getElementById('week-sched-at').value = _weekDate + 'T' + time;
+}
+
+/* Preview de arquivo no modal */
+document.getElementById('week-photos')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('week-upload-label').textContent = '✅ ' + file.name;
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            document.getElementById('week-preview-img').src = ev.target.result;
+            document.getElementById('week-preview-wrap').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+/* Fechar modais clicando no backdrop */
+['modal-week-day','modal-week-limit'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            if (id === 'modal-week-day') closeWeekModal();
+            else closeLimitModal();
+        }
+    });
+});
+
+/* Carregar grade ao iniciar */
+document.addEventListener('DOMContentLoaded', loadWeekGrid);
+</script>
+
+<!-- Modal Editar Post -->
+<div id="modal-edit-post" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:3000; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#12121e; border:1px solid #2a2a4a; border-radius:14px; padding:1.5rem; width:100%; max-width:420px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h3 style="margin:0; color:#eee;">✏ Editar Post</h3>
+            <button onclick="document.getElementById('modal-edit-post').style.display='none'" style="background:none;border:none;color:#888;font-size:1.3rem;cursor:pointer;">✕</button>
+        </div>
+        <form id="form-edit-post" method="POST">
+            <label style="color:#aaa; font-size:0.85rem;">Legenda</label>
+            <textarea id="edit-caption" name="caption" rows="3" style="width:100%; margin-bottom:0.6rem; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.6rem; color:#eee; font-size:0.9rem; resize:vertical;"></textarea>
+            <label style="color:#aaa; font-size:0.85rem;">Hashtags</label>
+            <input type="text" id="edit-hashtags" name="hashtags" style="width:100%; margin-bottom:0.8rem; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.5rem 0.7rem; color:#eee;">
+            <label style="color:#aaa; font-size:0.85rem;">Horário</label>
+            <div style="display:flex; gap:0.4rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                <button type="button" onclick="setEditWhen('now')" class="btn btn-outline btn-sm" style="flex:1; font-size:0.8rem;">⚡ Agora</button>
+                <button type="button" onclick="setEditWhen('9')"   class="btn btn-outline btn-sm" style="flex:1; font-size:0.8rem;">🕘 9h</button>
+                <button type="button" onclick="setEditWhen('17')"  class="btn btn-outline btn-sm" style="flex:1; font-size:0.8rem;">🕔 17h</button>
+                <button type="button" onclick="setEditWhen('custom')" class="btn btn-outline btn-sm" style="flex:1; font-size:0.8rem;">📅 Outro</button>
+            </div>
+            <input type="datetime-local" id="edit-scheduled" name="scheduled_at" style="width:100%; display:none; margin-bottom:0.8rem; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.5rem 0.7rem; color:#eee;">
+            <button type="submit" class="btn" style="width:100%;">Salvar alterações</button>
+        </form>
+    </div>
+</div>
+<script>
+function openEditPost(postId, scheduledAt, caption, hashtags) {
+    document.getElementById('form-edit-post').action = '/post/' + postId + '/edit';
+    document.getElementById('edit-caption').value = caption || '';
+    document.getElementById('edit-hashtags').value = hashtags || '';
+    document.getElementById('edit-scheduled').value = scheduledAt || '';
+    document.getElementById('edit-scheduled').style.display = scheduledAt ? 'block' : 'none';
+    document.getElementById('modal-edit-post').style.display = 'flex';
+}
+function setEditWhen(v) {
+    const inp = document.getElementById('edit-scheduled');
+    const now = new Date();
+    if (v === 'now') {
+        inp.value = ''; inp.style.display = 'none';
+    } else if (v === '9' || v === '17') {
+        const h = parseInt(v);
+        const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, 0, 0);
+        if (t <= now) t.setDate(t.getDate() + 1);
+        const pad = n => String(n).padStart(2,'0');
+        inp.value = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${pad(h)}:00`;
+        inp.style.display = 'none';
+    } else {
+        inp.style.display = 'block';
+    }
+}
+document.getElementById('modal-edit-post').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+});
 </script>
 {% endblock %}

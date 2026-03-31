@@ -42,6 +42,9 @@ class Client(UserMixin, db.Model):
     brand_name = db.Column(db.String(100))
     brand_color = db.Column(db.String(7))
 
+    # Google Drive
+    gdrive_folder_id = db.Column(db.String(200))   # ID ou URL da pasta
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     instagram_accounts = db.relationship("InstagramAccount", backref="client", lazy=True)

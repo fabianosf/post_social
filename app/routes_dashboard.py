@@ -26,14 +26,15 @@ ALLOWED_IMG = {"jpg", "jpeg", "png", "webp"}
 ALLOWED_VID = {"mp4", "mov"}
 ALLOWED_ALL = ALLOWED_IMG | ALLOWED_VID
 
-# ── Limites anti-bloqueio (Instagram) ──────────
+# ── Limites anti-bloqueio (Instagram / Facebook) ──────────
 SAFE_LIMITS = {
-    "max_posts_per_day": 5,        # Máximo de posts no feed por dia
-    "max_stories_per_day": 8,      # Máximo de stories por dia
-    "min_interval_minutes": 90,    # Intervalo mínimo entre posts (minutos)
-    "random_delay_minutes": 30,    # Variação aleatória no horário (±minutos)
-    "safe_hours_start": 8,         # Horário seguro início (8h)
-    "safe_hours_end": 22,          # Horário seguro fim (22h)
+    "max_posts_per_day": 2,         # Máximo de posts no feed por dia por plataforma
+    "max_stories_per_day": 4,       # Máximo de stories por dia
+    "min_interval_minutes": 240,    # Intervalo mínimo entre posts (4 horas)
+    "random_delay_minutes": 20,     # Variação aleatória no horário (±minutos)
+    "safe_hours_start": 8,          # Horário seguro início (8h)
+    "safe_hours_end": 22,           # Horário seguro fim (22h)
+    "suggested_times": [9, 17],     # Horários sugeridos: 9h e 17h
 }
 
 
@@ -65,11 +66,21 @@ def _auto_schedule_posts(posts_to_schedule: list, account_id: int, client_id: in
         available_slots = SAFE_LIMITS["max_posts_per_day"]
 
     if start_time is None:
-        # Se já passou das 8h, começa em 30 minutos a partir de agora
-        if now.hour >= SAFE_LIMITS["safe_hours_start"]:
-            start_time = now + timedelta(minutes=30)
+        # Usar próximo horário sugerido (9h ou 17h)
+        suggested = SAFE_LIMITS.get("suggested_times", [9, 17])
+        next_suggested = None
+        for h in sorted(suggested):
+            candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
+            if candidate > now + timedelta(minutes=15):
+                next_suggested = candidate
+                break
+        if next_suggested:
+            start_time = next_suggested
+        elif now.hour >= SAFE_LIMITS["safe_hours_start"]:
+            # Passou de todos os sugeridos — próximo dia às 9h
+            start_time = (now + timedelta(days=1)).replace(hour=suggested[0], minute=0, second=0, microsecond=0)
         else:
-            start_time = now.replace(hour=SAFE_LIMITS["safe_hours_start"], minute=0)
+            start_time = now.replace(hour=suggested[0], minute=0, second=0, microsecond=0)
 
     # Buscar último post agendado desta conta para não sobrepor
     last_scheduled = PostQueue.query.filter(
@@ -228,7 +239,8 @@ def index():
     token_alerts = []
     for acc in accounts:
         if acc.last_login_at:
-            days_since = (datetime.now(timezone.utc) - acc.last_login_at).days
+            last_login = acc.last_login_at if acc.last_login_at.tzinfo else acc.last_login_at.replace(tzinfo=timezone.utc)
+            days_since = (datetime.now(timezone.utc) - last_login).days
             if days_since > 80:
                 token_alerts.append({
                     "username": acc.ig_username,
@@ -248,19 +260,20 @@ def index():
     today_end = today_start + timedelta(days=1)
 
     daily_usage = {}
-    for acc in accounts:
-        posted_today = PostQueue.query.filter(
-            PostQueue.account_id == acc.id,
-            PostQueue.status.in_(["posted", "processing"]),
-            PostQueue.posted_at >= today_start,
-        ).count()
+    MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
 
-        scheduled_today = PostQueue.query.filter(
+    for acc in accounts:
+        _feed_q = PostQueue.query.filter(
             PostQueue.account_id == acc.id,
-            PostQueue.status == "pending",
-            PostQueue.scheduled_at >= today_start,
-            PostQueue.scheduled_at < today_end,
-        ).count()
+            PostQueue.post_type != "story",
+            PostQueue.status.in_(["posted", "pending", "processing"]),
+            db.or_(
+                db.and_(PostQueue.posted_at >= today_start, PostQueue.posted_at < today_end),
+                db.and_(PostQueue.scheduled_at >= today_start, PostQueue.scheduled_at < today_end),
+            ),
+        )
+        ig_today = _feed_q.filter(PostQueue.post_to_instagram == True).count()
+        fb_today = _feed_q.filter(PostQueue.post_to_facebook == True).count()
 
         stories_today = PostQueue.query.filter(
             PostQueue.account_id == acc.id,
@@ -272,39 +285,43 @@ def index():
             ),
         ).count()
 
-        used_feed = posted_today + scheduled_today
-        remaining_feed = max(0, SAFE_LIMITS["max_posts_per_day"] - used_feed)
+        ig_remaining = max(0, MAX_DAY - ig_today)
+        fb_remaining = max(0, MAX_DAY - fb_today)
         remaining_stories = max(0, SAFE_LIMITS["max_stories_per_day"] - stories_today)
 
-        # Próximo horário disponível
-        last_post = PostQueue.query.filter(
-            PostQueue.account_id == acc.id,
-            PostQueue.status.in_(["posted", "pending", "processing"]),
-        ).order_by(
-            db.func.coalesce(PostQueue.scheduled_at, PostQueue.posted_at).desc()
-        ).first()
-
-        if last_post:
-            last_time = last_post.scheduled_at or last_post.posted_at
-            if last_time:
-                next_available = last_time + timedelta(minutes=SAFE_LIMITS["min_interval_minutes"])
-                if next_available < now:
-                    next_available = now + timedelta(minutes=5)
-            else:
-                next_available = now + timedelta(minutes=5)
-        else:
-            next_available = now + timedelta(minutes=5)
+        # Próximo horário sugerido disponível
+        suggested = SAFE_LIMITS.get("suggested_times", [9, 17])
+        next_available = None
+        for h in sorted(suggested):
+            candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
+            if candidate > now + timedelta(minutes=10):
+                next_available = candidate
+                break
+        if not next_available:
+            next_available = (now + timedelta(days=1)).replace(
+                hour=suggested[0], minute=0, second=0, microsecond=0
+            )
 
         daily_usage[acc.id] = {
             "username": acc.ig_username,
-            "feed_used": used_feed,
-            "feed_max": SAFE_LIMITS["max_posts_per_day"],
-            "feed_remaining": remaining_feed,
+            "ig_used": ig_today,
+            "ig_max": MAX_DAY,
+            "ig_remaining": ig_remaining,
+            "fb_used": fb_today,
+            "fb_max": MAX_DAY,
+            "fb_remaining": fb_remaining,
             "stories_used": stories_today,
             "stories_max": SAFE_LIMITS["max_stories_per_day"],
             "stories_remaining": remaining_stories,
             "next_available": next_available.strftime("%H:%M"),
-            "blocked": remaining_feed <= 0,
+            "next_available_day": "hoje" if next_available.date() == now.date() else "amanhã",
+            "ig_blocked": ig_remaining <= 0,
+            "fb_blocked": fb_remaining <= 0,
+            # legado para compatibilidade no template
+            "feed_used": ig_today,
+            "feed_max": MAX_DAY,
+            "feed_remaining": ig_remaining,
+            "blocked": ig_remaining <= 0,
         }
 
     return render_template(
@@ -395,6 +412,68 @@ def connect_instagram():
     return redirect(url_for("dashboard.index"))
 
 
+@dashboard_bp.route("/instagram/connect-session", methods=["POST"])
+@login_required
+def connect_instagram_session():
+    """Conecta conta do Instagram via Session ID (cookie). Funciona com qualquer conta."""
+    session_id = request.form.get("session_id", "").strip()
+    share_fb = request.form.get("share_facebook") == "on"
+
+    if not session_id:
+        flash("Cole o Session ID do Instagram.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    # Plano Free: apenas 1 conta
+    existing_count = InstagramAccount.query.filter_by(client_id=current_user.id).count()
+    if existing_count >= current_user.max_accounts():
+        flash("Plano Free permite apenas 1 conta. Faça upgrade para Pro.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    # Validar o session_id tentando buscar o perfil
+    from instagrapi import Client
+    from pathlib import Path
+    import json
+
+    cl = Client()
+    cl.delay_range = [2, 5]
+
+    try:
+        cl.login_by_sessionid(session_id)
+        ig_username = cl.account_info().username
+    except Exception as e:
+        flash(f"Session ID inválido ou expirado: {e}", "error")
+        return redirect(url_for("dashboard.index"))
+
+    # Salvar ou atualizar conta
+    existing = InstagramAccount.query.filter_by(
+        client_id=current_user.id, ig_username=ig_username
+    ).first()
+
+    if existing:
+        existing.share_to_facebook = share_fb
+        existing.status = "active"
+        existing.status_message = None
+        account = existing
+    else:
+        account = InstagramAccount(
+            client_id=current_user.id,
+            ig_username=ig_username,
+            share_to_facebook=share_fb,
+            label=ig_username,
+        )
+        account.set_ig_password(session_id)  # Guarda session_id no campo de senha
+        db.session.add(account)
+
+    db.session.commit()
+
+    # Salvar sessão para o worker usar
+    session_file = Path(current_app.root_path).parent / "sessions" / f"account_{account.id}.json"
+    cl.dump_settings(str(session_file))
+
+    flash(f"@{ig_username} conectado via Session ID!", "success")
+    return redirect(url_for("dashboard.index"))
+
+
 @dashboard_bp.route("/instagram/<int:account_id>/disconnect", methods=["POST"])
 @login_required
 def disconnect_instagram(account_id):
@@ -446,16 +525,14 @@ def upload():
         flash("Conta Instagram não encontrada.", "error")
         return redirect(url_for("dashboard.index"))
 
-    # ── Verificar limite diário anti-bloqueio ──
+    # ── Verificar limite diário por plataforma ──────────────────
+    # Regra: máx 2 posts/dia no Instagram E máx 2 posts/dia no Facebook
+    # Postar em ambos simultaneamente conta 1 para cada plataforma.
     now_utc = datetime.now(timezone.utc)
     today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
 
-    is_story = post_story and not any(
-        _is_video(f.filename) for f in files if f.filename
-    )
-
-    posted_feed_today = PostQueue.query.filter(
+    _feed_base = PostQueue.query.filter(
         PostQueue.account_id == target_account.id,
         PostQueue.post_type != "story",
         PostQueue.status.in_(["posted", "pending", "processing"]),
@@ -463,7 +540,10 @@ def upload():
             PostQueue.posted_at >= today_start,
             db.and_(PostQueue.scheduled_at >= today_start, PostQueue.scheduled_at < today_end),
         ),
-    ).count()
+    )
+
+    ig_today = _feed_base.filter(PostQueue.post_to_instagram == True).count()
+    fb_today = _feed_base.filter(PostQueue.post_to_facebook == True).count()
 
     stories_today = PostQueue.query.filter(
         PostQueue.account_id == target_account.id,
@@ -475,19 +555,31 @@ def upload():
         ),
     ).count()
 
-    feed_remaining = SAFE_LIMITS["max_posts_per_day"] - posted_feed_today
-    stories_remaining = SAFE_LIMITS["max_stories_per_day"] - stories_today
+    MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
+    _BLOCK_MSG = (
+        "⚠️ O Instagram e o Facebook detectam automações por volume de posts e podem "
+        "SUSPENDER ou aplicar SHADOWBAN na conta, reduzindo drasticamente o alcance. "
+        "O limite de {limit} posts/dia por plataforma existe para manter sua conta segura."
+    )
 
-    if feed_remaining <= 0 and not is_story:
-        flash(
-            f"Limite diário atingido para @{target_account.ig_username} "
-            f"({SAFE_LIMITS['max_posts_per_day']} posts/dia). "
-            f"Tente novamente amanhã para proteger sua conta.",
-            "error",
-        )
-        return redirect(url_for("dashboard.index"))
+    if not post_story:
+        if ig_today >= MAX_DAY:
+            flash(
+                f"Limite do Instagram atingido para @{target_account.ig_username}: "
+                f"{ig_today}/{MAX_DAY} posts hoje. " + _BLOCK_MSG.format(limit=MAX_DAY),
+                "error",
+            )
+            return redirect(url_for("dashboard.index"))
 
-    if post_story and stories_remaining <= 0:
+        if post_fb and fb_today >= MAX_DAY:
+            flash(
+                f"Limite do Facebook atingido para @{target_account.ig_username}: "
+                f"{fb_today}/{MAX_DAY} posts hoje. " + _BLOCK_MSG.format(limit=MAX_DAY),
+                "error",
+            )
+            return redirect(url_for("dashboard.index"))
+
+    if post_story and stories_today >= SAFE_LIMITS["max_stories_per_day"]:
         flash(
             f"Limite de stories atingido para @{target_account.ig_username} "
             f"({SAFE_LIMITS['max_stories_per_day']} stories/dia). "
@@ -621,8 +713,7 @@ def upload():
 
     db.session.commit()
 
-    # ── Auto-agendamento OBRIGATÓRIO (anti-bloqueio) ──
-    # Todos os posts são auto-agendados para proteger a conta do cliente
+    # ── Agendamento ──
     if not needs_approval:
         new_posts = (
             PostQueue.query.filter_by(client_id=current_user.id, status="pending")
@@ -632,27 +723,17 @@ def upload():
         )
         new_posts.reverse()
 
-        # Se o cliente definiu horário manual, usamos como base (respeitando intervalo mínimo)
-        start = None
         if scheduled_at:
-            start = scheduled_at
-
-        count = _auto_schedule_posts(new_posts, target_account.id, current_user.id, start_time=start)
-        db.session.commit()
-
-        if count > 0 and new_posts:
+            # Usuário escolheu horário específico — auto-agendar a partir desse horário
+            count = _auto_schedule_posts(new_posts, target_account.id, current_user.id, start_time=scheduled_at)
+            db.session.commit()
             times_str = ", ".join(
                 p.scheduled_at.strftime("%d/%m %H:%M") for p in new_posts if p.scheduled_at
             )
-            flash(
-                f"{count} postagem(ns) agendadas com proteção anti-bloqueio. "
-                f"Horários: {times_str} "
-                f"(máx {SAFE_LIMITS['max_posts_per_day']}/dia, "
-                f"intervalo ~{SAFE_LIMITS['min_interval_minutes']}min)",
-                "success",
-            )
+            flash(f"{count} postagem(ns) agendada(s) para {times_str}.", "success")
         else:
-            flash(f"{queued} postagem(ns) na fila!", "success")
+            # "Agora" — deixa scheduled_at=None, worker posta na próxima rodada (até 5 min)
+            flash(f"{queued} postagem(ns) na fila! Será publicada em até 5 minutos.", "success")
     else:
         flash(f"{queued} postagem(ns) salvas como rascunho. Aprove a legenda para publicar.", "info")
 
@@ -672,6 +753,36 @@ def delete_post(post_id):
         db.session.delete(post)
         db.session.commit()
         flash("Postagem removida.", "info")
+    return redirect(url_for("dashboard.index"))
+
+
+@dashboard_bp.route("/post/<int:post_id>/edit", methods=["POST"])
+@login_required
+def edit_post(post_id):
+    """Edita legenda, hashtags e horário de um post pendente/rascunho."""
+    post = PostQueue.query.filter_by(id=post_id, client_id=current_user.id).first()
+    if not post or post.status not in ("pending", "draft", "failed"):
+        flash("Post não encontrado ou não pode ser editado.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    post.caption = request.form.get("caption", "").strip() or None
+    post.hashtags = request.form.get("hashtags", "").strip() or None
+
+    scheduled_str = request.form.get("scheduled_at", "").strip()
+    if scheduled_str:
+        try:
+            post.scheduled_at = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
+        except ValueError:
+            pass
+    else:
+        post.scheduled_at = None  # Postar agora
+
+    if post.status == "failed":
+        post.status = "pending"
+        post.error_message = None
+
+    db.session.commit()
+    flash("Post atualizado!", "success")
     return redirect(url_for("dashboard.index"))
 
 
@@ -852,6 +963,97 @@ def api_status():
     ).filter(PostQueue.status.in_(["posted", "failed"])).count()
 
     return jsonify({"pending_notifications": notifications})
+
+
+@dashboard_bp.route("/api/week-schedule")
+@login_required
+def api_week_schedule():
+    """Retorna agendamentos da semana atual para a grade semanal."""
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+
+    account_id = request.args.get("account_id", type=int)
+    all_accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
+    if account_id:
+        target_accs = [a for a in all_accounts if a.id == account_id]
+    else:
+        target_accs = all_accounts[:1]
+
+    if not target_accs:
+        return jsonify([])
+
+    upload_folder = current_app.config["UPLOAD_FOLDER"]
+    day_names = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
+    week = []
+
+    for i in range(7):
+        day = monday + timedelta(days=i)
+        day_start = datetime(day.year, day.month, day.day, 0, 0, 0)
+        day_end = datetime(day.year, day.month, day.day, 23, 59, 59)
+
+        posts_out = []
+        ig_count = 0
+        fb_count = 0
+
+        for acc in target_accs:
+            posts = (
+                PostQueue.query.filter(
+                    PostQueue.account_id == acc.id,
+                    PostQueue.post_type != "story",
+                    PostQueue.status.in_(["pending", "posted", "processing"]),
+                    db.or_(
+                        db.and_(PostQueue.scheduled_at >= day_start, PostQueue.scheduled_at <= day_end),
+                        db.and_(PostQueue.posted_at >= day_start, PostQueue.posted_at <= day_end),
+                    ),
+                )
+                .order_by(PostQueue.scheduled_at)
+                .all()
+            )
+
+            for p in posts:
+                if p.post_to_instagram:
+                    ig_count += 1
+                if p.post_to_facebook:
+                    fb_count += 1
+
+                thumb_url = ""
+                first_path = p.image_path.split("|")[0]
+                if first_path.startswith(upload_folder):
+                    rel = first_path[len(upload_folder):].lstrip("/")
+                    thumb_url = url_for("dashboard.uploaded_file", filename=rel)
+
+                sched_time = ""
+                if p.scheduled_at:
+                    sched_time = p.scheduled_at.strftime("%H:%M")
+                elif p.posted_at:
+                    sched_time = p.posted_at.strftime("%H:%M")
+
+                posts_out.append({
+                    "id": p.id,
+                    "filename": p.image_filename[:25],
+                    "time": sched_time,
+                    "status": p.status,
+                    "ig": bool(p.post_to_instagram),
+                    "fb": bool(p.post_to_facebook),
+                    "thumb_url": thumb_url,
+                    "is_video": p.post_type == "reels",
+                })
+
+        week.append({
+            "date": day.isoformat(),
+            "weekday": i,
+            "day_name": day_names[i],
+            "day_short": day.strftime("%d/%m"),
+            "posts": posts_out,
+            "ig_count": ig_count,
+            "fb_count": fb_count,
+            "max": MAX_DAY,
+            "is_today": day == today,
+            "is_past": day < today,
+        })
+
+    return jsonify(week)
 
 
 @dashboard_bp.route("/api/ai-caption", methods=["POST"])
@@ -1058,29 +1260,104 @@ def api_best_time():
 @dashboard_bp.route("/gdrive-import", methods=["POST"])
 @login_required
 def gdrive_import():
-    """Importa fotos de uma pasta do Google Drive."""
+    """Importa fotos de uma pasta do Google Drive e agenda por dia da semana."""
     if not current_user.is_pro():
         flash("Import do Google Drive é um recurso exclusivo do Plano Pro. Faça upgrade para usar!", "error")
         return redirect(url_for("dashboard.index"))
 
-    from modules.gdrive_import import import_from_drive
+    from modules.gdrive_import import sync_drive
 
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id, status="active").all()
     if not accounts:
         flash("Conecte seu Instagram primeiro.", "error")
         return redirect(url_for("dashboard.index"))
 
-    imported = import_from_drive(current_user.id, current_app.config["UPLOAD_FOLDER"])
+    folder_id = current_user.gdrive_folder_id or ""
+    if not folder_id:
+        flash("Configure primeiro a URL da sua pasta do Google Drive nas configurações.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    # Baixa fotos novas + lê postagens.txt em uma única operação
+    imported, captions_by_day = sync_drive(current_user.id, current_app.config["UPLOAD_FOLDER"], folder_id)
 
     if not imported:
         flash("Nenhuma nova imagem encontrada no Google Drive.", "info")
         return redirect(url_for("dashboard.index"))
 
     account_id = accounts[0].id
-    for item in imported:
+
+    # Calcular a próxima segunda-feira (ou a semana atual)
+    now = datetime.now()
+    today_weekday = now.weekday()  # 0=segunda, 6=domingo
+    # Se já passou de segunda, usar a próxima semana
+    days_until_monday = (7 - today_weekday) % 7
+    if days_until_monday == 0:
+        week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        week_start = (now + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Horários sugeridos por slot (1º post = 9h, 2º post = 17h)
+    slot_hours = SAFE_LIMITS.get("suggested_times", [9, 17])
+
+    # Contar posts já agendados por dia nesta semana (para não ultrapassar o limite)
+    posts_per_day: dict[int, int] = {i: 0 for i in range(7)}  # {weekday: count}
+    existing = PostQueue.query.filter(
+        PostQueue.client_id == current_user.id,
+        PostQueue.status.in_(["pending", "draft", "processing"]),
+        PostQueue.scheduled_at >= week_start,
+        PostQueue.scheduled_at < week_start + timedelta(days=7),
+    ).all()
+    for ep in existing:
+        if ep.scheduled_at:
+            wd = ep.scheduled_at.weekday()
+            posts_per_day[wd] = posts_per_day.get(wd, 0) + 1
+
+    # Se não há dia identificado pelo nome do arquivo, distribuir em ordem (segunda → domingo)
+    files_without_day = [item for item in imported if item.get("weekday") is None]
+    files_with_day = [item for item in imported if item.get("weekday") is not None]
+
+    # Atribuir dias aos arquivos sem dia detectado (preenche dias disponíveis na ordem)
+    next_day = 0
+    for item in files_without_day:
+        while next_day < 7 and posts_per_day.get(next_day, 0) >= len(slot_hours):
+            next_day += 1
+        if next_day < 7:
+            item["weekday"] = next_day
+            next_day += 1
+
+    all_items = files_with_day + files_without_day
+    created_count = 0
+    skipped_count = 0
+
+    for item in all_items:
+        weekday = item.get("weekday")
+        if weekday is None:
+            skipped_count += 1
+            continue  # Sem dia disponível
+
+        day_count = posts_per_day.get(weekday, 0)
+        if day_count >= len(slot_hours):
+            skipped_count += 1
+            continue  # Dia cheio para esta semana
+
         if not current_user.can_post():
             flash("Limite mensal atingido.", "error")
             break
+
+        # Calcular horário agendado
+        # Usar horários do postagens.txt se disponível, senão usar padrão (9h/17h)
+        day_hours = captions_by_day.get(weekday, {}).get("hours") or slot_hours
+        slot_hour = day_hours[day_count % len(day_hours)]
+        jitter = random.randint(-SAFE_LIMITS.get("random_delay_minutes", 20),
+                                SAFE_LIMITS.get("random_delay_minutes", 20))
+        sched_time = (week_start + timedelta(days=weekday)).replace(
+            hour=slot_hour, minute=0, second=0, microsecond=0
+        ) + timedelta(minutes=jitter)
+
+        # Legenda do dia (do postagens.txt)
+        day_caption_data = captions_by_day.get(weekday, {})
+        caption = day_caption_data.get("caption", "")
+        hashtags = day_caption_data.get("hashtags", "")
 
         post = PostQueue(
             client_id=current_user.id,
@@ -1088,16 +1365,67 @@ def gdrive_import():
             post_type="photo",
             image_path=item["filepath"],
             image_filename=item["filename"],
-            status="draft",
-            needs_approval=True,
+            caption=caption,
+            hashtags=hashtags,
+            scheduled_at=sched_time,
+            status="pending",
+            needs_approval=False,
             post_to_instagram=True,
             post_to_facebook=True,
         )
         db.session.add(post)
+        current_user.increment_post_count()
+        posts_per_day[weekday] = day_count + 1
+        created_count += 1
 
     db.session.commit()
-    flash(f"{len(imported)} fotos importadas do Google Drive como rascunho!", "success")
+
+    day_names = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    caption_info = f" com legendas do postagens.txt" if captions_by_day else " (sem postagens.txt — sem legendas)"
+    msg = f"{created_count} post(s) agendados para a semana{caption_info}."
+    if skipped_count:
+        msg += f" {skipped_count} ignorado(s) (dia cheio ou sem dia disponível)."
+    flash(msg, "success")
     return redirect(url_for("dashboard.index"))
+
+
+@dashboard_bp.route("/gdrive/save-folder", methods=["POST"])
+@login_required
+def save_gdrive_folder():
+    """Salva o ID/URL da pasta do Google Drive do cliente."""
+    folder_url = request.form.get("gdrive_folder_url", "").strip()
+
+    from modules.gdrive_import import extract_folder_id
+    folder_id = extract_folder_id(folder_url)
+
+    if folder_url and not folder_id:
+        flash("URL ou ID da pasta inválido. Cole o link completo da pasta do Google Drive.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    current_user.gdrive_folder_id = folder_id or None
+    db.session.commit()
+
+    if folder_id:
+        flash("Pasta do Google Drive configurada com sucesso!", "success")
+    else:
+        flash("Configuração do Google Drive removida.", "info")
+    return redirect(url_for("dashboard.index"))
+
+
+@dashboard_bp.route("/gdrive/list-files")
+@login_required
+def gdrive_list_files():
+    """Retorna JSON com lista de arquivos na pasta do Drive configurada."""
+    if not current_user.is_pro():
+        return jsonify({"error": "Recurso Pro"}), 403
+
+    folder_id = current_user.gdrive_folder_id or ""
+    if not folder_id:
+        return jsonify({"files": [], "error": "Pasta não configurada"})
+
+    from modules.gdrive_import import list_drive_files
+    files = list_drive_files(folder_id)
+    return jsonify({"files": files})
 
 
 # ── Mini Dashboard de Estatísticas ──────────────

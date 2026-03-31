@@ -2,14 +2,67 @@
 {% block title %}Admin{% endblock %}
 {% block content %}
 
-<h2 style="margin-bottom:1.5rem; color:#7c5cff;">Painel Administrativo</h2>
+<style>
+.admin-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+.admin-title { font-size:1.4rem; font-weight:700; color:#7c5cff; margin:0; }
+.table-actions { display:flex; gap:0.3rem; flex-wrap:wrap; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:#1a1a2e; border:1px solid #3a3a5a; border-radius:12px; padding:1.5rem; width:100%; max-width:460px; max-height:90vh; overflow-y:auto; }
+.modal-box h3 { margin:0 0 1rem; color:#ccc; }
+.modal-close { float:right; background:none; border:none; color:#888; font-size:1.2rem; cursor:pointer; }
+.filter-bar { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
+.filter-bar input, .filter-bar select { width:auto; margin:0; flex:1; min-width:160px; }
+td, th { vertical-align:middle; }
+.plan-badge-free { background:#1a2a3a; color:#60a5fa; }
+.plan-badge-pro { background:#1a3a2a; color:#4ade80; }
+.plan-badge-pending_pro { background:#3a3a1a; color:#fbbf24; }
+</style>
+
+<div class="admin-header">
+    <h1 class="admin-title">Painel Administrativo</h1>
+    <button class="btn btn-sm" onclick="openModal('modal-create')">+ Novo Usuário</button>
+</div>
+
+<!-- Alertas de contas com problema -->
+{% set challenge_accounts = accounts | selectattr("status", "in", ["challenge_required", "login_error"]) | list %}
+{% if challenge_accounts %}
+<div style="background:#2a1a0e; border:1px solid #f97316; border-radius:10px; padding:1rem 1.2rem; margin-bottom:1.5rem;">
+    <strong style="color:#f97316;">⚠ Contas Instagram com problema de login:</strong>
+    <ul style="margin:0.5rem 0 0; padding-left:1.2rem;">
+    {% for acc in challenge_accounts %}
+        <li style="color:#ccc; margin-bottom:0.3rem;">
+            @{{ acc.ig_username }} — <em style="color:#f87171;">{{ acc.status }}</em>
+            <a href="{{ url_for('admin.ig_challenge_page', account_id=acc.id) }}"
+               style="margin-left:0.8rem; background:#f97316; color:#000; padding:0.2rem 0.6rem; border-radius:4px; font-size:0.8rem; font-weight:600; text-decoration:none;">
+               Resolver verificação
+            </a>
+        </li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
 
 <!-- Stats globais -->
 <div class="stats-grid">
     <div class="stat-card">
-        <span class="stat-number">{{ clients|length }}</span>
-        <span class="stat-label">Clientes</span>
+        <span class="stat-number">{{ total_clients }}</span>
+        <span class="stat-label">Usuários</span>
     </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#4ade80;">{{ pro_clients }}</span>
+        <span class="stat-label">Pro</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-number" style="color:#60a5fa;">{{ free_clients }}</span>
+        <span class="stat-label">Free</span>
+    </div>
+    {% if pending_pro_clients > 0 %}
+    <div class="stat-card" style="border-color:#fbbf24;">
+        <span class="stat-number" style="color:#fbbf24;">{{ pending_pro_clients }}</span>
+        <span class="stat-label">Aguard. PIX</span>
+    </div>
+    {% endif %}
     <div class="stat-card">
         <span class="stat-number">{{ total_posts }}</span>
         <span class="stat-label">Posts Total</span>
@@ -51,20 +104,21 @@
 <!-- Pagamentos PIX Pendentes -->
 {% set pending_payments = clients|selectattr('plan', 'equalto', 'pending_pro')|list %}
 {% if pending_payments %}
-<div class="card" style="border-color:#fbbf24; background:#2a2a1a;">
-    <h2 style="color:#fbbf24;">Pagamentos PIX Pendentes ({{ pending_payments|length }})</h2>
+<div class="card" style="border-color:#fbbf24; background:#1a1a0a;">
+    <h2 style="color:#fbbf24;">&#9888; Pagamentos PIX Pendentes ({{ pending_payments|length }})</h2>
     <table>
-        <tr><th>Cliente</th><th>Email</th><th>Ações</th></tr>
+        <tr><th>Cliente</th><th>Email</th><th>Cadastro</th><th>Ações</th></tr>
         {% for c in pending_payments %}
         <tr>
-            <td>{{ c.name }}</td>
+            <td><strong>{{ c.name }}</strong></td>
             <td style="color:#888;">{{ c.email }}</td>
-            <td style="white-space:nowrap;">
-                <form method="POST" action="{{ url_for('admin.approve_pro', client_id=c.id) }}" style="display:inline;">
-                    <button class="btn btn-success btn-sm">Aprovar Pro</button>
+            <td style="color:#666; font-size:0.8rem;">{{ c.created_at.strftime('%d/%m/%Y') if c.created_at }}</td>
+            <td class="table-actions">
+                <form method="POST" action="{{ url_for('admin.approve_pro', client_id=c.id) }}" style="margin:0;">
+                    <button class="btn btn-success btn-sm">&#10003; Aprovar Pro</button>
                 </form>
-                <form method="POST" action="{{ url_for('admin.reject_pro', client_id=c.id) }}" style="display:inline; margin-left:0.3rem;">
-                    <button class="btn btn-outline btn-sm btn-delete">Rejeitar</button>
+                <form method="POST" action="{{ url_for('admin.reject_pro', client_id=c.id) }}" style="margin:0;">
+                    <button class="btn btn-outline btn-sm btn-delete">&#10005; Rejeitar</button>
                 </form>
             </td>
         </tr>
@@ -73,70 +127,287 @@
 </div>
 {% endif %}
 
-<!-- Clientes -->
+<!-- Tabela de Usuários -->
 <div class="card">
-    <h2>Clientes ({{ clients|length }})</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+        <h2 style="margin:0;">Usuários ({{ clients|length }}{% if search or plan_filter != 'all' %} / {{ total_clients }} total{% endif %})</h2>
+    </div>
+
+    <!-- Busca e filtros -->
+    <form method="GET" action="{{ url_for('admin.index') }}" class="filter-bar">
+        <input type="text" name="q" value="{{ search }}" placeholder="Buscar por nome ou email..." style="max-width:280px;">
+        <select name="plan" onchange="this.form.submit()" style="max-width:160px;">
+            <option value="all" {{ 'selected' if plan_filter == 'all' }}>Todos os planos</option>
+            <option value="free" {{ 'selected' if plan_filter == 'free' }}>Free</option>
+            <option value="pro" {{ 'selected' if plan_filter == 'pro' }}>Pro</option>
+            <option value="pending_pro" {{ 'selected' if plan_filter == 'pending_pro' }}>Aguardando PIX</option>
+        </select>
+        <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
+        {% if search or plan_filter != 'all' %}
+        <a href="{{ url_for('admin.index') }}" class="btn btn-outline btn-sm">Limpar</a>
+        {% endif %}
+    </form>
+
+    {% if clients %}
+    <div style="overflow-x:auto;">
     <table>
         <tr>
+            <th>#</th>
             <th>Nome</th>
             <th>Email</th>
             <th>Plano</th>
-            <th>Posts</th>
+            <th>Posts/mês</th>
             <th>Contas IG</th>
-            <th>Ações</th>
+            <th>Cadastro</th>
+            <th>Último post</th>
+            <th style="text-align:right;">Ações</th>
         </tr>
         {% for c in clients %}
         <tr>
+            <td style="color:#555; font-size:0.75rem;">{{ c.id }}</td>
             <td>
-                {{ c.name }}
-                {% if c.is_admin %}<span class="badge" style="background:#7c5cff33; color:#7c5cff; font-size:0.6rem;">admin</span>{% endif %}
+                <strong style="color:#ccc;">{{ c.name }}</strong>
+                {% if c.is_admin %}<span class="badge" style="background:#7c5cff33; color:#7c5cff; font-size:0.55rem;">admin</span>{% endif %}
+                {% if c.id == current_user.id %}<span class="badge" style="background:#1a3a2a; color:#4ade80; font-size:0.55rem;">você</span>{% endif %}
             </td>
-            <td style="color:#888;">{{ c.email }}</td>
-            <td><span class="badge badge-{{ c.plan }}">{{ c.plan }}</span></td>
-            <td>{{ c.posts_this_month or 0 }}</td>
+            <td style="color:#888; font-size:0.85rem;">{{ c.email }}</td>
+            <td>
+                <span class="badge plan-badge-{{ c.plan }}">{{ c.plan }}</span>
+            </td>
+            <td style="text-align:center;">
+                <span style="color:#ccc;">{{ c.posts_this_month or 0 }}</span>
+                <span style="color:#555; font-size:0.75rem;">/{{ c.get_monthly_limit() if c.get_monthly_limit() < 99999 else '∞' }}</span>
+            </td>
             <td>
                 {% for acc in accounts if acc.client_id == c.id %}
-                    <span style="font-size:0.8rem;">@{{ acc.ig_username }}</span>
-                    <span class="badge badge-{{ 'posted' if acc.status == 'active' else 'failed' }}" style="font-size:0.55rem;">{{ acc.status }}</span>
+                <div style="font-size:0.78rem; color:#ccc; white-space:nowrap;">
+                    @{{ acc.ig_username }}
+                    <span class="badge badge-{{ 'posted' if acc.status == 'active' else 'failed' }}" style="font-size:0.5rem;">{{ acc.status }}</span>
+                </div>
+                {% else %}
+                <span style="color:#555; font-size:0.75rem;">—</span>
                 {% endfor %}
             </td>
-            <td style="white-space:nowrap;">
-                <form method="POST" action="{{ url_for('admin.toggle_plan', client_id=c.id) }}" style="display:inline;">
-                    <button class="btn btn-outline btn-sm">{{ 'Downgrade' if c.plan == 'pro' else 'Upgrade' }}</button>
-                </form>
+            <td style="color:#666; font-size:0.78rem; white-space:nowrap;">
+                {{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '—' }}
+            </td>
+            <td style="color:#666; font-size:0.78rem; white-space:nowrap;">
+                {% set lp = last_post_by_client.get(c.id) %}
+                {% if lp %}
+                    {{ lp.created_at.strftime('%d/%m %H:%M') if lp.created_at else '—' }}
+                {% else %}
+                    <span style="color:#444;">Nenhum</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="table-actions" style="justify-content:flex-end;">
+                    <!-- Plano rápido -->
+                    <button class="btn btn-outline btn-sm" title="Alterar plano"
+                        onclick="openEditPlan({{ c.id }}, '{{ c.name }}', '{{ c.plan }}')">
+                        Plano
+                    </button>
+                    <!-- Editar -->
+                    <button class="btn btn-outline btn-sm" title="Editar dados"
+                        onclick="openEditUser({{ c.id }}, '{{ c.name|e }}', '{{ c.email|e }}')">
+                        &#9998;
+                    </button>
+                    <!-- Resetar senha -->
+                    <button class="btn btn-outline btn-sm" title="Resetar senha"
+                        onclick="openResetPassword({{ c.id }}, '{{ c.name|e }}')">
+                        &#128272;
+                    </button>
+                    <!-- Admin toggle -->
+                    {% if c.id != current_user.id %}
+                    <form method="POST" action="{{ url_for('admin.toggle_admin', client_id=c.id) }}" style="margin:0;">
+                        <button class="btn btn-outline btn-sm" title="{{ 'Remover admin' if c.is_admin else 'Tornar admin' }}">
+                            {{ '&#9733;' if c.is_admin else '&#9734;' }}
+                        </button>
+                    </form>
+                    <!-- Excluir -->
+                    <form method="POST" action="{{ url_for('admin.delete_client', client_id=c.id) }}"
+                        onsubmit="return confirm('Excluir {{ c.name }} e todos seus dados? Esta ação não pode ser desfeita!')"
+                        style="margin:0;">
+                        <button class="btn btn-outline btn-sm btn-delete" title="Excluir usuário">&#128465;</button>
+                    </form>
+                    {% endif %}
+                </div>
             </td>
         </tr>
         {% endfor %}
     </table>
+    </div>
+    {% else %}
+    <p style="color:#666; text-align:center; padding:1.5rem 0;">Nenhum usuário encontrado.</p>
+    {% endif %}
 </div>
 
 <!-- Posts recentes -->
 <div class="card">
-    <h2>Posts Recentes</h2>
+    <h2>Posts Recentes (sistema)</h2>
     {% for post in recent_posts %}
     <div class="post-item">
         <div class="post-details">
             <span class="filename">
-                {{ post.image_filename[:30] }}
-                <small style="color:#666;">— {{ client_map[post.client_id].name if post.client_id in client_map else '?' }}</small>
+                {{ post.image_filename[:35] }}
+                <small style="color:#555;">— {{ client_map[post.client_id].name if post.client_id in client_map else '?' }}</small>
             </span>
-            <div class="caption-preview">
-                {% if post.caption %}{{ post.caption[:60] }}{% else %}<em>IA</em>{% endif %}
+            <div class="caption-preview" style="font-size:0.78rem;">
+                {% if post.caption %}{{ post.caption[:60] }}{% else %}<em style="color:#555;">sem legenda</em>{% endif %}
             </div>
+            {% if post.scheduled_at %}<small style="color:#60a5fa;">&#128336; {{ post.scheduled_at.strftime('%d/%m %H:%M') }}</small>{% endif %}
         </div>
         <div style="display:flex; align-items:center; gap:0.3rem;">
-            <span class="badge badge-{{ post.status }}" style="font-size:0.7rem;">{{ post.status }}</span>
+            <span class="badge badge-{{ post.status }}" style="font-size:0.65rem;">{{ post.status }}</span>
             {% if post.status == 'failed' %}
             <form method="POST" action="{{ url_for('admin.retry_post', post_id=post.id) }}" style="margin:0;">
-                <button class="btn btn-outline btn-sm" type="submit">↻</button>
+                <button class="btn btn-outline btn-sm" type="submit" title="Reenviar">&#8635;</button>
             </form>
             {% endif %}
-            <form method="POST" action="{{ url_for('admin.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover?')" style="margin:0;">
-                <button class="btn btn-outline btn-sm btn-delete" type="submit">✕</button>
+            <form method="POST" action="{{ url_for('admin.delete_post', post_id=post.id) }}"
+                onsubmit="return confirm('Remover post?')" style="margin:0;">
+                <button class="btn btn-outline btn-sm btn-delete" type="submit">&#10005;</button>
             </form>
         </div>
     </div>
     {% endfor %}
 </div>
+
+
+<!-- ─── Modais ───────────────────────────────────── -->
+
+<!-- Modal: Criar usuário -->
+<div class="modal-overlay" id="modal-create">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('modal-create')">&#10005;</button>
+        <h3>Criar Novo Usuário</h3>
+        <form method="POST" action="{{ url_for('admin.create_client') }}">
+            <label>Nome completo</label>
+            <input type="text" name="name" required placeholder="Ex: João Silva">
+            <label>Email</label>
+            <input type="email" name="email" required placeholder="joao@email.com">
+            <label>Senha</label>
+            <input type="password" name="password" required placeholder="Mínimo 6 caracteres">
+            <label>Plano</label>
+            <select name="plan">
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+            </select>
+            <div class="checkbox-row" style="margin-top:0.5rem;">
+                <label><input type="checkbox" name="is_admin"> Conceder acesso admin</label>
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                <button type="submit" class="btn btn-success" style="flex:1;">Criar Usuário</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-create')" style="flex:1;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Alterar plano -->
+<div class="modal-overlay" id="modal-plan">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('modal-plan')">&#10005;</button>
+        <h3 id="modal-plan-title">Alterar Plano</h3>
+        <form method="POST" id="modal-plan-form">
+            <label>Plano</label>
+            <select name="plan" id="modal-plan-select">
+                <option value="free">Free — 30 posts/mês</option>
+                <option value="pro">Pro — Ilimitado + todos os recursos</option>
+                <option value="pending_pro">Pendente PIX (aguardando pagamento)</option>
+            </select>
+            <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                <button type="submit" class="btn btn-success" style="flex:1;">Salvar</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-plan')" style="flex:1;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Editar usuário -->
+<div class="modal-overlay" id="modal-edit">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('modal-edit')">&#10005;</button>
+        <h3 id="modal-edit-title">Editar Usuário</h3>
+        <form method="POST" id="modal-edit-form">
+            <label>Nome</label>
+            <input type="text" name="name" id="modal-edit-name" required>
+            <label>Email</label>
+            <input type="email" name="email" id="modal-edit-email" required>
+            <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                <button type="submit" class="btn btn-success" style="flex:1;">Salvar</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit')" style="flex:1;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Resetar senha -->
+<div class="modal-overlay" id="modal-password">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('modal-password')">&#10005;</button>
+        <h3 id="modal-password-title">Redefinir Senha</h3>
+        <form method="POST" id="modal-password-form">
+            <label>Nova senha</label>
+            <input type="password" name="new_password" id="modal-password-input" required placeholder="Mínimo 6 caracteres">
+            <label>Confirmar senha</label>
+            <input type="password" id="modal-password-confirm" placeholder="Repita a senha">
+            <p id="modal-password-error" style="color:#f87171; font-size:0.8rem; display:none;">As senhas não coincidem.</p>
+            <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                <button type="submit" class="btn btn-success" style="flex:1;" id="modal-password-btn">Redefinir</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-password')" style="flex:1;">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+function openModal(id) {
+    document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+// Fechar clicando fora
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target === this) closeModal(this.id);
+    });
+});
+
+function openEditPlan(clientId, name, plan) {
+    document.getElementById('modal-plan-title').textContent = 'Alterar Plano — ' + name;
+    document.getElementById('modal-plan-form').action = '/admin/client/' + clientId + '/set-plan';
+    document.getElementById('modal-plan-select').value = plan;
+    openModal('modal-plan');
+}
+
+function openEditUser(clientId, name, email) {
+    document.getElementById('modal-edit-title').textContent = 'Editar — ' + name;
+    document.getElementById('modal-edit-form').action = '/admin/client/' + clientId + '/edit';
+    document.getElementById('modal-edit-name').value = name;
+    document.getElementById('modal-edit-email').value = email;
+    openModal('modal-edit');
+}
+
+function openResetPassword(clientId, name) {
+    document.getElementById('modal-password-title').textContent = 'Redefinir Senha — ' + name;
+    document.getElementById('modal-password-form').action = '/admin/client/' + clientId + '/reset-password';
+    document.getElementById('modal-password-input').value = '';
+    document.getElementById('modal-password-confirm').value = '';
+    document.getElementById('modal-password-error').style.display = 'none';
+    openModal('modal-password');
+}
+
+// Validar senhas iguais antes de enviar
+document.getElementById('modal-password-form').addEventListener('submit', function(e) {
+    const p1 = document.getElementById('modal-password-input').value;
+    const p2 = document.getElementById('modal-password-confirm').value;
+    if (p1 !== p2) {
+        e.preventDefault();
+        document.getElementById('modal-password-error').style.display = 'block';
+    }
+});
+</script>
 
 {% endblock %}

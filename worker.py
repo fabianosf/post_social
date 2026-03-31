@@ -318,23 +318,28 @@ def process_queue():
             if not cl:
                 continue
 
-            # Limite diário anti-bloqueio
-            MAX_PER_DAY = 5
+            # Limite diário anti-bloqueio — máx 2 posts/dia por plataforma
+            MAX_PER_DAY = 2
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             posted_today = PostQueue.query.filter(
                 PostQueue.account_id == acc_id,
+                PostQueue.post_type != "story",
                 PostQueue.status == "posted",
+                PostQueue.post_to_instagram == True,
                 PostQueue.posted_at >= today_start,
             ).count()
 
             remaining = MAX_PER_DAY - posted_today
             if remaining <= 0:
-                logger.info(f"[@{account.ig_username}] Limite diário atingido ({MAX_PER_DAY}). Adiando.")
+                logger.info(
+                    f"[@{account.ig_username}] Limite diário atingido ({MAX_PER_DAY} posts/dia). "
+                    f"Adiando para proteger a conta contra shadowban."
+                )
                 continue
 
             for i, post in enumerate(posts):
                 if i >= remaining:
-                    logger.info(f"[@{account.ig_username}] Limite diário ({MAX_PER_DAY}) - posts restantes adiados")
+                    logger.info(f"[@{account.ig_username}] Limite diário ({MAX_PER_DAY}) — posts restantes adiados")
                     break
 
                 post.status = "processing"

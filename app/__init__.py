@@ -52,5 +52,17 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        # Auto-migração: adiciona colunas novas sem quebrar o banco existente
+        from sqlalchemy import text
+        migrations = [
+            "ALTER TABLE clients ADD COLUMN gdrive_folder_id VARCHAR(200)",
+        ]
+        with db.engine.connect() as conn:
+            for stmt in migrations:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except Exception:
+                    pass  # Coluna já existe
 
     return app
