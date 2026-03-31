@@ -9,3 +9,4 @@ clients/*/logs/
 
 # Google Drive Service Account key (NUNCA comitar no git!)
 credentials/gdrive_service_account.json
+backups/

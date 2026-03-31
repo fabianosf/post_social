@@ -1,12 +1,15 @@
 # PostSocial — Dependências
+# PRODUÇÃO
 
 # Flask + extensões
 flask>=3.0.0
 flask-sqlalchemy>=3.1.0
 flask-login>=0.6.3
+flask-limiter>=3.5.0
 python-dotenv>=1.0.0
 werkzeug>=3.0.0
 gunicorn>=22.0.0
+flask-wtf>=1.2.0
 
 # Criptografia (senhas Instagram)
 cryptography>=42.0.0

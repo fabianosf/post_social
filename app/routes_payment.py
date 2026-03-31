@@ -12,11 +12,11 @@ from .models import db, Client
 
 payment_bp = Blueprint("payment", __name__, url_prefix="/pagamento")
 
-# Configurações PIX
-PIX_KEY = "fabiano.freitas@gmail.com"
-PIX_MERCHANT_NAME = "PostSocial"
-PIX_MERCHANT_CITY = "SaoPaulo"
-PRO_PRICE = 49.90
+# Configurações PIX (via .env)
+PIX_KEY = os.environ.get("PIX_KEY", "")
+PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "PostSocial")
+PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo")
+PRO_PRICE = float(os.environ.get("PRO_PRICE", "49.90"))
 
 
 @payment_bp.route("/")
