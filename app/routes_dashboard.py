@@ -10,6 +10,9 @@ import shutil
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
 
 from flask import (
     Blueprint, render_template, redirect, url_for, flash,
@@ -43,7 +46,7 @@ def _auto_schedule_posts(posts_to_schedule: list, account_id: int, client_id: in
     Distribui posts automaticamente ao longo do dia com intervalos seguros.
     Respeita limites diários e adiciona variação aleatória nos horários.
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     # Contar posts já agendados/postados hoje para esta conta
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -230,7 +233,7 @@ def index():
 
     # Limite mensal
     plan_info = {
-        "plan": current_user.plan,
+        "plan": "pro" if current_user.is_admin else current_user.plan,
         "used": current_user.posts_this_month or 0,
         "limit": current_user.get_monthly_limit(),
     }
@@ -525,20 +528,30 @@ def upload():
         flash("Conta Instagram não encontrada.", "error")
         return redirect(url_for("dashboard.index"))
 
+    # Parse scheduled_at — converte horário de Brasília para UTC (naive) para comparar com o worker
+    scheduled_at = None
+    if scheduled_str:
+        try:
+            local_dt = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
+            scheduled_at = local_dt.replace(tzinfo=BRAZIL_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+        except ValueError:
+            flash("Data/hora inválida.", "error")
+            return redirect(url_for("dashboard.index"))
+
     # ── Verificar limite diário por plataforma ──────────────────
-    # Regra: máx 2 posts/dia no Instagram E máx 2 posts/dia no Facebook
-    # Postar em ambos simultaneamente conta 1 para cada plataforma.
+    # Usa a data do agendamento (se fornecida) ou hoje
     now_utc = datetime.now(timezone.utc)
-    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
+    ref_day = scheduled_at if scheduled_at else now_utc
+    day_start = ref_day.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
 
     _feed_base = PostQueue.query.filter(
         PostQueue.account_id == target_account.id,
         PostQueue.post_type != "story",
         PostQueue.status.in_(["posted", "pending", "processing"]),
         db.or_(
-            PostQueue.posted_at >= today_start,
-            db.and_(PostQueue.scheduled_at >= today_start, PostQueue.scheduled_at < today_end),
+            db.and_(PostQueue.posted_at >= day_start, PostQueue.posted_at < day_end),
+            db.and_(PostQueue.scheduled_at >= day_start, PostQueue.scheduled_at < day_end),
         ),
     )
 
@@ -550,8 +563,8 @@ def upload():
         PostQueue.post_type == "story",
         PostQueue.status.in_(["posted", "pending", "processing"]),
         db.or_(
-            PostQueue.posted_at >= today_start,
-            db.and_(PostQueue.scheduled_at >= today_start, PostQueue.scheduled_at < today_end),
+            db.and_(PostQueue.posted_at >= day_start, PostQueue.posted_at < day_end),
+            db.and_(PostQueue.scheduled_at >= day_start, PostQueue.scheduled_at < day_end),
         ),
     ).count()
 
@@ -562,11 +575,12 @@ def upload():
         "O limite de {limit} posts/dia por plataforma existe para manter sua conta segura."
     )
 
+    day_label = ref_day.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ).strftime("%d/%m")
     if not post_story:
         if ig_today >= MAX_DAY:
             flash(
                 f"Limite do Instagram atingido para @{target_account.ig_username}: "
-                f"{ig_today}/{MAX_DAY} posts hoje. " + _BLOCK_MSG.format(limit=MAX_DAY),
+                f"{ig_today}/{MAX_DAY} posts em {day_label}. " + _BLOCK_MSG.format(limit=MAX_DAY),
                 "error",
             )
             return redirect(url_for("dashboard.index"))
@@ -574,7 +588,7 @@ def upload():
         if post_fb and fb_today >= MAX_DAY:
             flash(
                 f"Limite do Facebook atingido para @{target_account.ig_username}: "
-                f"{fb_today}/{MAX_DAY} posts hoje. " + _BLOCK_MSG.format(limit=MAX_DAY),
+                f"{fb_today}/{MAX_DAY} posts em {day_label}. " + _BLOCK_MSG.format(limit=MAX_DAY),
                 "error",
             )
             return redirect(url_for("dashboard.index"))
@@ -591,15 +605,6 @@ def upload():
     if not files or all(f.filename == "" for f in files):
         flash("Selecione pelo menos uma foto.", "error")
         return redirect(url_for("dashboard.index"))
-
-    # Parse scheduled_at
-    scheduled_at = None
-    if scheduled_str:
-        try:
-            scheduled_at = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
-        except ValueError:
-            flash("Data/hora inválida.", "error")
-            return redirect(url_for("dashboard.index"))
 
     client_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], str(current_user.id))
     os.makedirs(client_dir, exist_ok=True)
@@ -724,13 +729,12 @@ def upload():
         new_posts.reverse()
 
         if scheduled_at:
-            # Usuário escolheu horário específico — auto-agendar a partir desse horário
-            count = _auto_schedule_posts(new_posts, target_account.id, current_user.id, start_time=scheduled_at)
+            # Usuário escolheu horário específico — usar exatamente o horário informado
+            for p in new_posts:
+                p.scheduled_at = scheduled_at
             db.session.commit()
-            times_str = ", ".join(
-                p.scheduled_at.strftime("%d/%m %H:%M") for p in new_posts if p.scheduled_at
-            )
-            flash(f"{count} postagem(ns) agendada(s) para {times_str}.", "success")
+            times_str = scheduled_at.strftime("%d/%m %H:%M")
+            flash(f"{len(new_posts)} postagem(ns) agendada(s) para {times_str}.", "success")
         else:
             # "Agora" — deixa scheduled_at=None, worker posta na próxima rodada (até 5 min)
             flash(f"{queued} postagem(ns) na fila! Será publicada em até 5 minutos.", "success")
@@ -759,30 +763,71 @@ def delete_post(post_id):
 @dashboard_bp.route("/post/<int:post_id>/edit", methods=["POST"])
 @login_required
 def edit_post(post_id):
-    """Edita legenda, hashtags e horário de um post pendente/rascunho."""
+    """Edita legenda, hashtags e horário de um post. Posts já publicados geram um novo agendamento."""
     post = PostQueue.query.filter_by(id=post_id, client_id=current_user.id).first()
-    if not post or post.status not in ("pending", "draft", "failed"):
+    if not post or post.status not in ("pending", "draft", "failed", "posted"):
         flash("Post não encontrado ou não pode ser editado.", "error")
         return redirect(url_for("dashboard.index"))
 
-    post.caption = request.form.get("caption", "").strip() or None
-    post.hashtags = request.form.get("hashtags", "").strip() or None
-
+    new_caption = request.form.get("caption", "").strip() or None
+    new_hashtags = request.form.get("hashtags", "").strip() or None
     scheduled_str = request.form.get("scheduled_at", "").strip()
+    new_scheduled = None
     if scheduled_str:
         try:
-            post.scheduled_at = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
+            new_scheduled = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
         except ValueError:
             pass
+
+    if post.status == "posted":
+        # Post já publicado → criar novo agendamento sem alterar o histórico
+        if not current_user.can_post():
+            flash("Limite mensal atingido.", "error")
+            return redirect(url_for("dashboard.index"))
+
+        # Copiar arquivos para que uma futura limpeza do histórico não apague os originais
+        new_paths = []
+        for path in post.image_path.split("|"):
+            if os.path.exists(path):
+                ext = path.rsplit(".", 1)[1] if "." in path else "jpg"
+                new_path = os.path.join(os.path.dirname(path), f"{uuid.uuid4().hex}.{ext}")
+                shutil.copy2(path, new_path)
+                new_paths.append(new_path)
+
+        if not new_paths:
+            flash("Arquivos originais não encontrados. Faça upload novamente.", "error")
+            return redirect(url_for("dashboard.index"))
+
+        new_post = PostQueue(
+            client_id=current_user.id,
+            account_id=post.account_id,
+            post_type=post.post_type,
+            image_path="|".join(new_paths),
+            image_filename=post.image_filename,
+            caption=new_caption if new_caption is not None else post.caption,
+            hashtags=new_hashtags if new_hashtags is not None else post.hashtags,
+            scheduled_at=new_scheduled,
+            status="pending",
+            post_to_instagram=post.post_to_instagram,
+            post_to_facebook=post.post_to_facebook,
+        )
+        db.session.add(new_post)
+        db.session.commit()
+        when = new_scheduled.strftime("%d/%m às %H:%M") if new_scheduled else "agora (até 5 min)"
+        flash(f"Postagem reagendada para {when}!", "success")
     else:
-        post.scheduled_at = None  # Postar agora
+        # Post pendente/rascunho/falhou → editar no lugar
+        post.caption = new_caption
+        post.hashtags = new_hashtags
+        post.scheduled_at = new_scheduled
 
-    if post.status == "failed":
-        post.status = "pending"
-        post.error_message = None
+        if post.status == "failed":
+            post.status = "pending"
+            post.error_message = None
 
-    db.session.commit()
-    flash("Post atualizado!", "success")
+        db.session.commit()
+        flash("Post atualizado!", "success")
+
     return redirect(url_for("dashboard.index"))
 
 
@@ -969,7 +1014,7 @@ def api_status():
 @login_required
 def api_week_schedule():
     """Retorna agendamentos da semana atual para a grade semanal."""
-    today = datetime.now().date()
+    today = datetime.now(timezone.utc).date()
     monday = today - timedelta(days=today.weekday())
 
     account_id = request.args.get("account_id", type=int)
@@ -1025,9 +1070,11 @@ def api_week_schedule():
 
                 sched_time = ""
                 if p.scheduled_at:
-                    sched_time = p.scheduled_at.strftime("%H:%M")
+                    local_t = p.scheduled_at.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+                    sched_time = local_t.strftime("%H:%M")
                 elif p.posted_at:
-                    sched_time = p.posted_at.strftime("%H:%M")
+                    local_t = p.posted_at.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+                    sched_time = local_t.strftime("%H:%M")
 
                 posts_out.append({
                     "id": p.id,
@@ -1287,7 +1334,7 @@ def gdrive_import():
     account_id = accounts[0].id
 
     # Calcular a próxima segunda-feira (ou a semana atual)
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     today_weekday = now.weekday()  # 0=segunda, 6=domingo
     # Se já passou de segunda, usar a próxima semana
     days_until_monday = (7 - today_weekday) % 7

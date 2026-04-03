@@ -327,7 +327,7 @@
             <button onclick="closeWeekModal()" style="background:none; border:none; color:#888; font-size:1.3rem; cursor:pointer; line-height:1;">&#10005;</button>
         </div>
 
-        <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="week-form">
+        <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="week-form" onsubmit="return validateWeekForm()">
             <input type="hidden" name="account_id" id="week-acc-id" value="{{ accounts[0].id if accounts else '' }}">
             <input type="hidden" name="scheduled_at" id="week-sched-at">
 
@@ -342,8 +342,8 @@
             </div>
 
             <!-- Horário -->
-            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Horário <small style="color:#7c5cff;">(sugerido: 9h ou 17h)</small></label>
-            <input type="time" id="week-time" value="09:00" oninput="updateSchedAt()" style="margin-bottom:0.8rem;">
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Horário</label>
+            <input type="time" id="week-time" oninput="updateSchedAt()" style="margin-bottom:0.8rem;">
 
             <!-- Legenda -->
             <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Legenda</label>
@@ -367,6 +367,8 @@
                     Máx. <strong style="color:#888;">{{ safe_limits.max_posts_per_day }}</strong> posts/dia por plataforma.
                 </small>
             </div>
+
+            <div id="week-form-error" style="display:none; background:#2a0a0a; border:1px solid #f87171; border-radius:6px; padding:0.5rem 0.7rem; margin-bottom:0.8rem; font-size:0.82rem; color:#f87171;"></div>
 
             <div style="display:flex; gap:0.5rem;">
                 <button type="submit" class="btn btn-success" style="flex:1;">Agendar</button>
@@ -815,10 +817,13 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
                 <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
                     <button class="btn btn-outline btn-sm" type="submit" title="Postar novamente" style="font-size:0.7rem;">&#128260;</button>
                 </form>
-                {% if post.status in ('pending', 'draft', 'failed') %}
-                <button type="button" title="Editar horário/legenda"
-                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }})"
-                        class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.25rem 0.5rem;">✏</button>
+                {% if post.status in ('pending', 'draft', 'failed', 'posted') %}
+                <button type="button"
+                        title="{{ 'Reagendar — reposta para nova data' if post.status == 'posted' else 'Editar horário/legenda' }}"
+                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }}, {{ 'true' if post.status == 'posted' else 'false' }})"
+                        class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.25rem 0.5rem;">
+                    {{ '📅' if post.status == 'posted' else '✏' }}
+                </button>
                 {% endif %}
                 <form method="POST" action="{{ url_for('dashboard.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover este post da fila?')" style="margin:0;">
                     <button class="btn btn-sm" type="submit" title="Remover post"
@@ -1100,8 +1105,9 @@ function renderWeekGrid(data) {
 
         /* Cores por estado */
         let border = '#2a5a2a', bg = '#0a1a0a', countClr = '#4ade80';
-        if (past)       { border = '#2a2a2a'; bg = '#0d0d0d'; countClr = '#444'; }
-        else if (full)  { border = '#6a1f1f'; bg = '#1a0808'; countClr = '#f87171'; }
+        if (past && !full && count === 0) { border = '#2a3a2a'; bg = '#0d0d0d'; countClr = '#4a7a4a'; }
+        else if (past)  { border = '#2a4a2a'; bg = '#0d120d'; countClr = '#5a9a5a'; }
+        if (full)       { border = '#6a1f1f'; bg = '#1a0808'; countClr = '#f87171'; }
         else if (half)  { border = '#5a4200'; bg = '#1a1200'; countClr = '#fbbf24'; }
 
         /* Thumbnails */
@@ -1126,14 +1132,14 @@ function renderWeekGrid(data) {
 
         /* Botão de ação */
         let actionBtn = '';
-        if (!past && !full) {
+        if (!full) {
             actionBtn = `<button type="button"
                 onclick="event.stopPropagation();openWeekModal('${day.date}','${day.day_name}',${day.ig_count},${day.fb_count})"
                 style="margin-top:auto;width:100%;background:transparent;border:1px dashed ${border};
                        color:${countClr};border-radius:6px;padding:0.25rem 0;font-size:0.75rem;cursor:pointer;font-weight:600;">
                 + Agendar
             </button>`;
-        } else if (full && !past) {
+        } else if (full) {
             actionBtn = `<div style="margin-top:auto;text-align:center;font-size:0.75rem;color:#f87171;">🔒 Completo</div>`;
         }
 
@@ -1144,12 +1150,12 @@ function renderWeekGrid(data) {
         const card = document.createElement('div');
         card.style.cssText = `background:${bg};border:1px solid ${border};border-radius:10px;padding:0.6rem 0.5rem;
             display:flex;flex-direction:column;gap:0.35rem;min-height:160px;
-            cursor:${(!past && !full) ? 'pointer' : 'default'};transition:border-color 0.2s;`;
+            cursor:${!full ? 'pointer' : 'default'};transition:border-color 0.2s;`;
 
         card.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                 <div>
-                    <div style="font-weight:700;color:${past ? '#555' : '#ddd'};font-size:0.82rem;line-height:1.2;">
+                    <div style="font-weight:700;color:${past ? '#888' : '#ddd'};font-size:0.82rem;line-height:1.2;">
                         ${day.day_name}${todayBadge}
                     </div>
                     <div style="font-size:0.68rem;color:#555;">${day.day_short}</div>
@@ -1159,11 +1165,11 @@ function renderWeekGrid(data) {
                     ${platforms}
                 </div>
             </div>
-            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;min-height:36px;">${thumbs || (past ? '' : `<span style="font-size:0.7rem;color:#444;">Nenhum post</span>`)}</div>
+            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;min-height:36px;">${thumbs || `<span style="font-size:0.7rem;color:#444;">Nenhum post</span>`}</div>
             ${actionBtn}
         `;
 
-        if (!past && !full) {
+        if (!full) {
             card.addEventListener('click', () => openWeekModal(day.date, day.day_name, day.ig_count, day.fb_count));
         }
 
@@ -1184,14 +1190,7 @@ function openWeekModal(date, dayName, igCount, fbCount) {
     document.getElementById('modal-week-title').textContent = '📅 Agendar — ' + dayName;
     document.getElementById('week-acc-id').value = getWeekAccountId();
 
-    /* Sugerir horário: 1º post → 9h, 2º post → 17h */
-    const suggested = [
-        '{{ safe_limits.suggested_times[0] }}:00',
-        '{{ safe_limits.suggested_times[1] }}:00'
-    ];
-    const timeEl = document.getElementById('week-time');
-    timeEl.value = igCount === 0 ? suggested[0] : suggested[1];
-
+    document.getElementById('week-time').value = '';
     updateSchedAt();
 
     /* Resetar form */
@@ -1206,6 +1205,26 @@ function openWeekModal(date, dayName, igCount, fbCount) {
 
 function closeWeekModal() {
     document.getElementById('modal-week-day').style.display = 'none';
+    document.getElementById('week-form-error').style.display = 'none';
+}
+
+function validateWeekForm() {
+    const errEl = document.getElementById('week-form-error');
+    const photos = document.getElementById('week-photos');
+    const time = document.getElementById('week-time');
+
+    if (!photos.files || photos.files.length === 0) {
+        errEl.textContent = '⚠️ Selecione pelo menos uma foto ou vídeo antes de agendar.';
+        errEl.style.display = 'block';
+        return false;
+    }
+    if (!time.value) {
+        errEl.textContent = '⚠️ Informe o horário do agendamento.';
+        errEl.style.display = 'block';
+        return false;
+    }
+    errEl.style.display = 'none';
+    return true;
 }
 
 function openLimitModal(date, dayName, count) {
@@ -1270,13 +1289,16 @@ document.getElementById('week-photos')?.addEventListener('change', function(e) {
 document.addEventListener('DOMContentLoaded', loadWeekGrid);
 </script>
 
-<!-- Modal Editar Post -->
+<!-- Modal Editar / Reagendar Post -->
 <div id="modal-edit-post" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:3000; align-items:center; justify-content:center; padding:1rem;">
     <div style="background:#12121e; border:1px solid #2a2a4a; border-radius:14px; padding:1.5rem; width:100%; max-width:420px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3 style="margin:0; color:#eee;">✏ Editar Post</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <h3 id="modal-edit-title" style="margin:0; color:#eee;">✏ Editar Post</h3>
             <button onclick="document.getElementById('modal-edit-post').style.display='none'" style="background:none;border:none;color:#888;font-size:1.3rem;cursor:pointer;">✕</button>
         </div>
+        <p id="modal-edit-hint" style="display:none; color:#fbbf24; font-size:0.8rem; margin-bottom:0.8rem; background:#2a1a00; border:1px solid #7a4500; border-radius:6px; padding:0.5rem 0.7rem;">
+            Esta foto já foi publicada. Um novo post será criado com o horário escolhido — o histórico original não será alterado.
+        </p>
         <form id="form-edit-post" method="POST">
             <label style="color:#aaa; font-size:0.85rem;">Legenda</label>
             <textarea id="edit-caption" name="caption" rows="3" style="width:100%; margin-bottom:0.6rem; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.6rem; color:#eee; font-size:0.9rem; resize:vertical;"></textarea>
@@ -1290,17 +1312,29 @@ document.addEventListener('DOMContentLoaded', loadWeekGrid);
                 <button type="button" onclick="setEditWhen('custom')" class="btn btn-outline btn-sm" style="flex:1; font-size:0.8rem;">📅 Outro</button>
             </div>
             <input type="datetime-local" id="edit-scheduled" name="scheduled_at" style="width:100%; display:none; margin-bottom:0.8rem; background:#1a1a2e; border:1px solid #3a3a5a; border-radius:8px; padding:0.5rem 0.7rem; color:#eee;">
-            <button type="submit" class="btn" style="width:100%;">Salvar alterações</button>
+            <button type="submit" id="modal-edit-submit" class="btn" style="width:100%;">Salvar alterações</button>
         </form>
     </div>
 </div>
 <script>
-function openEditPost(postId, scheduledAt, caption, hashtags) {
+function openEditPost(postId, scheduledAt, caption, hashtags, isPosted) {
     document.getElementById('form-edit-post').action = '/post/' + postId + '/edit';
     document.getElementById('edit-caption').value = caption || '';
     document.getElementById('edit-hashtags').value = hashtags || '';
     document.getElementById('edit-scheduled').value = scheduledAt || '';
     document.getElementById('edit-scheduled').style.display = scheduledAt ? 'block' : 'none';
+    var hint = document.getElementById('modal-edit-hint');
+    var title = document.getElementById('modal-edit-title');
+    var submit = document.getElementById('modal-edit-submit');
+    if (isPosted) {
+        title.textContent = '📅 Reagendar Post';
+        hint.style.display = 'block';
+        submit.textContent = 'Reagendar';
+    } else {
+        title.textContent = '✏ Editar Post';
+        hint.style.display = 'none';
+        submit.textContent = 'Salvar alterações';
+    }
     document.getElementById('modal-edit-post').style.display = 'flex';
 }
 function setEditWhen(v) {

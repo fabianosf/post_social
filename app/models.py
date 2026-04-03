@@ -24,7 +24,7 @@ class Client(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
-    # Plano: free (5 posts/mês) | pro (ilimitado)
+    # Plano: free (30 posts/mês) | pro (ilimitado)
     plan = db.Column(db.String(20), default="free")
     posts_this_month = db.Column(db.Integer, default=0)
     month_reset = db.Column(db.String(7))  # "2026-03"
@@ -58,11 +58,13 @@ class Client(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def get_monthly_limit(self) -> int:
-        if self.plan == "pro":
+        if self.is_admin or self.plan == "pro":
             return 999999
         return 30  # free = 30 posts/mês
 
     def can_post(self) -> bool:
+        if self.is_admin:
+            return True
         now = datetime.now(timezone.utc).strftime("%Y-%m")
         if self.month_reset != now:
             self.posts_this_month = 0
@@ -70,6 +72,8 @@ class Client(UserMixin, db.Model):
         return self.posts_this_month < self.get_monthly_limit()
 
     def increment_post_count(self):
+        if self.is_admin:
+            return
         now = datetime.now(timezone.utc).strftime("%Y-%m")
         if self.month_reset != now:
             self.posts_this_month = 0
@@ -77,7 +81,7 @@ class Client(UserMixin, db.Model):
         self.posts_this_month += 1
 
     def is_pro(self) -> bool:
-        return self.plan == "pro"
+        return self.is_admin or self.plan == "pro"
 
     def max_accounts(self) -> int:
         return 999 if self.is_pro() else 1

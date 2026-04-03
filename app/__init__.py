@@ -95,7 +95,26 @@ def create_app():
         # Auto-migração: adiciona colunas novas sem quebrar o banco existente
         from sqlalchemy import text
         migrations = [
+            # clients — colunas adicionadas progressivamente
             "ALTER TABLE clients ADD COLUMN gdrive_folder_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN watermark_path VARCHAR(500)",
+            "ALTER TABLE clients ADD COLUMN watermark_enabled BOOLEAN DEFAULT 0",
+            "ALTER TABLE clients ADD COLUMN watermark_position VARCHAR(20) DEFAULT 'bottom-right'",
+            "ALTER TABLE clients ADD COLUMN watermark_opacity INTEGER DEFAULT 80",
+            "ALTER TABLE clients ADD COLUMN notify_email BOOLEAN DEFAULT 1",
+            "ALTER TABLE clients ADD COLUMN brand_name VARCHAR(100)",
+            "ALTER TABLE clients ADD COLUMN brand_color VARCHAR(7)",
+            # instagram_accounts
+            "ALTER TABLE instagram_accounts ADD COLUMN label VARCHAR(100)",
+            "ALTER TABLE instagram_accounts ADD COLUMN status_message TEXT",
+            "ALTER TABLE instagram_accounts ADD COLUMN last_login_at DATETIME",
+            # post_queue
+            "ALTER TABLE post_queue ADD COLUMN post_type VARCHAR(20) DEFAULT 'photo'",
+            "ALTER TABLE post_queue ADD COLUMN needs_approval BOOLEAN DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN notified BOOLEAN DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN post_to_instagram BOOLEAN DEFAULT 1",
+            "ALTER TABLE post_queue ADD COLUMN post_to_facebook BOOLEAN DEFAULT 1",
+            "ALTER TABLE post_queue ADD COLUMN instagram_media_id VARCHAR(100)",
         ]
         with db.engine.connect() as conn:
             for stmt in migrations:
