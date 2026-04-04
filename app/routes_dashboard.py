@@ -4,6 +4,7 @@ Dashboard do cliente — todas as funcionalidades.
 
 import csv
 import io
+import json
 import os
 import random
 import shutil
@@ -41,100 +42,105 @@ SAFE_LIMITS = {
 }
 
 
+def _get_account_slots(account_id: int) -> tuple[list[str], list[str]]:
+    """Retorna (weekday_slots, weekend_slots) da conta como listas de 'HH:MM'."""
+    from .models import InstagramAccount as _IA
+    acc = _IA.query.get(account_id)
+    defaults_wd = ["09:00", "17:00"]
+    defaults_we = ["10:30", "16:00"]
+    if not acc:
+        return defaults_wd, defaults_we
+    try:
+        wd = json.loads(acc.weekday_slots or "[]") or defaults_wd
+    except Exception:
+        wd = defaults_wd
+    try:
+        we = json.loads(acc.weekend_slots or "[]") or defaults_we
+    except Exception:
+        we = defaults_we
+    return wd, we
+
+
+def _next_free_slot(account_id: int, after: datetime) -> datetime:
+    """
+    Retorna o próximo slot livre (UTC naive) para a conta,
+    usando os horários recorrentes configurados pelo usuário.
+    'after' é UTC naive.
+    """
+    MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
+    weekday_slots, weekend_slots = _get_account_slots(account_id)
+
+    # Converter 'after' para Brasil para comparar dias/horários
+    after_br = after.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+
+    # Buscar todos os scheduled_at já ocupados desta conta (pending)
+    occupied = {
+        p.scheduled_at for p in PostQueue.query.filter(
+            PostQueue.account_id == account_id,
+            PostQueue.status == "pending",
+            PostQueue.scheduled_at.isnot(None),
+        ).all()
+        if p.scheduled_at
+    }
+
+    # Varrer até 14 dias à frente
+    for day_offset in range(14):
+        candidate_day_br = (after_br + timedelta(days=day_offset)).date()
+        weekday = candidate_day_br.weekday()  # 0=Seg … 6=Dom
+        slots = weekday_slots if weekday < 5 else weekend_slots
+
+        # Contar posts já agendados nesse dia
+        day_start_utc = datetime(candidate_day_br.year, candidate_day_br.month, candidate_day_br.day,
+                                 0, 0, 0, tzinfo=BRAZIL_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+        day_end_utc = day_start_utc + timedelta(days=1)
+        posts_day = PostQueue.query.filter(
+            PostQueue.account_id == account_id,
+            PostQueue.post_type != "story",
+            PostQueue.status.in_(["pending", "posted", "processing"]),
+            db.or_(
+                db.and_(PostQueue.scheduled_at >= day_start_utc, PostQueue.scheduled_at < day_end_utc),
+                db.and_(PostQueue.posted_at >= day_start_utc, PostQueue.posted_at < day_end_utc),
+            ),
+        ).count()
+
+        if posts_day >= MAX_DAY:
+            continue  # dia cheio, próximo
+
+        for slot_str in slots:
+            h, m = map(int, slot_str.split(":"))
+            slot_br = datetime(candidate_day_br.year, candidate_day_br.month, candidate_day_br.day,
+                               h, m, 0, tzinfo=BRAZIL_TZ)
+            slot_utc = slot_br.astimezone(timezone.utc).replace(tzinfo=None)
+
+            # Deve ser futuro (ao menos 5 min de agora)
+            if slot_utc <= after + timedelta(minutes=5):
+                continue
+            # Não pode estar já ocupado
+            if slot_utc in occupied:
+                continue
+
+            return slot_utc
+
+    # Fallback: amanhã às 9h
+    fallback_br = (after_br + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    return fallback_br.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def _auto_schedule_posts(posts_to_schedule: list, account_id: int, client_id: int, start_time: datetime | None = None):
     """
-    Distribui posts automaticamente ao longo do dia com intervalos seguros.
-    Respeita limites diários e adiciona variação aleatória nos horários.
+    Distribui posts nos próximos slots recorrentes livres da conta.
+    Se start_time fornecido, começa a busca a partir dele.
     """
-    now = datetime.now(timezone.utc)
-
-    # Contar posts já agendados/postados hoje para esta conta
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
-
-    existing_today = PostQueue.query.filter(
-        PostQueue.account_id == account_id,
-        PostQueue.status.in_(["pending", "posted", "processing"]),
-        db.or_(
-            db.and_(PostQueue.scheduled_at >= today_start, PostQueue.scheduled_at < today_end),
-            db.and_(PostQueue.posted_at >= today_start, PostQueue.posted_at < today_end),
-        ),
-    ).count()
-
-    available_slots = SAFE_LIMITS["max_posts_per_day"] - existing_today
-    if available_slots <= 0:
-        # Começar no dia seguinte
-        start_time = (today_start + timedelta(days=1)).replace(hour=SAFE_LIMITS["safe_hours_start"])
-        existing_today = 0
-        available_slots = SAFE_LIMITS["max_posts_per_day"]
-
-    if start_time is None:
-        # Usar próximo horário sugerido (9h ou 17h)
-        suggested = SAFE_LIMITS.get("suggested_times", [9, 17])
-        next_suggested = None
-        for h in sorted(suggested):
-            candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
-            if candidate > now + timedelta(minutes=15):
-                next_suggested = candidate
-                break
-        if next_suggested:
-            start_time = next_suggested
-        elif now.hour >= SAFE_LIMITS["safe_hours_start"]:
-            # Passou de todos os sugeridos — próximo dia às 9h
-            start_time = (now + timedelta(days=1)).replace(hour=suggested[0], minute=0, second=0, microsecond=0)
-        else:
-            start_time = now.replace(hour=suggested[0], minute=0, second=0, microsecond=0)
-
-    # Buscar último post agendado desta conta para não sobrepor
-    last_scheduled = PostQueue.query.filter(
-        PostQueue.account_id == account_id,
-        PostQueue.status == "pending",
-        PostQueue.scheduled_at.isnot(None),
-    ).order_by(PostQueue.scheduled_at.desc()).first()
-
-    if last_scheduled and last_scheduled.scheduled_at:
-        min_next = last_scheduled.scheduled_at + timedelta(minutes=SAFE_LIMITS["min_interval_minutes"])
-        if min_next > start_time:
-            start_time = min_next
-
-    current_time = start_time
-    current_day_count = existing_today
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    search_after = start_time if start_time else now_utc
     scheduled = 0
 
     for post in posts_to_schedule:
-        # Verificar limite diário
-        if current_day_count >= SAFE_LIMITS["max_posts_per_day"]:
-            # Pular para o próximo dia
-            current_time = (current_time + timedelta(days=1)).replace(
-                hour=SAFE_LIMITS["safe_hours_start"], minute=0
-            )
-            current_day_count = 0
-
-        # Verificar horário seguro
-        if current_time.hour >= SAFE_LIMITS["safe_hours_end"]:
-            current_time = (current_time + timedelta(days=1)).replace(
-                hour=SAFE_LIMITS["safe_hours_start"], minute=0
-            )
-            current_day_count = 0
-
-        if current_time.hour < SAFE_LIMITS["safe_hours_start"]:
-            current_time = current_time.replace(hour=SAFE_LIMITS["safe_hours_start"], minute=0)
-
-        # Adicionar variação aleatória (±random_delay)
-        jitter = random.randint(-SAFE_LIMITS["random_delay_minutes"], SAFE_LIMITS["random_delay_minutes"])
-        scheduled_time = current_time + timedelta(minutes=jitter)
-
-        # Garantir que não ficou antes do mínimo
-        if scheduled_time < start_time:
-            scheduled_time = start_time + timedelta(minutes=random.randint(5, 20))
-
-        post.scheduled_at = scheduled_time
+        slot = _next_free_slot(account_id, search_after)
+        post.scheduled_at = slot
         scheduled += 1
-        current_day_count += 1
-
-        # Próximo slot: intervalo mínimo + variação
-        interval = SAFE_LIMITS["min_interval_minutes"] + random.randint(10, 60)
-        current_time = scheduled_time + timedelta(minutes=interval)
+        # Próxima busca começa após este slot
+        search_after = slot
 
     return scheduled
 
@@ -507,6 +513,7 @@ def upload():
     hashtags = request.form.get("hashtags", "").strip()
     post_fb = request.form.get("share_facebook") == "on"
     post_story = request.form.get("post_story") == "on"
+    post_tiktok = request.form.get("post_to_tiktok") == "on"
 
     # Stories apenas para Pro
     if post_story and not current_user.is_pro():
@@ -650,6 +657,7 @@ def upload():
             status="draft" if needs_approval else "pending",
             post_to_instagram=True,
             post_to_facebook=post_fb,
+            post_to_tiktok=post_tiktok,
         )
         db.session.add(post)
         queued = 1
@@ -1209,6 +1217,71 @@ def csv_import():
     db.session.commit()
     flash(f"{queued} postagens importadas do CSV!", "success")
     return redirect(url_for("dashboard.index"))
+
+
+@dashboard_bp.route("/api/telegram-config", methods=["POST"])
+@login_required
+def save_telegram_config():
+    """Salva token e chat_id do Telegram."""
+    data = request.get_json()
+    current_user.telegram_bot_token = data.get("bot_token", "").strip() or None
+    current_user.telegram_chat_id = data.get("chat_id", "").strip() or None
+    db.session.commit()
+    # Testar conexão
+    if current_user.telegram_bot_token and current_user.telegram_chat_id:
+        from modules.telegram_notify import send_telegram
+        ok = send_telegram(current_user.telegram_bot_token, current_user.telegram_chat_id,
+                           "✅ <b>PostSocial conectado!</b>\nVocê receberá alertas aqui.")
+        return jsonify({"ok": True, "tested": ok})
+    return jsonify({"ok": True, "tested": False})
+
+
+@dashboard_bp.route("/api/account-slots")
+@login_required
+def get_account_slots():
+    """Retorna os slots recorrentes configurados de uma conta."""
+    account_id = request.args.get("account_id", type=int)
+    accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
+    if account_id:
+        account = next((a for a in accounts if a.id == account_id), None)
+    else:
+        account = accounts[0] if accounts else None
+    if not account:
+        return jsonify({"weekday_slots": ["09:00", "17:00"], "weekend_slots": ["10:30", "16:00"]})
+    try:
+        wd = json.loads(account.weekday_slots or "[]") or ["09:00", "17:00"]
+    except Exception:
+        wd = ["09:00", "17:00"]
+    try:
+        we = json.loads(account.weekend_slots or "[]") or ["10:30", "16:00"]
+    except Exception:
+        we = ["10:30", "16:00"]
+    return jsonify({"weekday_slots": wd, "weekend_slots": we})
+
+
+@dashboard_bp.route("/api/schedule-slots", methods=["POST"])
+@login_required
+def save_schedule_slots():
+    """Salva os slots recorrentes de uma conta."""
+    data = request.get_json()
+    account_id = data.get("account_id")
+    weekday = data.get("weekday_slots", [])
+    weekend = data.get("weekend_slots", [])
+
+    account = InstagramAccount.query.filter_by(id=account_id, client_id=current_user.id).first()
+    if not account:
+        return jsonify({"error": "Conta não encontrada"}), 404
+
+    # Validar formato HH:MM
+    import re
+    pattern = re.compile(r"^\d{2}:\d{2}$")
+    weekday = [s for s in weekday if pattern.match(s)][:2]
+    weekend = [s for s in weekend if pattern.match(s)][:2]
+
+    account.weekday_slots = json.dumps(weekday if weekday else ["09:00", "17:00"])
+    account.weekend_slots = json.dumps(weekend if weekend else ["10:30", "16:00"])
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @dashboard_bp.route("/whitelabel", methods=["POST"])

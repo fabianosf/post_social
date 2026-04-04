@@ -38,6 +38,10 @@ class Client(UserMixin, db.Model):
     # Notificação por email
     notify_email = db.Column(db.Boolean, default=True)
 
+    # Notificação via Telegram
+    telegram_bot_token = db.Column(db.String(200))
+    telegram_chat_id = db.Column(db.String(100))
+
     # White label
     brand_name = db.Column(db.String(100))
     brand_color = db.Column(db.String(7))
@@ -100,6 +104,10 @@ class InstagramAccount(db.Model):
     status = db.Column(db.String(30), default="active")
     status_message = db.Column(db.Text)
 
+    # Slots recorrentes: JSON list de "HH:MM", ex: '["09:00","17:00"]'
+    weekday_slots = db.Column(db.Text, default='["09:00","17:00"]')   # Seg–Sex
+    weekend_slots = db.Column(db.Text, default='["10:30","16:00"]')   # Sáb–Dom
+
     connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login_at = db.Column(db.DateTime)
 
@@ -141,13 +149,32 @@ class PostQueue(db.Model):
 
     post_to_instagram = db.Column(db.Boolean, default=True)
     post_to_facebook = db.Column(db.Boolean, default=True)
+    post_to_tiktok = db.Column(db.Boolean, default=False)
 
     error_message = db.Column(db.Text)
     instagram_media_id = db.Column(db.String(100))
     notified = db.Column(db.Boolean, default=False)
+    retry_count = db.Column(db.Integer, default=0)  # tentativas após falha
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     posted_at = db.Column(db.DateTime)
+
+
+class TikTokAccount(db.Model):
+    __tablename__ = "tiktok_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    open_id = db.Column(db.String(200), nullable=False)       # ID único do usuário no TikTok
+    username = db.Column(db.String(100))
+    display_name = db.Column(db.String(200))
+    avatar_url = db.Column(db.String(500))
+    access_token = db.Column(db.Text, nullable=False)
+    refresh_token = db.Column(db.Text)
+    token_expires_at = db.Column(db.DateTime)
+    connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    client = db.relationship("Client", backref="tiktok_accounts")
 
 
 class CaptionTemplate(db.Model):

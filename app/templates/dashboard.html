@@ -117,6 +117,28 @@
     {% endif %}
     {% endfor %}
 
+    <!-- TikTok conectado -->
+    {% for tt in current_user.tiktok_accounts %}
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-top:1px solid #1a1a2e;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+            {% if tt.avatar_url %}<img src="{{ tt.avatar_url }}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">{% endif %}
+            <span style="color:#ccc; font-size:0.85rem;">🎵 @{{ tt.username or tt.display_name }}</span>
+            <span class="badge badge-posted" style="font-size:0.6rem;">TikTok</span>
+        </div>
+        <form method="POST" action="{{ url_for('tiktok.disconnect', account_id=tt.id) }}">
+            <button class="btn btn-outline btn-sm" type="submit">Remover</button>
+        </form>
+    </div>
+    {% endfor %}
+
+    {% if not current_user.tiktok_accounts %}
+    <div style="margin-top:0.5rem;">
+        <a href="{{ url_for('tiktok.connect') }}" class="btn btn-outline btn-sm" style="font-size:0.8rem;">
+            🎵 Conectar TikTok
+        </a>
+    </div>
+    {% endif %}
+
     <details style="margin-top:0.5rem;">
         <summary>{{ 'Adicionar outra conta' if accounts else 'Conectar Instagram' }}</summary>
         {% if accounts and not current_user.is_pro() %}
@@ -286,6 +308,153 @@
         </div>
     </div>
 </div>
+{% endif %}
+
+<!-- Horários Recorrentes -->
+{% if accounts %}
+<div class="card" id="slots-config-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+        <h2 style="margin:0;">🔁 Horários Recorrentes</h2>
+        {% if accounts|length > 1 %}
+        <select id="slots-account-select" onchange="loadSlotsConfig()" style="width:auto; margin:0; font-size:0.8rem; padding:0.4rem 0.6rem;">
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}">@{{ acc.ig_username }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+    <p style="color:#888; font-size:0.82rem; margin:0 0 1rem;">
+        Configure os horários automáticos. Ao subir um post <strong style="color:#ccc;">sem escolher horário</strong>, o sistema usa esses slots.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+        <!-- Seg–Sex -->
+        <div style="background:#0f0f1a; border:1px solid #2a2a4a; border-radius:10px; padding:1rem;">
+            <div style="font-weight:600; color:#ccc; margin-bottom:0.7rem; font-size:0.88rem;">📅 Segunda a Sexta</div>
+            <div id="wd-slots" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:0.7rem;"></div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                <button type="button" onclick="addPresetSlot('wd','09:00')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ 09:00</button>
+                <button type="button" onclick="addPresetSlot('wd','17:00')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ 17:00</button>
+                <button type="button" onclick="addCustomSlot('wd')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ Outro</button>
+            </div>
+            <small style="color:#555; font-size:0.7rem;">Máx. 2 horários por dia</small>
+        </div>
+
+        <!-- Sáb–Dom -->
+        <div style="background:#0f0f1a; border:1px solid #2a2a4a; border-radius:10px; padding:1rem;">
+            <div style="font-weight:600; color:#ccc; margin-bottom:0.7rem; font-size:0.88rem;">🏖️ Sábado e Domingo</div>
+            <div id="we-slots" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:0.7rem;"></div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                <button type="button" onclick="addPresetSlot('we','10:30')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ 10:30</button>
+                <button type="button" onclick="addPresetSlot('we','16:00')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ 16:00</button>
+                <button type="button" onclick="addCustomSlot('we')" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.25rem 0.6rem;">+ Outro</button>
+            </div>
+            <small style="color:#555; font-size:0.7rem;">Máx. 2 horários por dia</small>
+        </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:1rem; margin-top:1rem;">
+        <button type="button" onclick="saveSlotsConfig()" class="btn btn-success" style="padding:0.5rem 1.5rem;">Salvar horários</button>
+        <span id="slots-save-msg" style="font-size:0.82rem; color:#4ade80; display:none;">✅ Salvo!</span>
+    </div>
+</div>
+
+<script>
+const _slotsData = { wd: [], we: [] };
+
+function getSlotsAccountId() {
+    const sel = document.getElementById('slots-account-select');
+    return sel ? parseInt(sel.value) : {{ accounts[0].id if accounts else 0 }};
+}
+
+function loadSlotsConfig() {
+    const accId = getSlotsAccountId();
+    fetch('/api/week-schedule' + (accId ? '?account_id=' + accId : ''))
+        .then(r => r.json())
+        .then(() => {});
+
+    // Buscar slots da conta via API
+    fetch('/api/account-slots?account_id=' + accId)
+        .then(r => r.json())
+        .then(data => {
+            _slotsData.wd = data.weekday_slots || ["09:00","17:00"];
+            _slotsData.we = data.weekend_slots || ["10:30","16:00"];
+            renderSlots();
+        })
+        .catch(() => {
+            _slotsData.wd = ["09:00","17:00"];
+            _slotsData.we = ["10:30","16:00"];
+            renderSlots();
+        });
+}
+
+function renderSlots() {
+    ['wd','we'].forEach(key => {
+        const container = document.getElementById(key + '-slots');
+        container.innerHTML = '';
+        _slotsData[key].forEach((t, i) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; gap:0.4rem;';
+            row.innerHTML = `
+                <span style="background:#1a1a3e; border:1px solid #3a3a6a; border-radius:6px; padding:0.25rem 0.6rem;
+                             font-size:0.85rem; color:#a78bfa; font-weight:600; min-width:54px; text-align:center;">${t}</span>
+                <button type="button" onclick="removeSlot('${key}',${i})"
+                    style="background:none; border:none; color:#f87171; cursor:pointer; font-size:1rem; line-height:1; padding:0;">✕</button>`;
+            container.appendChild(row);
+        });
+        if (_slotsData[key].length === 0) {
+            container.innerHTML = '<span style="font-size:0.75rem; color:#444;">Nenhum horário configurado</span>';
+        }
+    });
+}
+
+function addPresetSlot(key, time) {
+    if (_slotsData[key].length >= 2) { alert('Máximo 2 horários por período.'); return; }
+    if (_slotsData[key].includes(time)) return;
+    _slotsData[key].push(time);
+    _slotsData[key].sort();
+    renderSlots();
+}
+
+function addCustomSlot(key) {
+    if (_slotsData[key].length >= 2) { alert('Máximo 2 horários por período.'); return; }
+    const t = prompt('Digite o horário (ex: 14:30):');
+    if (!t || !/^\d{2}:\d{2}$/.test(t)) return;
+    if (_slotsData[key].includes(t)) return;
+    _slotsData[key].push(t);
+    _slotsData[key].sort();
+    renderSlots();
+}
+
+function removeSlot(key, idx) {
+    _slotsData[key].splice(idx, 1);
+    renderSlots();
+}
+
+function saveSlotsConfig() {
+    const accId = getSlotsAccountId();
+    fetch('/api/schedule-slots', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            account_id: accId,
+            weekday_slots: _slotsData.wd,
+            weekend_slots: _slotsData.we,
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            const msg = document.getElementById('slots-save-msg');
+            msg.style.display = 'inline';
+            setTimeout(() => msg.style.display = 'none', 2500);
+        }
+    });
+}
+
+// Carregar ao iniciar
+loadSlotsConfig();
+</script>
 {% endif %}
 
 <!-- Grade Semanal -->
@@ -523,6 +692,9 @@
             {% if accounts[0].share_to_facebook %}
             <label><input type="checkbox" name="share_facebook" checked> Facebook</label>
             {% endif %}
+            {% if current_user.tiktok_accounts %}
+            <label><input type="checkbox" name="post_to_tiktok" id="tiktok-check"> 🎵 TikTok <small style="color:#888;">(só vídeos)</small></label>
+            {% endif %}
             {% if current_user.is_pro() %}
             <label><input type="checkbox" name="post_story"> Stories</label>
             {% else %}
@@ -699,6 +871,59 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
         <button type="submit" class="btn btn-sm">Salvar</button>
     </form>
 </div>
+
+<!-- Notificações Telegram -->
+<div class="card">
+    <h2>🤖 Notificações via Telegram</h2>
+    <p style="color:#888; font-size:0.82rem; margin:0 0 1rem;">
+        Receba alertas no Telegram quando um post for publicado ou falhar.
+        <a href="https://t.me/BotFather" target="_blank" style="color:#7c5cff;">Como criar um bot →</a>
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-bottom:0.8rem;">
+        <div>
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Token do Bot</label>
+            <input type="text" id="tg-token" placeholder="123456:ABC-DEF..." value="{{ current_user.telegram_bot_token or '' }}"
+                   style="font-size:0.82rem;">
+        </div>
+        <div>
+            <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Chat ID <small style="color:#555;">(use @userinfobot)</small></label>
+            <input type="text" id="tg-chatid" placeholder="123456789" value="{{ current_user.telegram_chat_id or '' }}"
+                   style="font-size:0.82rem;">
+        </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <button type="button" onclick="saveTelegramConfig()" class="btn btn-success" style="padding:0.5rem 1.2rem;">Salvar e testar</button>
+        <span id="tg-msg" style="font-size:0.82rem; display:none;"></span>
+    </div>
+</div>
+<script>
+function saveTelegramConfig() {
+    const btn = document.querySelector('[onclick="saveTelegramConfig()"]');
+    const msg = document.getElementById('tg-msg');
+    btn.textContent = 'Salvando...';
+    fetch('/api/telegram-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            bot_token: document.getElementById('tg-token').value.trim(),
+            chat_id: document.getElementById('tg-chatid').value.trim(),
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        btn.textContent = 'Salvar e testar';
+        msg.style.display = 'inline';
+        if (d.tested) {
+            msg.style.color = '#4ade80';
+            msg.textContent = '✅ Conectado! Verifique seu Telegram.';
+        } else if (d.ok) {
+            msg.style.color = '#fbbf24';
+            msg.textContent = '⚠️ Salvo, mas não foi possível testar. Verifique o token e chat ID.';
+        }
+        setTimeout(() => msg.style.display = 'none', 4000);
+    });
+}
+</script>
 
 <!-- White Label -->
 <div class="card">

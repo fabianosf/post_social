@@ -10,7 +10,7 @@ import random
 import smtplib
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from pathlib import Path
 
@@ -25,9 +25,10 @@ from instagrapi.exceptions import (
 )
 
 from app import create_app
-from app.models import db, PostQueue, InstagramAccount, Client
+from app.models import db, PostQueue, InstagramAccount, Client, TikTokAccount
 from modules.caption_generator import CaptionGenerator
 from modules.logger import setup_global_logger
+from modules.telegram_notify import notify_post_success, notify_post_failed
 
 BASE_DIR = Path(__file__).parent
 SESSION_DIR = BASE_DIR / "sessions"
@@ -223,13 +224,22 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
             if client:
                 client.increment_post_count()
                 send_email_notification(client, post, success=True)
+                notify_post_success(client, post, account)
 
             db.session.commit()
-            logger.info(f"Post #{post.id} — POSTADO! ID: {media_id}")
+            logger.info(f"Post #{post.id} — POSTADO Instagram/Facebook! ID: {media_id}")
+
+            # ── TikTok (apenas vídeos/reels) ──────────────────────────
+            if getattr(post, "post_to_tiktok", False) and post.post_type in ("reels", "video"):
+                _try_post_tiktok(post, client)
+
             return True
 
         post.status = "failed"
         post.error_message = "Upload retornou vazio"
+        client = db.session.get(Client, post.client_id)
+        if client:
+            notify_post_failed(client, post, account, "Upload retornou vazio")
         db.session.commit()
         return False
 
@@ -248,16 +258,54 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
         return False
 
     except Exception as e:
-        post.status = "failed"
-        post.error_message = f"{type(e).__name__}: {str(e)[:200]}"
+        err_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        post.retry_count = (post.retry_count or 0) + 1
+        MAX_RETRIES = 3
+        # Delays: 15min, 30min, 60min
+        retry_delays = [15, 30, 60]
 
-        client = db.session.get(Client, post.client_id)
-        if client:
-            send_email_notification(client, post, success=False)
+        if post.retry_count <= MAX_RETRIES:
+            delay = retry_delays[min(post.retry_count - 1, len(retry_delays) - 1)]
+            post.status = "pending"
+            post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)
+            post.error_message = f"Tentativa {post.retry_count}/{MAX_RETRIES}: {err_msg}"
+            db.session.commit()
+            logger.warning(f"Post #{post.id} — Retry {post.retry_count}/{MAX_RETRIES} em {delay}min: {e}")
+        else:
+            post.status = "failed"
+            post.error_message = err_msg
+            client = db.session.get(Client, post.client_id)
+            if client:
+                send_email_notification(client, post, success=False)
+                notify_post_failed(client, post, account, f"Falhou após {MAX_RETRIES} tentativas. {err_msg}")
+            db.session.commit()
+            logger.error(f"Post #{post.id} — FALHA FINAL após {MAX_RETRIES} tentativas: {e}")
 
-        db.session.commit()
-        logger.error(f"Post #{post.id} — Erro: {e}")
         return False
+
+
+def _try_post_tiktok(post: PostQueue, client: Client):
+    """Tenta postar no TikTok se a conta estiver conectada."""
+    try:
+        from app.routes_tiktok import post_video_to_tiktok
+        tiktok_acc = TikTokAccount.query.filter_by(client_id=post.client_id).first()
+        if not tiktok_acc:
+            logger.warning(f"Post #{post.id} — TikTok marcado mas nenhuma conta conectada.")
+            return
+        caption = ((post.caption or "") + " " + (post.hashtags or "")).strip()
+        video_path = post.image_path.split("|")[0]
+        publish_id = post_video_to_tiktok(tiktok_acc, video_path, caption)
+        logger.info(f"Post #{post.id} — POSTADO TikTok! publish_id: {publish_id}")
+        if client:
+            from modules.telegram_notify import send_telegram
+            send_telegram(client.telegram_bot_token or "", client.telegram_chat_id or "",
+                          f"✅ <b>TikTok publicado!</b>\n@{tiktok_acc.username}\n{caption[:80]}")
+    except Exception as e:
+        logger.error(f"Post #{post.id} — Erro TikTok: {e}")
+        if client:
+            from modules.telegram_notify import send_telegram
+            send_telegram(client.telegram_bot_token or "", client.telegram_chat_id or "",
+                          f"❌ <b>Falha no TikTok!</b>\nErro: {str(e)[:200]}")
 
 
 def process_queue():

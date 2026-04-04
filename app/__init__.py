@@ -57,12 +57,14 @@ def create_app():
     from .routes_admin import admin_bp
     from .routes_landing import landing_bp
     from .routes_payment import payment_bp
+    from .routes_tiktok import tiktok_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(landing_bp)
     app.register_blueprint(payment_bp)
+    app.register_blueprint(tiktok_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:
@@ -114,7 +116,15 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN notified BOOLEAN DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN post_to_instagram BOOLEAN DEFAULT 1",
             "ALTER TABLE post_queue ADD COLUMN post_to_facebook BOOLEAN DEFAULT 1",
+            "ALTER TABLE post_queue ADD COLUMN post_to_tiktok BOOLEAN DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN instagram_media_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN retry_count INTEGER DEFAULT 0",
+            # clients — telegram
+            "ALTER TABLE clients ADD COLUMN telegram_bot_token VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN telegram_chat_id VARCHAR(100)",
+            # instagram_accounts — slots recorrentes
+            "ALTER TABLE instagram_accounts ADD COLUMN weekday_slots TEXT DEFAULT '[\"09:00\",\"17:00\"]'",
+            "ALTER TABLE instagram_accounts ADD COLUMN weekend_slots TEXT DEFAULT '[\"10:30\",\"16:00\"]'",
         ]
         with db.engine.connect() as conn:
             for stmt in migrations:
