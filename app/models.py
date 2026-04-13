@@ -69,6 +69,16 @@ class Client(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    def _check_plan_expiry(self):
+        """Rebaixa para Free se o plano Pro expirou."""
+        if self.plan == "pro" and not self.is_admin and self.plan_expires_at:
+            expires = self.plan_expires_at
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expires:
+                self.plan = "free"
+                self.mp_subscription_id = None
+
     def get_monthly_limit(self) -> int:
         if self.is_admin or self.plan == "pro":
             return 999999
@@ -77,6 +87,9 @@ class Client(UserMixin, db.Model):
     def can_post(self) -> bool:
         if self.is_admin:
             return True
+        self._check_plan_expiry()
+        if self.is_blocked:
+            return False
         now = datetime.now(timezone.utc).strftime("%Y-%m")
         if self.month_reset != now:
             self.posts_this_month = 0
@@ -93,7 +106,10 @@ class Client(UserMixin, db.Model):
         self.posts_this_month += 1
 
     def is_pro(self) -> bool:
-        return self.is_admin or self.plan == "pro"
+        if self.is_admin:
+            return True
+        self._check_plan_expiry()
+        return self.plan == "pro"
 
     def max_accounts(self) -> int:
         return 999 if self.is_pro() else 1

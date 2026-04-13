@@ -356,13 +356,117 @@ def _cleanup_old_files():
         logger.info(f"Limpeza: {cleaned} arquivo(s) de posts antigos removidos.")
 
 
+def _check_plan_expirations():
+    """
+    Verifica clientes Pro com plano vencido e rebaixa para Free.
+    Notifica via Telegram quando o plano expira.
+    """
+    now_utc = datetime.now(timezone.utc)
+    expired = Client.query.filter(
+        Client.plan == "pro",
+        Client.is_admin == False,
+        Client.plan_expires_at.isnot(None),
+        Client.plan_expires_at <= now_utc,
+    ).all()
+
+    for client in expired:
+        logger.warning(f"Cliente #{client.id} ({client.email}) — plano Pro expirado. Rebaixando para Free.")
+        client.plan = "free"
+        client.mp_subscription_id = None
+
+        # Notificar via Telegram
+        if client.telegram_bot_token and client.telegram_chat_id:
+            from modules.telegram_notify import send_telegram
+            send_telegram(
+                client.telegram_bot_token,
+                client.telegram_chat_id,
+                "⚠️ <b>Plano Pro expirado</b>\n\n"
+                "Seu plano Pro venceu e foi rebaixado para Free.\n"
+                "Renove em: <a href='https://captei.shop/pagamento'>captei.shop/pagamento</a>"
+            )
+
+    if expired:
+        db.session.commit()
+        logger.info(f"{len(expired)} plano(s) expirado(s) rebaixado(s) para Free.")
+
+
+_last_weekly_report = None
+
+
+def _send_weekly_reports():
+    """
+    Envia relatório semanal via Telegram para cada cliente com Telegram configurado.
+    Dispara toda segunda-feira entre 8h e 9h UTC.
+    """
+    global _last_weekly_report
+    now = datetime.now(timezone.utc)
+
+    # Só executa segunda-feira (weekday=0), entre 8h e 9h
+    if now.weekday() != 0 or now.hour != 8:
+        return
+
+    # Evita enviar mais de uma vez por dia
+    today_key = now.strftime("%Y-%m-%d")
+    if _last_weekly_report == today_key:
+        return
+    _last_weekly_report = today_key
+
+    week_ago = now - timedelta(days=7)
+    clients = Client.query.filter(
+        Client.telegram_bot_token.isnot(None),
+        Client.telegram_chat_id.isnot(None),
+    ).all()
+
+    from modules.telegram_notify import send_telegram
+
+    for client in clients:
+        if not client.telegram_bot_token or not client.telegram_chat_id:
+            continue
+        try:
+            total = PostQueue.query.filter(
+                PostQueue.client_id == client.id,
+                PostQueue.status == "posted",
+                PostQueue.posted_at >= week_ago,
+            ).count()
+            failed = PostQueue.query.filter(
+                PostQueue.client_id == client.id,
+                PostQueue.status == "failed",
+                PostQueue.created_at >= week_ago,
+            ).count()
+            pending = PostQueue.query.filter(
+                PostQueue.client_id == client.id,
+                PostQueue.status == "pending",
+            ).count()
+            accounts = InstagramAccount.query.filter_by(
+                client_id=client.id, status="active"
+            ).count()
+
+            plano = "Pro ✨" if client.is_pro() else "Free"
+            msg = (
+                f"📊 <b>Relatório Semanal — PostSocial</b>\n\n"
+                f"📅 Semana: {week_ago.strftime('%d/%m')} a {now.strftime('%d/%m/%Y')}\n\n"
+                f"✅ Posts publicados: <b>{total}</b>\n"
+                f"❌ Falhas: <b>{failed}</b>\n"
+                f"⏳ Na fila: <b>{pending}</b>\n"
+                f"📸 Contas ativas: <b>{accounts}</b>\n"
+                f"💎 Plano: <b>{plano}</b>\n\n"
+                f"<a href='https://captei.shop/dashboard'>Acessar painel →</a>"
+            )
+            send_telegram(client.telegram_bot_token, client.telegram_chat_id, msg)
+            logger.info(f"Relatório semanal enviado para cliente #{client.id}")
+        except Exception as e:
+            logger.error(f"Erro ao enviar relatório para cliente #{client.id}: {e}")
+
+
 def process_queue():
     with app.app_context():
         now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC, igual ao scheduled_at no banco
 
-        # Resetar posts travados e limpar arquivos antigos
+        # Tarefas de manutenção
         _reset_stuck_processing()
         _cleanup_old_files()
+        _check_plan_expirations()
+        _send_weekly_reports()
 
         # Buscar posts prontos (pending + não agendados OU agendamento já passou)
         pending = (
