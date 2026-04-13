@@ -166,8 +166,9 @@ td, th { vertical-align:middle; }
         <tr>
             <td style="color:#555; font-size:0.75rem;">{{ c.id }}</td>
             <td>
-                <strong style="color:#ccc;">{{ c.name }}</strong>
+                <strong style="color:{{ '#f87171' if c.is_blocked else '#ccc' }};">{{ c.name }}</strong>
                 {% if c.is_admin %}<span class="badge" style="background:#7c5cff33; color:#7c5cff; font-size:0.55rem;">admin</span>{% endif %}
+                {% if c.is_blocked %}<span class="badge" style="background:#3a1a1a; color:#f87171; font-size:0.55rem;">bloqueado</span>{% endif %}
                 {% if c.id == current_user.id %}<span class="badge" style="background:#1a3a2a; color:#4ade80; font-size:0.55rem;">você</span>{% endif %}
             </td>
             <td style="color:#888; font-size:0.85rem;">{{ c.email }}</td>
@@ -221,6 +222,16 @@ td, th { vertical-align:middle; }
                     <form method="POST" action="{{ url_for('admin.toggle_admin', client_id=c.id) }}" style="margin:0;">
                         <button class="btn btn-outline btn-sm" title="{{ 'Remover admin' if c.is_admin else 'Tornar admin' }}">
                             {{ '&#9733;' if c.is_admin else '&#9734;' }}
+                        </button>
+                    </form>
+                    <!-- Bloquear/Desbloquear -->
+                    <form method="POST" action="{{ url_for('admin.toggle_block', client_id=c.id) }}"
+                          onsubmit="return confirm('{{ 'Desbloquear ' if c.is_blocked else 'Bloquear ' }}{{ c.name }}?')"
+                          style="margin:0;">
+                        <button class="btn btn-outline btn-sm"
+                                title="{{ 'Desbloquear' if c.is_blocked else 'Bloquear conta' }}"
+                                style="{{ 'color:#4ade80; border-color:#4ade80;' if c.is_blocked else 'color:#f87171; border-color:#f87171;' }}">
+                            {{ '&#128275;' if c.is_blocked else '&#128274;' }}
                         </button>
                     </form>
                     <!-- Excluir -->

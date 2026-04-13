@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Upgrade Pro — PIX{% endblock %}
+{% block title %}Upgrade Pro{% endblock %}
 {% block content %}
 
-<div style="max-width:500px; margin:0 auto;">
+<div style="max-width:520px; margin:0 auto;">
 
     <div style="text-align:center; margin-bottom:1.5rem;">
         <h1 style="font-size:1.6rem; margin-bottom:0.3rem;">Upgrade para <span style="color:{{ brand.color }};">PRO</span></h1>
@@ -10,79 +10,90 @@
     </div>
 
     <!-- Benefícios -->
-    <div class="card" style="border-color:{{ brand.color }};">
-        <h2 style="text-align:center; color:{{ brand.color }};">Plano Pro — R$ {{ "%.2f"|format(price) }}/mês</h2>
-        <ul style="list-style:none; padding:0; margin:1rem 0;">
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Posts ilimitados</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Múltiplas contas Instagram</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Stories automáticos</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Import CSV em massa</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Marca d'água personalizada</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ White Label (sua marca)</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Relatórios semanais</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Auto-agendamento anti-bloqueio</li>
-            <li style="padding:0.4rem 0; color:#ccc;">✔ Suporte prioritário</li>
-        </ul>
+    <div class="card" style="border-color:{{ brand.color }}; margin-bottom:1.5rem;">
+        <h2 style="text-align:center; color:{{ brand.color }}; margin-bottom:1rem;">Plano Pro — R$ {{ "%.2f"|format(price) }}/mês</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.3rem;">
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Posts ilimitados</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Instagram + Facebook + TikTok</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Múltiplas contas</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Stories automáticos</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Import CSV em massa</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Marca d'água</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ White Label</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Alertas no Telegram</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Retry automático</div>
+            <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Suporte prioritário</div>
+        </div>
     </div>
 
-    <!-- QR Code PIX -->
+    <!-- Mercado Pago -->
+    {% if mp_checkout_url %}
+    <div class="card" style="text-align:center; border-color:#009ee3; margin-bottom:1.5rem;">
+        <div style="font-size:1.5rem; margin-bottom:0.5rem;">💳</div>
+        <h2 style="margin-bottom:0.3rem;">Pagar com Mercado Pago</h2>
+        <p style="color:#888; font-size:0.88rem; margin-bottom:1.2rem;">
+            Cartão de crédito, débito, Pix ou boleto. Aprovação automática e imediata.
+        </p>
+        <a href="{{ mp_checkout_url }}" class="btn"
+           style="display:block; background:#009ee3; color:#fff; padding:1rem; font-size:1.05rem; font-weight:700; border-radius:8px; text-align:center; text-decoration:none;">
+            Pagar R$ {{ "%.2f"|format(price) }} agora →
+        </a>
+        <p style="color:#555; font-size:0.75rem; margin-top:0.8rem;">Você será redirecionado para o checkout seguro do Mercado Pago</p>
+    </div>
+    {% endif %}
+
+    <!-- PIX Manual (fallback) -->
+    {% if pix_available and qr_base64 %}
     <div class="card" style="text-align:center;">
-        <h2>Pague com PIX</h2>
+        <h2>{% if mp_checkout_url %}Ou pague com PIX{% else %}Pagar com PIX{% endif %}</h2>
 
         <div style="background:#fff; display:inline-block; border-radius:12px; padding:1rem; margin:1rem 0;">
-            <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code PIX" style="width:220px; height:220px;">
+            <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code PIX" style="width:200px; height:200px;">
         </div>
 
-        <p style="color:#4ade80; font-size:1.5rem; font-weight:700; margin:0.5rem 0;">R$ {{ "%.2f"|format(price) }}</p>
+        <p style="color:#4ade80; font-size:1.4rem; font-weight:700; margin:0.5rem 0;">R$ {{ "%.2f"|format(price) }}</p>
 
-        <!-- Código PIX copia e cola -->
         <div style="margin:1rem 0;">
             <label style="color:#888; font-size:0.85rem;">PIX Copia e Cola:</label>
             <div style="display:flex; gap:0.5rem; margin-top:0.3rem;">
                 <input type="text" id="pix-code" value="{{ pix_code }}" readonly
                     style="font-size:0.7rem; background:#0a0a15; border:1px solid #3a3a5a; color:#aaa; flex:1; padding:0.6rem; cursor:pointer;"
                     onclick="this.select();">
-                <button type="button" class="btn btn-sm" onclick="copyPix()" id="copy-btn"
-                    style="white-space:nowrap;">Copiar</button>
+                <button type="button" class="btn btn-sm" onclick="copyPix()" id="copy-btn">Copiar</button>
             </div>
         </div>
 
-        <!-- Chave PIX -->
-        <div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; margin:1rem 0;">
-            <small style="color:#888;">Chave PIX (email):</small>
-            <p style="color:#ccc; font-weight:600; margin-top:0.2rem; word-break:break-all;">{{ pix_key }}</p>
-        </div>
-
-        <p style="color:#666; font-size:0.8rem; margin-bottom:1rem;">
-            ID da transação: <strong>{{ txid }}</strong>
-        </p>
-
-        <!-- Passo a passo -->
-        <div style="text-align:left; background:#0f0f1a; border-radius:8px; padding:1rem; margin-bottom:1rem;">
-            <p style="color:#7c5cff; font-weight:600; margin-bottom:0.5rem;">Como pagar:</p>
-            <p style="color:#aaa; font-size:0.85rem; line-height:1.6;">
+        <div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; margin:1rem 0; text-align:left;">
+            <p style="color:#7c5cff; font-weight:600; margin-bottom:0.5rem;">Como pagar via PIX:</p>
+            <p style="color:#aaa; font-size:0.85rem; line-height:1.7;">
                 1. Abra o app do seu banco<br>
                 2. Escolha pagar com PIX<br>
-                3. Escaneie o QR Code acima <strong>ou</strong> cole o código PIX<br>
+                3. Escaneie o QR Code <strong>ou</strong> cole o código<br>
                 4. Confirme o pagamento de <strong>R$ {{ "%.2f"|format(price) }}</strong><br>
-                5. Clique no botão abaixo para informar o pagamento
+                5. Clique no botão abaixo
             </p>
         </div>
 
-        <!-- Botão confirmar -->
-        <form method="POST" action="{{ url_for('payment.confirm_payment') }}" onsubmit="return confirm('Confirma que já realizou o pagamento PIX de R$ {{ "%.2f"|format(price) }}?');">
-            <button type="submit" class="btn btn-success" style="width:100%; padding:1rem; font-size:1.1rem;">
-                Já paguei — Ativar meu Pro
+        <form method="POST" action="{{ url_for('payment.confirm_payment') }}"
+              onsubmit="return confirm('Confirma que já realizou o pagamento PIX de R$ {{ '%.2f'|format(price) }}?');">
+            <button type="submit" class="btn btn-success" style="width:100%; padding:1rem; font-size:1rem;">
+                ✔ Já paguei — Ativar meu Pro
             </button>
         </form>
-
-        <p style="color:#666; font-size:0.75rem; margin-top:0.8rem;">
-            Seu plano será ativado assim que confirmarmos o recebimento do PIX.
+        <p style="color:#555; font-size:0.75rem; margin-top:0.8rem;">
+            Ativação manual em até 24h após confirmação do pagamento.
         </p>
     </div>
+    {% endif %}
 
-    <div style="text-align:center;">
-        <a href="{{ url_for('dashboard.index') }}" style="color:#888; font-size:0.85rem;">Voltar ao painel</a>
+    {% if not mp_checkout_url and not pix_available %}
+    <div class="card" style="text-align:center; color:#888;">
+        <p>Pagamento não configurado. Entre em contato com o suporte.</p>
+    </div>
+    {% endif %}
+
+    <div style="text-align:center; margin-top:1rem;">
+        <a href="{{ url_for('dashboard.index') }}" style="color:#666; font-size:0.85rem;">← Voltar ao painel</a>
     </div>
 
 </div>

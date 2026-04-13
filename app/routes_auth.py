@@ -53,6 +53,10 @@ def login():
             flash("Email ou senha incorretos.", "error")
             return render_template("login.html")
 
+        if client.is_blocked:
+            flash("Sua conta foi suspensa. Entre em contato com o suporte.", "error")
+            return render_template("login.html")
+
         login_user(client)
         return redirect(url_for("dashboard.index"))
 

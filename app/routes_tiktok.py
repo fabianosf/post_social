@@ -191,6 +191,9 @@ def post_video_to_tiktok(account: TikTokAccount, video_path: str, caption: str) 
     if not token:
         raise Exception("Token TikTok inválido ou expirado.")
 
+    if not os.path.exists(video_path):
+        raise Exception(f"Arquivo não encontrado: {video_path}")
+
     file_size = os.path.getsize(video_path)
 
     # 1. Inicializar upload
@@ -214,12 +217,14 @@ def post_video_to_tiktok(account: TikTokAccount, video_path: str, caption: str) 
         "https://open.tiktokapis.com/v2/post/publish/video/init/",
         init_payload, token
     )
-    if init_resp.get("error", {}).get("code") != "ok":
-        raise Exception(f"TikTok init error: {init_resp}")
+    if not init_resp.get("data") or init_resp.get("error", {}).get("code", "ok") != "ok":
+        raise Exception(f"TikTok video init error: {init_resp.get('error', init_resp)}")
 
     data = init_resp["data"]
-    publish_id  = data["publish_id"]
-    upload_url  = data["upload_url"]
+    publish_id  = data.get("publish_id") or ""
+    upload_url  = data.get("upload_url") or ""
+    if not publish_id or not upload_url:
+        raise Exception(f"TikTok não retornou publish_id/upload_url: {data}")
 
     # 2. Fazer upload do arquivo
     with open(video_path, "rb") as f:
@@ -239,3 +244,91 @@ def post_video_to_tiktok(account: TikTokAccount, video_path: str, caption: str) 
         pass
 
     return publish_id
+
+
+def post_photo_to_tiktok(account: TikTokAccount, image_paths: list[str], caption: str) -> str | None:
+    """
+    Publica foto(s) no TikTok via Content Posting API.
+    1 imagem = post simples | múltiplas = carrossel.
+    Retorna o publish_id em caso de sucesso.
+    """
+    token = get_valid_token(account)
+    if not token:
+        raise Exception("Token TikTok inválido ou expirado.")
+
+    # Verificar arquivos
+    missing = [p for p in image_paths if not os.path.exists(p)]
+    if missing:
+        raise Exception(f"Arquivo(s) não encontrado(s): {missing}")
+
+    # Detectar tipo de imagem
+    def _mime(path):
+        ext = path.rsplit(".", 1)[-1].lower()
+        return "image/webp" if ext == "webp" else "image/jpeg" if ext in ("jpg","jpeg") else "image/png"
+
+    photos_info = []
+    for path in image_paths[:35]:  # TikTok aceita até 35 fotos
+        size = os.path.getsize(path)
+        photos_info.append({"image_size": size})
+
+    init_payload = {
+        "post_info": {
+            "title": caption[:2200] if caption else "",
+            "privacy_level": "PUBLIC_TO_EVERYONE",
+            "disable_comment": False,
+            "auto_add_music": True,
+        },
+        "source_info": {
+            "source": "FILE_UPLOAD",
+            "photo_cover_index": 0,
+            "photo_images": photos_info,
+        },
+        "post_mode": "DIRECT_POST",
+        "media_type": "PHOTO",
+    }
+
+    init_resp = _post_json(
+        "https://open.tiktokapis.com/v2/post/publish/content/init/",
+        init_payload, token
+    )
+    if not init_resp.get("data") or init_resp.get("error", {}).get("code", "ok") != "ok":
+        raise Exception(f"TikTok photo init error: {init_resp.get('error', init_resp)}")
+
+    data = init_resp["data"]
+    publish_id  = data.get("publish_id") or ""
+    upload_urls = data.get("upload_url") or []
+    if not publish_id or not upload_urls:
+        raise Exception(f"TikTok não retornou publish_id/upload_urls: {data}")
+
+    # Upload de cada imagem
+    for path, upload_url in zip(image_paths[:35], upload_urls):
+        file_size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            img_bytes = f.read()
+        req = urllib.request.Request(
+            upload_url,
+            data=img_bytes,
+            headers={
+                "Content-Type": _mime(path),
+                "Content-Range": f"bytes 0-{file_size-1}/{file_size}",
+                "Content-Length": str(file_size),
+            },
+            method="PUT",
+        )
+        with urllib.request.urlopen(req, timeout=60):
+            pass
+
+    return publish_id
+
+
+def post_to_tiktok(account: TikTokAccount, post) -> str | None:
+    """
+    Função unificada — detecta automaticamente se é vídeo ou foto/carrossel.
+    """
+    caption = ((post.caption or "") + " " + (post.hashtags or "")).strip()
+    paths = post.image_path.split("|")
+
+    if post.post_type in ("reels", "video"):
+        return post_video_to_tiktok(account, paths[0], caption)
+    else:
+        return post_photo_to_tiktok(account, paths, caption)

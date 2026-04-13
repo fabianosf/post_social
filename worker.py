@@ -230,7 +230,7 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
             logger.info(f"Post #{post.id} — POSTADO Instagram/Facebook! ID: {media_id}")
 
             # ── TikTok (apenas vídeos/reels) ──────────────────────────
-            if getattr(post, "post_to_tiktok", False) and post.post_type in ("reels", "video"):
+            if getattr(post, "post_to_tiktok", False):
                 _try_post_tiktok(post, client)
 
             return True
@@ -267,7 +267,7 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
         if post.retry_count <= MAX_RETRIES:
             delay = retry_delays[min(post.retry_count - 1, len(retry_delays) - 1)]
             post.status = "pending"
-            post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)
+            post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)  # UTC naive, igual ao worker
             post.error_message = f"Tentativa {post.retry_count}/{MAX_RETRIES}: {err_msg}"
             db.session.commit()
             logger.warning(f"Post #{post.id} — Retry {post.retry_count}/{MAX_RETRIES} em {delay}min: {e}")
@@ -285,21 +285,20 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
 
 
 def _try_post_tiktok(post: PostQueue, client: Client):
-    """Tenta postar no TikTok se a conta estiver conectada."""
+    """Tenta postar no TikTok se a conta estiver conectada. Suporta foto e vídeo."""
     try:
-        from app.routes_tiktok import post_video_to_tiktok
+        from app.routes_tiktok import post_to_tiktok
         tiktok_acc = TikTokAccount.query.filter_by(client_id=post.client_id).first()
         if not tiktok_acc:
             logger.warning(f"Post #{post.id} — TikTok marcado mas nenhuma conta conectada.")
             return
         caption = ((post.caption or "") + " " + (post.hashtags or "")).strip()
-        video_path = post.image_path.split("|")[0]
-        publish_id = post_video_to_tiktok(tiktok_acc, video_path, caption)
+        publish_id = post_to_tiktok(tiktok_acc, post)
         logger.info(f"Post #{post.id} — POSTADO TikTok! publish_id: {publish_id}")
         if client:
             from modules.telegram_notify import send_telegram
             send_telegram(client.telegram_bot_token or "", client.telegram_chat_id or "",
-                          f"✅ <b>TikTok publicado!</b>\n@{tiktok_acc.username}\n{caption[:80]}")
+                          f"✅ <b>TikTok publicado!</b>\n@{tiktok_acc.username or ''}\n{caption[:80]}")
     except Exception as e:
         logger.error(f"Post #{post.id} — Erro TikTok: {e}")
         if client:
@@ -308,9 +307,62 @@ def _try_post_tiktok(post: PostQueue, client: Client):
                           f"❌ <b>Falha no TikTok!</b>\nErro: {str(e)[:200]}")
 
 
+def _reset_stuck_processing():
+    """Posts travados em 'processing' por mais de 15min → volta para pending."""
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=15)
+    stuck = PostQueue.query.filter(
+        PostQueue.status == "processing",
+        db.or_(
+            PostQueue.scheduled_at.is_(None),
+            PostQueue.scheduled_at <= cutoff,
+        )
+    ).all()
+    for post in stuck:
+        post.status = "pending"
+        post.error_message = "Reset automático: travado em processamento"
+        logger.warning(f"Post #{post.id} resetado de 'processing' para 'pending'")
+    if stuck:
+        db.session.commit()
+
+
+def _cleanup_old_files():
+    """
+    Remove arquivos de imagem/vídeo de posts já publicados há mais de 7 dias.
+    Mantém o registro no banco para estatísticas.
+    """
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    old_posts = PostQueue.query.filter(
+        PostQueue.status == "posted",
+        PostQueue.posted_at <= cutoff,
+        PostQueue.image_path.isnot(None),
+    ).all()
+
+    cleaned = 0
+    for post in old_posts:
+        paths = post.image_path.split("|")
+        all_removed = True
+        for path in paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                    cleaned += 1
+                except Exception:
+                    all_removed = False
+        if all_removed:
+            post.image_path = ""  # limpa o caminho após remover
+
+    if cleaned:
+        db.session.commit()
+        logger.info(f"Limpeza: {cleaned} arquivo(s) de posts antigos removidos.")
+
+
 def process_queue():
     with app.app_context():
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC, igual ao scheduled_at no banco
+
+        # Resetar posts travados e limpar arquivos antigos
+        _reset_stuck_processing()
+        _cleanup_old_files()
 
         # Buscar posts prontos (pending + não agendados OU agendamento já passou)
         pending = (

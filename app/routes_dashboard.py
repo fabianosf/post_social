@@ -197,10 +197,47 @@ def index():
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
 
     status_filter = request.args.get("status", "all")
-    query = PostQueue.query.filter_by(client_id=current_user.id)
-    if status_filter != "all":
-        query = query.filter_by(status=status_filter)
-    posts = query.order_by(PostQueue.created_at.desc()).limit(50).all()
+
+    # Fila ativa: apenas posts NÃO postados (pending, draft, failed, processing)
+    ACTIVE_STATUSES = ["pending", "draft", "failed", "processing"]
+    queue_query = PostQueue.query.filter(
+        PostQueue.client_id == current_user.id,
+        PostQueue.status.in_(ACTIVE_STATUSES),
+    )
+    if status_filter not in ("all", "posted"):
+        queue_query = queue_query.filter_by(status=status_filter)
+    posts = queue_query.order_by(PostQueue.created_at.desc()).limit(100).all()
+
+    # Histórico: posts publicados, agrupados por dia (Brasil), últimos 90 dias
+    history_raw = (
+        PostQueue.query.filter(
+            PostQueue.client_id == current_user.id,
+            PostQueue.status == "posted",
+        )
+        .order_by(PostQueue.posted_at.desc())
+        .limit(200)
+        .all()
+    )
+    _WEEKDAYS_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    _MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+    # Agrupar por dia (horário Brasil)
+    history_by_day: dict = {}
+    for p in history_raw:
+        ref = p.posted_at or p.scheduled_at or p.created_at
+        if ref:
+            ref_br = ref.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+            day_key = ref_br.strftime("%d/%m/%Y")
+            wd = _WEEKDAYS_PT[ref_br.weekday()]
+            mo = _MONTHS_PT[ref_br.month - 1]
+            day_label = f"{wd}, {ref_br.day:02d} de {mo} de {ref_br.year}"
+        else:
+            day_key = "—"
+            day_label = "—"
+        if day_key not in history_by_day:
+            history_by_day[day_key] = {"label": day_label, "posts": []}
+        history_by_day[day_key]["posts"].append(p)
+    history_days = list(history_by_day.values())
 
     all_posts = PostQueue.query.filter_by(client_id=current_user.id)
     stats = {
@@ -256,6 +293,13 @@ def index():
                     "days": days_since,
                     "status": "critical" if days_since > 85 else "warning",
                 })
+                # Notificar via Telegram (apenas uma vez por dia — checa se não foi notificado hoje)
+                if days_since in (81, 85, 89):  # Notifica nos dias 81, 85 e 89
+                    try:
+                        from modules.telegram_notify import notify_session_expiring
+                        notify_session_expiring(current_user, acc, days_since)
+                    except Exception:
+                        pass
 
     # White label
     brand = {
@@ -347,6 +391,7 @@ def index():
         brand=brand,
         daily_usage=daily_usage,
         safe_limits=SAFE_LIMITS,
+        history_days=history_days,
     )
 
 

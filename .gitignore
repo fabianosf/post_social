@@ -10,3 +10,8 @@ clients/*/logs/
 # Google Drive Service Account key (NUNCA comitar no git!)
 credentials/gdrive_service_account.json
 backups/
+
+# Banco de dados e uploads (dados sensíveis de clientes)
+data/postsocial.db
+uploads/
+tela.png

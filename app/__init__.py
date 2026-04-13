@@ -125,6 +125,11 @@ def create_app():
             # instagram_accounts — slots recorrentes
             "ALTER TABLE instagram_accounts ADD COLUMN weekday_slots TEXT DEFAULT '[\"09:00\",\"17:00\"]'",
             "ALTER TABLE instagram_accounts ADD COLUMN weekend_slots TEXT DEFAULT '[\"10:30\",\"16:00\"]'",
+            # clients — bloqueio e Mercado Pago
+            "ALTER TABLE clients ADD COLUMN is_blocked BOOLEAN DEFAULT 0",
+            "ALTER TABLE clients ADD COLUMN mp_subscription_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN mp_payment_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN plan_expires_at DATETIME",
         ]
         with db.engine.connect() as conn:
             for stmt in migrations:

@@ -2,6 +2,90 @@
 {% block title %}Painel{% endblock %}
 {% block content %}
 
+<!-- ── Onboarding Modal (aparece apenas para novos usuários) ── -->
+{% if not accounts %}
+<div id="onboarding-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2000; display:flex; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#1a1a2e; border:1px solid #3a3a6a; border-radius:16px; padding:2rem; max-width:480px; width:100%;">
+        <!-- Steps indicator -->
+        <div style="display:flex; justify-content:center; gap:0.5rem; margin-bottom:2rem;">
+            <div id="step-dot-1" style="width:32px; height:32px; border-radius:50%; background:#7c5cff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700;">1</div>
+            <div style="width:40px; height:2px; background:#2a2a4a; margin:auto;"></div>
+            <div id="step-dot-2" style="width:32px; height:32px; border-radius:50%; background:#2a2a4a; color:#666; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700;">2</div>
+            <div style="width:40px; height:2px; background:#2a2a4a; margin:auto;"></div>
+            <div id="step-dot-3" style="width:32px; height:32px; border-radius:50%; background:#2a2a4a; color:#666; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700;">3</div>
+        </div>
+
+        <!-- Passo 1: Boas-vindas -->
+        <div id="onb-step-1">
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <div style="font-size:3rem; margin-bottom:0.5rem;">👋</div>
+                <h2 style="color:#fff; margin:0 0 0.5rem;">Bem-vindo ao PostSocial!</h2>
+                <p style="color:#888; font-size:0.92rem; line-height:1.6;">
+                    Em 3 passos rápidos você vai configurar sua conta e agendar seu primeiro post automaticamente.
+                </p>
+            </div>
+            <button onclick="onbNext(1)" class="btn" style="width:100%; background:#7c5cff; color:#fff; padding:0.85rem;">
+                Começar configuração →
+            </button>
+            <p style="text-align:center; margin-top:0.8rem;">
+                <a href="#" onclick="document.getElementById('onboarding-modal').style.display='none'; return false;"
+                   style="color:#555; font-size:0.8rem;">Pular por agora</a>
+            </p>
+        </div>
+
+        <!-- Passo 2: Conectar Instagram -->
+        <div id="onb-step-2" style="display:none;">
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <div style="font-size:2.5rem; margin-bottom:0.5rem;">📸</div>
+                <h2 style="color:#fff; margin:0 0 0.5rem;">Conectar Instagram</h2>
+                <p style="color:#888; font-size:0.88rem; line-height:1.6;">
+                    Informe usuário e senha do Instagram para conectar. Suas credenciais são criptografadas e armazenadas com segurança.
+                </p>
+            </div>
+            <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+                <input type="text" name="ig_username" placeholder="@usuario" required style="margin-bottom:0.5rem;">
+                <input type="password" name="ig_password" placeholder="Senha do Instagram" required style="margin-bottom:1rem;">
+                <button type="submit" class="btn btn-meta" style="width:100%; padding:0.85rem;">
+                    Conectar Instagram
+                </button>
+            </form>
+            <p style="text-align:center; margin-top:0.8rem;">
+                <a href="#" onclick="onbNext(2); return false;" style="color:#555; font-size:0.8rem;">Pular esta etapa</a>
+            </p>
+        </div>
+
+        <!-- Passo 3: Pronto -->
+        <div id="onb-step-3" style="display:none;">
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <div style="font-size:3rem; margin-bottom:0.5rem;">🚀</div>
+                <h2 style="color:#fff; margin:0 0 0.5rem;">Tudo pronto!</h2>
+                <p style="color:#888; font-size:0.92rem; line-height:1.6;">
+                    Sua conta está configurada. Agora você pode subir fotos, agendar posts e deixar o PostSocial trabalhar por você.
+                </p>
+            </div>
+            <a href="{{ url_for('dashboard.index') }}" class="btn" style="display:block; width:100%; text-align:center; background:#4ade80; color:#000; padding:0.85rem; font-weight:700; border-radius:8px;">
+                Ir para o painel →
+            </a>
+        </div>
+    </div>
+</div>
+<script>
+function onbNext(from) {
+    document.getElementById('onb-step-' + from).style.display = 'none';
+    const next = from + 1;
+    document.getElementById('onb-step-' + next).style.display = 'block';
+    // Atualizar indicadores
+    for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById('step-dot-' + i);
+        if (i < next) { dot.style.background = '#4ade80'; dot.style.color = '#000'; }
+        else if (i === next) { dot.style.background = '#7c5cff'; dot.style.color = '#fff'; }
+        else { dot.style.background = '#2a2a4a'; dot.style.color = '#666'; }
+    }
+}
+</script>
+{% endif %}
+
 <!-- Alertas de Token/Sessão -->
 {% if token_alerts %}
 <div class="card" style="border-color:#f87171; background:#2a1a1a;">
@@ -527,6 +611,9 @@ loadSlotsConfig();
             <div class="checkbox-row" style="margin-bottom:1rem;">
                 <label style="font-size:0.85rem;"><span style="font-size:0.9rem;">📸</span> Instagram (sempre)</label>
                 <label style="font-size:0.85rem;"><input type="checkbox" name="share_facebook" id="week-fb-check"> <span style="font-size:0.9rem;">👥</span> Facebook</label>
+                {% if current_user.tiktok_accounts %}
+                <label style="font-size:0.85rem;"><input type="checkbox" name="post_to_tiktok"> 🎵 TikTok</label>
+                {% endif %}
             </div>
 
             <!-- Aviso -->
@@ -693,7 +780,7 @@ loadSlotsConfig();
             <label><input type="checkbox" name="share_facebook" checked> Facebook</label>
             {% endif %}
             {% if current_user.tiktok_accounts %}
-            <label><input type="checkbox" name="post_to_tiktok" id="tiktok-check"> 🎵 TikTok <small style="color:#888;">(só vídeos)</small></label>
+            <label><input type="checkbox" name="post_to_tiktok" id="tiktok-check"> 🎵 TikTok</label>
             {% endif %}
             {% if current_user.is_pro() %}
             <label><input type="checkbox" name="post_story"> Stories</label>
@@ -969,31 +1056,23 @@ function saveTelegramConfig() {
 </div>
 {% endif %}
 
-<!-- Postagens -->
+<!-- Fila de Postagens -->
 <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
-        <h2 style="margin:0;">Postagens</h2>
+        <h2 style="margin:0;">Fila de Postagens</h2>
         <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
             <a href="?status=all" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'all' }}">Todas</a>
             <a href="?status=draft" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'draft' }}">Rascunhos</a>
-            <a href="?status=pending" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'pending' }}">Fila</a>
-            <a href="?status=posted" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'posted' }}">Postadas</a>
+            <a href="?status=pending" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'pending' }}">Agendadas</a>
             <a href="?status=failed" class="btn btn-outline btn-sm {{ 'btn-active' if status_filter == 'failed' }}">Erros</a>
         </div>
     </div>
 
-    {% if stats.posted > 0 or stats.failed > 0 %}
+    {% if stats.failed > 0 %}
     <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-        {% if stats.posted > 0 %}
-        <form method="POST" action="{{ url_for('dashboard.clear_posted') }}" onsubmit="return confirm('Limpar postagens publicadas?')">
-            <button class="btn btn-outline btn-sm">Limpar postadas ({{ stats.posted }})</button>
-        </form>
-        {% endif %}
-        {% if stats.failed > 0 %}
         <form method="POST" action="{{ url_for('dashboard.clear_failed') }}" onsubmit="return confirm('Limpar erros?')">
             <button class="btn btn-outline btn-sm btn-delete">Limpar erros ({{ stats.failed }})</button>
         </form>
-        {% endif %}
     </div>
     {% endif %}
 
@@ -1014,46 +1093,46 @@ function saveTelegramConfig() {
                 <div class="caption-preview">
                     {% if post.caption %}{{ post.caption[:80] }}{% else %}<em>IA</em>{% endif %}
                 </div>
-                <div style="margin-top:0.2rem; display:flex; gap:0.2rem; align-items:center;">
+                <div style="margin-top:0.2rem; display:flex; gap:0.2rem; align-items:center; flex-wrap:wrap;">
                     <span class="badge badge-ig" style="font-size:0.6rem;">IG</span>
                     {% if post.post_to_facebook %}<span class="badge badge-fb" style="font-size:0.6rem;">FB</span>{% endif %}
-                    {% if post.scheduled_at %}<span style="color:#60a5fa; font-size:0.65rem;">{{ post.scheduled_at.strftime('%d/%m %H:%M') }}</span>{% endif %}
-                    {% if post.posted_at %}<span style="color:#666; font-size:0.65rem;">{{ post.posted_at.strftime('%d/%m %H:%M') }}</span>{% endif %}
+                    {% if post.post_to_tiktok %}<span class="badge" style="background:#1a1a2e; color:#a78bfa; font-size:0.6rem; border:1px solid #4a3a7a;">TK</span>{% endif %}
+                    {% if post.scheduled_at %}
+                    <span style="color:#60a5fa; font-size:0.65rem;">&#128337; {{ post.scheduled_at.strftime('%d/%m %H:%M') }}</span>
+                    {% else %}
+                    <span style="color:#888; font-size:0.65rem;">sem horário</span>
+                    {% endif %}
                 </div>
             </div>
             <div style="display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
                 <span class="badge badge-{{ post.status }}">
-                    {% if post.status == 'posted' %}postado{% elif post.status == 'pending' %}fila{% elif post.status == 'processing' %}postando{% elif post.status == 'failed' %}erro{% elif post.status == 'draft' %}rascunho{% endif %}
+                    {% if post.status == 'pending' %}fila{% elif post.status == 'processing' %}postando{% elif post.status == 'failed' %}erro{% elif post.status == 'draft' %}rascunho{% endif %}
                 </span>
                 {% if post.status == 'draft' %}
                 <form method="POST" action="{{ url_for('dashboard.approve_post', post_id=post.id) }}" style="margin:0;">
                     <button class="btn btn-sm btn-success" type="submit" style="padding:0.3rem 0.6rem;">Aprovar</button>
                 </form>
                 {% endif %}
-                {% if post.status == 'posted' and post.instagram_media_id %}
-                <button class="btn btn-outline btn-sm" type="button" title="Ver métricas" onclick="fetchMetrics({{ post.id }}, this)" style="font-size:0.7rem;">&#128200;</button>
-                {% endif %}
                 {% if post.status == 'failed' %}
                 <form method="POST" action="{{ url_for('dashboard.retry_post', post_id=post.id) }}" style="margin:0;">
                     <button class="btn btn-outline btn-sm" type="submit" title="Tentar novamente">&#8635;</button>
                 </form>
                 {% endif %}
-                <!-- Duplicar post -->
                 <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
                     <button class="btn btn-outline btn-sm" type="submit" title="Postar novamente" style="font-size:0.7rem;">&#128260;</button>
                 </form>
-                {% if post.status in ('pending', 'draft', 'failed', 'posted') %}
+                {% if post.status in ('pending', 'draft', 'failed') %}
                 <button type="button"
-                        title="{{ 'Reagendar — reposta para nova data' if post.status == 'posted' else 'Editar horário/legenda' }}"
-                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }}, {{ 'true' if post.status == 'posted' else 'false' }})"
+                        title="Editar horário/legenda"
+                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }}, false)"
                         class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.25rem 0.5rem;">
-                    {{ '📅' if post.status == 'posted' else '✏' }}
+                    ✏
                 </button>
                 {% endif %}
                 <form method="POST" action="{{ url_for('dashboard.delete_post', post_id=post.id) }}" onsubmit="return confirm('Remover este post da fila?')" style="margin:0;">
                     <button class="btn btn-sm" type="submit" title="Remover post"
                             style="background:#7f1d1d; border-color:#ef4444; color:#fca5a5; padding:0.25rem 0.6rem; font-size:0.8rem;">
-                        🗑 Remover
+                        🗑
                     </button>
                 </form>
             </div>
@@ -1065,7 +1144,84 @@ function saveTelegramConfig() {
         {% endif %}
         {% endfor %}
     {% else %}
-        <p style="color:#888;">Nenhuma postagem{% if status_filter != 'all' %} com esse filtro{% endif %}.</p>
+        <p style="color:#888; text-align:center; padding:1.5rem 0;">
+            Fila vazia — nenhuma postagem agendada.
+        </p>
+    {% endif %}
+</div>
+
+<!-- Histórico de Publicações -->
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+        <h2 style="margin:0;">Histórico de Publicações</h2>
+        <span style="color:#888; font-size:0.8rem;">{{ stats.posted }} publicações</span>
+    </div>
+
+    {% if history_days %}
+        {% for day in history_days %}
+        <!-- Separador de dia -->
+        <div style="display:flex; align-items:center; gap:0.6rem; margin:1rem 0 0.5rem;">
+            <div style="flex:1; height:1px; background:#2a2a3a;"></div>
+            <span style="color:#888; font-size:0.75rem; white-space:nowrap;">{{ day.label }}</span>
+            <div style="flex:1; height:1px; background:#2a2a3a;"></div>
+        </div>
+        {% for post in day.posts %}
+        <div style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0.25rem; border-bottom:1px solid #1e1e2e;">
+            <!-- Thumbnail -->
+            <div style="width:44px; height:44px; border-radius:6px; overflow:hidden; flex-shrink:0; background:#1a1a2a;">
+                {% set thumb_path = post.image_path.split('|')[0].split('/uploads/')[-1] if post.image_path and '/uploads/' in post.image_path else '' %}
+                {% if thumb_path %}
+                <img src="{{ url_for('dashboard.uploaded_file', filename=thumb_path) }}"
+                     style="width:100%; height:100%; object-fit:cover;"
+                     onerror="this.parentElement.innerHTML='&#128247;'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center'; this.parentElement.style.fontSize='1.2rem';">
+                {% else %}
+                <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#555;">&#128247;</div>
+                {% endif %}
+            </div>
+            <!-- Info -->
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:0.8rem; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    {% if post.caption %}{{ post.caption[:60] }}{% else %}<em style="color:#666;">sem legenda</em>{% endif %}
+                </div>
+                <div style="display:flex; gap:0.3rem; align-items:center; margin-top:0.2rem; flex-wrap:wrap;">
+                    <span class="badge badge-ig" style="font-size:0.55rem;">IG</span>
+                    {% if post.post_to_facebook %}<span class="badge badge-fb" style="font-size:0.55rem;">FB</span>{% endif %}
+                    {% if post.post_to_tiktok %}<span class="badge" style="background:#1a1a2e; color:#a78bfa; font-size:0.55rem; border:1px solid #4a3a7a;">TK</span>{% endif %}
+                    {% if post.posted_at %}
+                    <span style="color:#4ade80; font-size:0.65rem;">
+                        ✓ {{ post.posted_at.strftime('%H:%M') }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Ações -->
+            <div style="display:flex; gap:0.3rem; flex-shrink:0;">
+                {% if post.instagram_media_id %}
+                <button class="btn btn-outline btn-sm" type="button" title="Ver métricas"
+                        onclick="fetchMetrics({{ post.id }}, this)" style="font-size:0.65rem; padding:0.2rem 0.4rem;">&#128200;</button>
+                {% endif %}
+                <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
+                    <button class="btn btn-outline btn-sm" type="submit" title="Repostar"
+                            style="font-size:0.65rem; padding:0.2rem 0.4rem;">&#128260;</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+    {% else %}
+        <p style="color:#888; text-align:center; padding:1.5rem 0;">
+            Nenhuma publicação ainda.
+        </p>
+    {% endif %}
+
+    {% if stats.posted > 0 %}
+    <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid #2a2a3a;">
+        <form method="POST" action="{{ url_for('dashboard.clear_posted') }}" onsubmit="return confirm('Apagar todo o histórico de postagens publicadas?')">
+            <button class="btn btn-outline btn-sm" style="color:#888; border-color:#444; font-size:0.75rem;">
+                Limpar histórico completo ({{ stats.posted }})
+            </button>
+        </form>
+    </div>
     {% endif %}
 </div>
 

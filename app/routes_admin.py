@@ -161,6 +161,23 @@ def reject_pro(client_id):
     return redirect(url_for("admin.index"))
 
 
+# ── Bloquear / desbloquear cliente ───────────────
+
+@admin_bp.route("/client/<int:client_id>/toggle-block", methods=["POST"])
+@admin_required
+def toggle_block(client_id):
+    if client_id == current_user.id:
+        flash("Você não pode bloquear sua própria conta.", "error")
+        return redirect(url_for("admin.index") + _keep_filters())
+    client = db.session.get(Client, client_id)
+    if client:
+        client.is_blocked = not client.is_blocked
+        db.session.commit()
+        status = "bloqueado" if client.is_blocked else "desbloqueado"
+        flash(f"{client.name} foi {status}.", "info")
+    return redirect(url_for("admin.index") + _keep_filters())
+
+
 # ── Gestão de admins ──────────────────────────────
 
 @admin_bp.route("/client/<int:client_id>/toggle-admin", methods=["POST"])

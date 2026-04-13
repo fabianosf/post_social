@@ -49,6 +49,14 @@ class Client(UserMixin, db.Model):
     # Google Drive
     gdrive_folder_id = db.Column(db.String(200))   # ID ou URL da pasta
 
+    # Controle de acesso
+    is_blocked = db.Column(db.Boolean, default=False)
+
+    # Mercado Pago
+    mp_subscription_id = db.Column(db.String(200))
+    mp_payment_id = db.Column(db.String(200))
+    plan_expires_at = db.Column(db.DateTime)
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     instagram_accounts = db.relationship("InstagramAccount", backref="client", lazy=True)
@@ -170,8 +178,8 @@ class TikTokAccount(db.Model):
     display_name = db.Column(db.String(200))
     avatar_url = db.Column(db.String(500))
     access_token = db.Column(db.Text, nullable=False)
-    refresh_token = db.Column(db.Text)
-    token_expires_at = db.Column(db.DateTime)
+    refresh_token = db.Column(db.Text, nullable=True)
+    token_expires_at = db.Column(db.DateTime, nullable=True)
     connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     client = db.relationship("Client", backref="tiktok_accounts")

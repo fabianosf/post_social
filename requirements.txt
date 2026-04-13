@@ -37,3 +37,6 @@ gdown>=5.0.0
 # Google Drive — modo Service Account (opcional, para pastas privadas)
 google-api-python-client>=2.0.0
 google-auth>=2.0.0
+
+# Mercado Pago — pagamento automático
+mercadopago>=2.2.0
