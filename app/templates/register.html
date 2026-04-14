@@ -2,10 +2,11 @@
 {% block title %}Cadastro{% endblock %}
 {% block content %}
 <div class="auth-container">
-    <div class="logo-big">PostSocial</div>
+    <div class="logo-big">Postay</div>
     <div class="card">
         <h2>Criar Conta</h2>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Seu nome ou nome do negócio</label>
             <input type="text" name="name" required placeholder="Padaria do Silva">
             <label>Email</label>

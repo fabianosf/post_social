@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PostSocial — {% block title %}Automação de Postagens{% endblock %}</title>
+    <title>Postay — {% block title %}Automação de Postagens{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
@@ -11,7 +11,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PostSocial">
+    <meta name="apple-mobile-web-app-title" content="Postay">
     <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/static/sw.js');}</script>
     <style>
@@ -136,7 +136,7 @@
 <body>
     {% if current_user.is_authenticated %}
     {% set _brand_color = current_user.brand_color or '#7c5cff' %}
-    {% set _brand_name = current_user.brand_name or 'PostSocial' %}
+    {% set _brand_name = current_user.brand_name or 'Postay' %}
     {% if _brand_color != '#7c5cff' %}
     <style>
         a { color: {{ _brand_color }}; }

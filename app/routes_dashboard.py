@@ -303,7 +303,7 @@ def index():
 
     # White label
     brand = {
-        "name": current_user.brand_name or "PostSocial",
+        "name": current_user.brand_name or "Postay",
         "color": current_user.brand_color or "#7c5cff",
     }
 
@@ -406,8 +406,10 @@ def dismiss_notifications():
 @dashboard_bp.route("/uploads/<path:filename>")
 @login_required
 def uploaded_file(filename):
-    client_prefix = f"{current_user.id}/"
-    if not filename.startswith(client_prefix):
+    upload_folder = os.path.realpath(current_app.config["UPLOAD_FOLDER"])
+    client_dir = os.path.realpath(os.path.join(upload_folder, str(current_user.id)))
+    requested = os.path.realpath(os.path.join(upload_folder, filename))
+    if not requested.startswith(client_dir + os.sep) and requested != client_dir:
         return "Acesso negado", 403
     return send_from_directory(current_app.config["UPLOAD_FOLDER"], filename)
 
@@ -1276,7 +1278,7 @@ def save_telegram_config():
     if current_user.telegram_bot_token and current_user.telegram_chat_id:
         from modules.telegram_notify import send_telegram
         ok = send_telegram(current_user.telegram_bot_token, current_user.telegram_chat_id,
-                           "✅ <b>PostSocial conectado!</b>\nVocê receberá alertas aqui.")
+                           "✅ <b>Postay conectado!</b>\nVocê receberá alertas aqui.")
         return jsonify({"ok": True, "tested": ok})
     return jsonify({"ok": True, "tested": False})
 
@@ -1671,7 +1673,7 @@ def stats_page():
     safe_info = dict(SAFE_LIMITS)
 
     brand = {
-        "name": current_user.brand_name or "PostSocial",
+        "name": current_user.brand_name or "Postay",
         "color": current_user.brand_color or "#7c5cff",
     }
 

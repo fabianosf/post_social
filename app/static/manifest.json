@@ -1,6 +1,6 @@
 {
-  "name": "PostSocial",
-  "short_name": "PostSocial",
+  "name": "Postay",
+  "short_name": "Postay",
   "description": "Agendamento de posts para Instagram e Facebook",
   "start_url": "/dashboard",
   "display": "standalone",

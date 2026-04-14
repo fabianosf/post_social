@@ -2,10 +2,11 @@
 {% block title %}Login{% endblock %}
 {% block content %}
 <div class="auth-container">
-    <div class="logo-big">PostSocial</div>
+    <div class="logo-big">Postay</div>
     <div class="card">
         <h2>Entrar</h2>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>Email</label>
             <input type="email" name="email" required placeholder="seu@email.com">
             <label>Senha</label>

@@ -217,7 +217,7 @@ class WhiteLabelConfig(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, unique=True)
-    brand_name = db.Column(db.String(100), default="PostSocial")
+    brand_name = db.Column(db.String(100), default="Postay")
     brand_color = db.Column(db.String(7), default="#7c5cff")
     brand_logo_url = db.Column(db.String(500))
     custom_domain = db.Column(db.String(200))

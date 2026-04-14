@@ -18,7 +18,7 @@ payment_bp = Blueprint("payment", __name__, url_prefix="/pagamento")
 MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "")
 MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "")
 PIX_KEY = os.environ.get("PIX_KEY", "")
-PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "PostSocial")
+PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "Postay")
 PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo")
 PRO_PRICE = float(os.environ.get("PRO_PRICE", "49.90"))
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
@@ -51,7 +51,7 @@ def index():
     pix_available = bool(PIX_KEY)
 
     brand = {
-        "name": current_user.brand_name or "PostSocial",
+        "name": current_user.brand_name or "Postay",
         "color": current_user.brand_color or "#7c5cff",
     }
 
@@ -64,7 +64,7 @@ def index():
                 pref_data = {
                     "items": [
                         {
-                            "title": "PostSocial Pro — Assinatura Mensal",
+                            "title": "Postay Pro — Assinatura Mensal",
                             "quantity": 1,
                             "unit_price": PRO_PRICE,
                             "currency_id": "BRL",
@@ -101,7 +101,7 @@ def index():
                 merchant_city=PIX_MERCHANT_CITY,
                 amount=PRO_PRICE,
                 txid=txid,
-                description="PostSocial Pro",
+                description="Postay Pro",
             )
             pix_code = generate_pix_payload(
                 pix_key=PIX_KEY,
@@ -109,7 +109,7 @@ def index():
                 merchant_city=PIX_MERCHANT_CITY,
                 amount=PRO_PRICE,
                 txid=txid,
-                description="PostSocial Pro",
+                description="Postay Pro",
             )
         except Exception:
             pix_available = False
@@ -133,17 +133,22 @@ def index():
 @payment_bp.route("/webhook", methods=["POST"])
 def mp_webhook():
     """Recebe notificações do Mercado Pago e ativa plano Pro automaticamente."""
-    # Verificar assinatura (se configurado)
+    # Verificar assinatura (se configurado) — formato oficial Mercado Pago v2
     if MP_WEBHOOK_SECRET:
-        sig = request.headers.get("x-signature", "")
-        ts_header = request.headers.get("x-request-id", "")
-        body = request.get_data()
+        x_signature = request.headers.get("x-signature", "")
+        x_request_id = request.headers.get("x-request-id", "")
+        # Extrair ts e v1 do header x-signature (formato: "ts=...,v1=...")
+        sig_parts = dict(p.split("=", 1) for p in x_signature.split(",") if "=" in p)
+        ts = sig_parts.get("ts", "")
+        v1 = sig_parts.get("v1", "")
+        data_id = (request.get_json(silent=True) or {}).get("data", {}).get("id") or request.args.get("id", "")
+        manifest = f"id:{data_id};request-id:{x_request_id};ts:{ts};"
         expected = hmac.new(
             MP_WEBHOOK_SECRET.encode(),
-            f"id={ts_header};{body.decode()}".encode(),
+            manifest.encode(),
             hashlib.sha256,
         ).hexdigest()
-        if not hmac.compare_digest(sig, expected):
+        if not v1 or not hmac.compare_digest(v1, expected):
             return jsonify({"error": "invalid signature"}), 401
 
     data = request.get_json(silent=True) or {}
@@ -162,7 +167,7 @@ def mp_webhook():
 
                 if status == "approved" and client_id:
                     client = db.session.get(Client, client_id)
-                    if client and not client.is_pro():
+                    if client and client.mp_payment_id != str(resource_id):
                         client.plan = "pro"
                         client.mp_payment_id = str(resource_id)
                         client.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
@@ -234,6 +239,6 @@ def qrcode_image():
         merchant_city=PIX_MERCHANT_CITY,
         amount=PRO_PRICE,
         txid=txid,
-        description="PostSocial Pro",
+        description="Postay Pro",
     )
     return Response(img_bytes, mimetype="image/png")
