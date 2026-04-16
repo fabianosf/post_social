@@ -1,0 +1,173 @@
+/* ── Postay — Responsive Styles ── */
+
+/* ── Navbar hamburger ── */
+.nav-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    line-height: 1;
+}
+
+@media (max-width: 660px) {
+    .navbar { position: relative; flex-wrap: wrap; gap: 0; padding: 0.75rem 1rem; }
+    .nav-hamburger { display: block; }
+    .navbar .nav-links {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        background: #1a1a2e;
+        border-top: 1px solid #2a2a4a;
+        padding: 0.75rem 0;
+        gap: 0.75rem;
+        order: 3;
+        margin: 0 -1rem;
+        padding: 0.75rem 1rem;
+    }
+    .navbar .nav-links.open { display: flex; }
+    .navbar .nav-links a,
+    .navbar .nav-links span { font-size: 1rem; }
+}
+
+/* ── Landing nav hamburger ── */
+.landing-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 0.2rem;
+    line-height: 1;
+}
+
+@media (max-width: 640px) {
+    .landing-hamburger { display: block; }
+    .nav .links {
+        display: none !important;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0; right: 0;
+        background: #1a1a2e;
+        border-bottom: 1px solid #2a2a4a;
+        padding: 1rem 1.5rem;
+        gap: 1rem;
+        z-index: 200;
+    }
+    .nav .links.open { display: flex !important; }
+    .nav .links a { font-size: 1rem !important; color: #ccc !important; display: block !important; }
+}
+
+/* ── Responsive grid utilities ── */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 600px) {
+    .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Slots config grid ── */
+.slots-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 540px) {
+    .slots-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Week grid scroll on mobile ── */
+.week-grid-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.week-grid-wrap #week-grid {
+    min-width: 420px;
+}
+
+/* ── Table responsive ── */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Auth pages ── */
+@media (max-width: 480px) {
+    .auth-container {
+        margin: 1.5rem auto;
+        padding: 1rem;
+    }
+}
+
+/* ── Dashboard / cards ── */
+@media (max-width: 600px) {
+    .container { padding: 0.75rem; }
+
+    /* Cabeçalhos de card com flex */
+    .card-header-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+
+    /* Account card stacking */
+    .account-card { flex-direction: column; align-items: flex-start; }
+
+    /* Post item */
+    .post-item { flex-wrap: wrap; }
+
+    /* Botões when-btn no dashboard */
+    .when-btn { min-width: 0; font-size: 0.78rem !important; padding: 0.4rem 0.5rem !important; }
+
+    /* Stats grid menor */
+    .stats-grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+
+    /* Chart mais compacto */
+    .chart-bar { gap: 3px; }
+    .chart-label { font-size: 0.55rem; }
+}
+
+/* ── Landing page extra mobile ── */
+@media (max-width: 480px) {
+    .hero h1 { font-size: 1.8rem !important; }
+    .hero p { font-size: 1rem !important; }
+    .cta, .cta-outline { padding: 0.85rem 1.5rem !important; font-size: 0.95rem !important; }
+    .section-title { font-size: 1.5rem !important; }
+    .cta-bottom h2 { font-size: 1.5rem !important; }
+    .hero-platforms { flex-wrap: wrap; gap: 0.4rem; }
+    .stats-bar-inner { gap: 1rem; }
+    .stat-item .num { font-size: 1.5rem; }
+    .pricing-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Modais full-width no mobile ── */
+@media (max-width: 520px) {
+    /* Modal boxes */
+    [style*="max-width:480px"],
+    [style*="max-width:460px"],
+    [style*="max-width:420px"] {
+        max-width: calc(100vw - 2rem) !important;
+    }
+}
+
+/* ── Admin filter bar ── */
+@media (max-width: 560px) {
+    .filter-bar { flex-direction: column; }
+    .filter-bar input,
+    .filter-bar select { max-width: 100% !important; width: 100% !important; }
+    .admin-header { flex-direction: column; align-items: flex-start; }
+}
+
+/* ── Stats 2-col ── */
+@media (max-width: 560px) {
+    .stats-2col { grid-template-columns: 1fr !important; }
+}
+
+/* ── Prevent horizontal overflow ── */
+body { overflow-x: hidden; }
+img, video, iframe { max-width: 100%; }

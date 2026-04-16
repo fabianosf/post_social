@@ -197,13 +197,12 @@
         a { color: #7c5cff; text-decoration: none; }
 
         /* NAV */
-        .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 2rem; max-width: 1100px; margin: 0 auto; }
+        .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 2rem; max-width: 1100px; margin: 0 auto; position: relative; }
         .nav .logo { font-size: 1.5rem; font-weight: 800; color: #7c5cff; }
         .nav .links { display: flex; gap: 1.5rem; align-items: center; }
         .nav .links a { color: #aaa; font-size: 0.9rem; transition: color 0.2s; }
         .nav .links a:hover { color: #fff; }
         .nav .links .btn-login { padding: 0.5rem 1.2rem; border: 1px solid #3a3a5a; border-radius: 8px; }
-        .nav .links .btn-login:hover { border-color: #7c5cff; color: #7c5cff; }
 
         /* HERO */
         .hero { text-align: center; padding: 5rem 2rem 3rem; max-width: 820px; margin: 0 auto; }
@@ -281,10 +280,12 @@
         .whatsapp-float:hover { transform: scale(1.1); }
 
         @media (max-width: 640px) {
-            .hero h1 { font-size: 2.1rem; }
+            .hero { padding: 3rem 1.2rem 2rem; }
+            .hero h1 { font-size: 2rem; }
             .pricing-grid { grid-template-columns: 1fr; }
             .stats-bar-inner { gap: 1.5rem; }
-            .nav .links a:not(.btn-login) { display: none; }
+            .nav { padding: 1rem 1.2rem; }
+            .nav .links a:not(.btn-login):not(.nav-mobile-show) { display: none; }
         }
     </style>
 </head>
@@ -292,13 +293,20 @@
 
 <nav class="nav">
     <span class="logo">Postay</span>
-    <div class="links">
+    <div class="links" id="landing-nav-links">
         <a href="{{ url_for('landing.features') }}">Recursos</a>
         <a href="{{ url_for('landing.pricing') }}">Planos</a>
         <a href="{{ url_for('landing.faq') }}">FAQ</a>
         <a href="{{ url_for('auth.login') }}" class="btn-login">Entrar</a>
     </div>
+    <button class="landing-hamburger" onclick="toggleLandingNav()" aria-label="Menu">&#9776;</button>
 </nav>
+<script>
+function toggleLandingNav() {
+    var links = document.getElementById('landing-nav-links');
+    if (links) links.classList.toggle('open');
+}
+</script>
 
 <!-- HERO -->
 <section class="hero">

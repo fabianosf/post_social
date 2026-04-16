@@ -423,7 +423,7 @@ function onbSkip() {
         Configure os horários automáticos. Ao subir um post <strong style="color:#ccc;">sem escolher horário</strong>, o sistema usa esses slots.
     </p>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+    <div class="slots-grid">
         <!-- Seg–Sex -->
         <div style="background:#0f0f1a; border:1px solid #2a2a4a; border-radius:10px; padding:1rem;">
             <div style="font-weight:600; color:#ccc; margin-bottom:0.7rem; font-size:0.88rem;">📅 Segunda a Sexta</div>
@@ -578,8 +578,10 @@ loadSlotsConfig();
     </div>
 
     <!-- Grid 7 colunas -->
-    <div id="week-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:0.5rem; min-height:160px;">
-        <div style="grid-column:1/-1; text-align:center; color:#555; padding:2rem 0; font-size:0.85rem;">Carregando semana...</div>
+    <div class="week-grid-wrap">
+        <div id="week-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:0.5rem; min-height:160px;">
+            <div style="grid-column:1/-1; text-align:center; color:#555; padding:2rem 0; font-size:0.85rem;">Carregando semana...</div>
+        </div>
     </div>
 </div>
 {% endif %}
@@ -978,7 +980,7 @@ video.mp4,Veja este reel!,#reels #viral,</pre>
         Receba alertas no Telegram quando um post for publicado ou falhar.
         <a href="https://t.me/BotFather" target="_blank" style="color:#7c5cff;">Como criar um bot →</a>
     </p>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-bottom:0.8rem;">
+    <div class="slots-grid" style="margin-bottom:0.8rem;">
         <div>
             <label style="font-size:0.82rem; color:#888; display:block; margin-bottom:0.3rem;">Token do Bot</label>
             <input type="text" id="tg-token" placeholder="123456:ABC-DEF..." value="{{ current_user.telegram_bot_token or '' }}"
