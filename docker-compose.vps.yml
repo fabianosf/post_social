@@ -1,0 +1,52 @@
+services:
+  web:
+    build: .
+    container_name: postay-web
+    restart: unless-stopped
+    ports:
+      - "8095:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+      - ./modules:/app/modules
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    depends_on:
+      - worker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build: .
+    container_name: postay-worker
+    restart: unless-stopped
+    command: python worker.py --daemon --interval=300
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+      - ./modules:/app/modules
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+
+  backup:
+    image: alpine
+    container_name: postay-backup
+    restart: unless-stopped
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    entrypoint: >
+      sh -c "while true; do
+        cp /data/postsocial.db /backups/postsocial_$$(date +%Y%m%d_%H%M).db;
+        find /backups -name '*.db' -mtime +7 -delete;
+        sleep 86400;
+      done"
