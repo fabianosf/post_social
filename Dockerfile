@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     libffi-dev \
     ffmpeg \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
