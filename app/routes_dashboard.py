@@ -656,7 +656,7 @@ def upload():
         "O limite de {limit} posts/dia por plataforma existe para manter sua conta segura."
     )
 
-    day_label = ref_day.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ).strftime("%d/%m")
+    day_label = ref_brt.strftime("%d/%m")
     if not post_story:
         if ig_today >= MAX_DAY:
             flash(
