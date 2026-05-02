@@ -20,7 +20,7 @@ tiktok_bp = Blueprint("tiktok", __name__, url_prefix="/tiktok")
 
 TIKTOK_CLIENT_KEY    = os.environ.get("TIKTOK_CLIENT_KEY", "")
 TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "")
-TIKTOK_REDIRECT_URI  = os.environ.get("TIKTOK_REDIRECT_URI", "http://localhost:5000/tiktok/callback")
+TIKTOK_REDIRECT_URI  = os.environ.get("TIKTOK_REDIRECT_URI", "https://postay.com.br/tiktok/callback")
 
 SCOPES = "user.info.basic,video.publish,video.upload"
 
@@ -140,14 +140,26 @@ def callback():
 
     try:
         tok = _exchange_code(code)
-        access_token  = tok["access_token"]
-        refresh_token = tok.get("refresh_token")
-        expires_in    = tok.get("expires_in", 86400)
-        open_id       = tok["open_id"]
+        err = tok.get("error") or tok.get("message")
+        if err and err not in ("", "ok", None):
+            flash(f"TikTok retornou erro: {err}", "error")
+            return redirect(url_for("dashboard.index"))
+
+        access_token  = tok.get("access_token") or tok.get("data", {}).get("access_token", "")
+        refresh_token = tok.get("refresh_token") or tok.get("data", {}).get("refresh_token")
+        expires_in    = tok.get("expires_in") or tok.get("data", {}).get("expires_in", 86400)
+        open_id       = tok.get("open_id") or tok.get("data", {}).get("open_id", "")
+
+        if not access_token or not open_id:
+            flash("TikTok não retornou token válido. Tente novamente.", "error")
+            return redirect(url_for("dashboard.index"))
 
         # Buscar info do usuário
-        info = _get_json(USERINFO_URL, access_token)
-        user_data = info.get("data", {}).get("user", {})
+        try:
+            info = _get_json(USERINFO_URL, access_token)
+            user_data = info.get("data", {}).get("user", {})
+        except Exception:
+            user_data = {}
 
         account = TikTokAccount.query.filter_by(client_id=current_user.id, open_id=open_id).first()
         if not account:
@@ -156,15 +168,16 @@ def callback():
 
         account.access_token     = access_token
         account.refresh_token    = refresh_token
-        account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
         account.username         = user_data.get("username", "")
         account.display_name     = user_data.get("display_name", "")
         account.avatar_url       = user_data.get("avatar_url", "")
         db.session.commit()
 
-        flash(f"TikTok @{account.username or account.display_name} conectado!", "success")
+        name = account.username or account.display_name or open_id
+        flash(f"TikTok @{name} conectado com sucesso!", "success")
     except Exception as e:
-        flash(f"Erro ao conectar TikTok: {e}", "error")
+        flash(f"Erro ao conectar TikTok. Tente novamente.", "error")
 
     return redirect(url_for("dashboard.index"))
 

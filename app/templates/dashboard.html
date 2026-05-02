@@ -222,16 +222,23 @@ function onbSkip() {
             <span class="badge badge-posted" style="font-size:0.6rem;">TikTok</span>
         </div>
         <form method="POST" action="{{ url_for('tiktok.disconnect', account_id=tt.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline btn-sm" type="submit">Remover</button>
         </form>
     </div>
     {% endfor %}
 
-    {% if not current_user.tiktok_accounts and tiktok_configured %}
+    {% if not current_user.tiktok_accounts %}
     <div style="margin-top:0.5rem;">
+        {% if tiktok_configured %}
         <a href="{{ url_for('tiktok.connect') }}" class="btn btn-outline btn-sm" style="font-size:0.8rem;">
             🎵 Conectar TikTok
         </a>
+        {% else %}
+        <p style="color:#555; font-size:0.78rem; margin:0.3rem 0 0;">
+            🎵 TikTok disponível — configure <code>TIKTOK_CLIENT_KEY</code> no servidor para habilitar.
+        </p>
+        {% endif %}
     </div>
     {% endif %}
 
