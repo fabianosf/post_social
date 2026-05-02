@@ -141,6 +141,13 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN mp_subscription_id VARCHAR(200)",
             "ALTER TABLE clients ADD COLUMN mp_payment_id VARCHAR(200)",
             "ALTER TABLE clients ADD COLUMN plan_expires_at DATETIME",
+            # post_queue — métricas de engajamento Instagram
+            "ALTER TABLE post_queue ADD COLUMN ig_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN ig_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN ig_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN ig_saves INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN ig_reach INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN insights_updated_at DATETIME",
         ]
         with db.engine.connect() as conn:
             for stmt in migrations:

@@ -183,7 +183,15 @@ class PostQueue(db.Model):
     error_message = db.Column(db.Text)
     instagram_media_id = db.Column(db.String(100))
     notified = db.Column(db.Boolean, default=False)
-    retry_count = db.Column(db.Integer, default=0)  # tentativas após falha
+    retry_count = db.Column(db.Integer, default=0)
+
+    # Métricas de engajamento (atualizadas via refresh)
+    ig_likes = db.Column(db.Integer, default=0)
+    ig_comments = db.Column(db.Integer, default=0)
+    ig_views = db.Column(db.Integer, default=0)
+    ig_saves = db.Column(db.Integer, default=0)
+    ig_reach = db.Column(db.Integer, default=0)
+    insights_updated_at = db.Column(db.DateTime)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     posted_at = db.Column(db.DateTime)

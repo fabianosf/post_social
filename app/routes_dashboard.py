@@ -1629,8 +1629,8 @@ def stats_page():
     """Página dedicada de estatísticas e métricas do cliente."""
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
 
-    # Posts por período
     now = datetime.now(timezone.utc)
+    now_brt = datetime.now(BRAZIL_TZ)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
@@ -1670,7 +1670,7 @@ def stats_page():
     total_attempted = stats["posted"] + stats["failed"]
     success_rate = round((stats["posted"] / total_attempted * 100) if total_attempted > 0 else 0)
 
-    # Horários mais postados (top 5)
+    # Horários mais postados (top 5) — em BRT
     posted_list = (
         PostQueue.query.filter_by(client_id=current_user.id, status="posted")
         .filter(PostQueue.posted_at.isnot(None))
@@ -1678,8 +1678,8 @@ def stats_page():
     )
     hour_counts: dict[int, int] = {}
     for p in posted_list:
-        h = p.posted_at.hour
-        hour_counts[h] = hour_counts.get(h, 0) + 1
+        h_brt = p.posted_at.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ).hour
+        hour_counts[h_brt] = hour_counts.get(h_brt, 0) + 1
     top_hours = sorted(hour_counts.items(), key=lambda x: -x[1])[:5]
 
     # Posts agendados futuros
@@ -1694,6 +1694,52 @@ def stats_page():
         .limit(10)
         .all()
     )
+
+    # ── Engajamento semanal (Instagram) ───────────────────────────────
+    week_posts = (
+        PostQueue.query.filter(
+            PostQueue.client_id == current_user.id,
+            PostQueue.status == "posted",
+            PostQueue.posted_at >= week_ago,
+            PostQueue.instagram_media_id.isnot(None),
+        )
+        .order_by(PostQueue.posted_at.desc())
+        .all()
+    )
+
+    engagement = {
+        "total_likes": sum((p.ig_likes or 0) for p in week_posts),
+        "total_comments": sum((p.ig_comments or 0) for p in week_posts),
+        "total_views": sum((p.ig_views or 0) for p in week_posts),
+        "total_saves": sum((p.ig_saves or 0) for p in week_posts),
+        "total_reach": sum((p.ig_reach or 0) for p in week_posts),
+        "posts_with_data": sum(1 for p in week_posts if (p.ig_likes or 0) > 0),
+        "posts_count": len(week_posts),
+    }
+    total_interactions = engagement["total_likes"] + engagement["total_comments"]
+    engagement["engagement_rate"] = round(
+        (total_interactions / engagement["total_reach"] * 100)
+        if engagement["total_reach"] > 0 else 0, 2
+    )
+
+    # Top post da semana
+    top_post = max(week_posts, key=lambda p: (p.ig_likes or 0) + (p.ig_comments or 0), default=None)
+
+    # Gráfico de engajamento diário (7 dias)
+    engagement_chart = []
+    for i in range(6, -1, -1):
+        day_brt = (now_brt - timedelta(days=i)).date()
+        day_start_utc = datetime(day_brt.year, day_brt.month, day_brt.day,
+                                 tzinfo=BRAZIL_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+        day_end_utc = day_start_utc + timedelta(days=1)
+        day_posts = [p for p in week_posts
+                     if p.posted_at and day_start_utc <= p.posted_at < day_end_utc]
+        engagement_chart.append({
+            "day": day_brt.strftime("%d/%m"),
+            "likes": sum((p.ig_likes or 0) for p in day_posts),
+            "comments": sum((p.ig_comments or 0) for p in day_posts),
+            "posts": len(day_posts),
+        })
 
     # Limites anti-bloqueio ativos
     safe_info = dict(SAFE_LIMITS)
@@ -1714,4 +1760,71 @@ def stats_page():
         scheduled_upcoming=scheduled_upcoming,
         safe_info=safe_info,
         brand=brand,
+        engagement=engagement,
+        engagement_chart=engagement_chart,
+        week_posts=week_posts,
+        top_post=top_post,
     )
+
+
+@dashboard_bp.route("/api/refresh-insights", methods=["POST"])
+@login_required
+def refresh_insights():
+    """Busca métricas de engajamento atualizadas do Instagram para posts da última semana."""
+    import os as _os
+    from pathlib import Path as _Path
+
+    SESSION_DIR = _Path(_os.path.dirname(_os.path.dirname(__file__))) / "sessions"
+    accounts = InstagramAccount.query.filter_by(client_id=current_user.id, status="active").all()
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    updated = 0
+    errors = []
+
+    for account in accounts:
+        session_file = SESSION_DIR / f"account_{account.id}.json"
+        if not session_file.exists():
+            continue
+        try:
+            from instagrapi import Client as IGClient
+            cl = IGClient()
+            cl.delay_range = [1, 3]
+            cl.load_settings(session_file)
+            cl.get_timeline_feed()
+
+            posts = PostQueue.query.filter(
+                PostQueue.account_id == account.id,
+                PostQueue.status == "posted",
+                PostQueue.posted_at >= week_ago,
+                PostQueue.instagram_media_id.isnot(None),
+            ).all()
+
+            for post in posts:
+                try:
+                    media_pk = cl.media_pk_from_code(post.instagram_media_id) \
+                        if len(post.instagram_media_id) < 15 else int(post.instagram_media_id)
+                    info = cl.media_info(media_pk)
+                    post.ig_likes = info.like_count or 0
+                    post.ig_comments = info.comment_count or 0
+                    post.ig_views = getattr(info, "play_count", None) or getattr(info, "view_count", None) or 0
+                    # Insights (business accounts only — silently skip if unavailable)
+                    try:
+                        ins = cl.media_insights(media_pk)
+                        post.ig_saves = ins.get("saved", 0) or 0
+                        post.ig_reach = ins.get("reach", 0) or 0
+                    except Exception:
+                        pass
+                    post.insights_updated_at = now
+                    updated += 1
+                except Exception as e:
+                    errors.append(str(e)[:80])
+
+            db.session.commit()
+        except Exception as e:
+            errors.append(f"@{account.ig_username}: {str(e)[:80]}")
+
+    return jsonify({
+        "updated": updated,
+        "errors": errors[:5],
+        "ok": updated > 0 or not errors,
+    })

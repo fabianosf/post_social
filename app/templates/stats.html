@@ -2,12 +2,161 @@
 {% block title %}Estatísticas{% endblock %}
 {% block content %}
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-    <h1 style="margin:0; font-size:1.5rem;">Estatísticas</h1>
-    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline btn-sm">Voltar ao Painel</a>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:0.5rem;">
+    <h1 style="margin:0; font-size:1.5rem;">Estatísticas & Engajamento</h1>
+    <div style="display:flex; gap:0.5rem;">
+        <button id="btn-refresh" onclick="refreshInsights()" class="btn btn-sm" style="background:#7c5cff;">
+            &#8635; Atualizar Métricas
+        </button>
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline btn-sm">Voltar ao Painel</a>
+    </div>
 </div>
 
-<!-- Cards resumo -->
+<div id="refresh-msg" style="display:none; margin-bottom:1rem;"></div>
+
+<!-- ── Engajamento Semanal ── -->
+<div class="card" style="border-color:{{ brand.color }}; margin-bottom:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2 style="margin:0;">&#128200; Engajamento — Últimos 7 dias</h2>
+        {% if engagement.posts_with_data == 0 and engagement.posts_count > 0 %}
+        <span style="font-size:0.78rem; color:#fbbf24;">Clique em "Atualizar Métricas" para carregar curtidas e comentários</span>
+        {% endif %}
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:1rem;">
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:#f87171;">&#10084; {{ engagement.total_likes }}</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Curtidas</div>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:#60a5fa;">&#128172; {{ engagement.total_comments }}</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Comentários</div>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:#a78bfa;">&#128190; {{ engagement.total_saves }}</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Salvamentos</div>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:#34d399;">&#128065; {{ engagement.total_views }}</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Visualizações</div>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:#fbbf24;">&#128268; {{ engagement.total_reach }}</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Alcance</div>
+        </div>
+        <div style="background:#0f0f1a; padding:1rem; border-radius:10px; text-align:center;">
+            <div style="font-size:1.8rem; font-weight:700; color:{{ brand.color }};">{{ engagement.engagement_rate }}%</div>
+            <div style="font-size:0.8rem; color:#888; margin-top:0.3rem;">Taxa Engajamento</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Top Post da Semana ── -->
+{% if top_post and (top_post.ig_likes or 0) > 0 %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>&#127942; Melhor Post da Semana</h2>
+    <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+            <p style="color:#ccc; margin:0 0 0.5rem;">{{ top_post.image_filename[:40] }}</p>
+            <p style="color:#888; font-size:0.82rem; margin:0 0 0.8rem;">
+                {{ top_post.posted_at.strftime('%d/%m/%Y %H:%M') if top_post.posted_at else '' }}
+                &nbsp;·&nbsp; {{ top_post.post_type }}
+            </p>
+            <div style="display:flex; gap:1.5rem;">
+                <span style="color:#f87171;">&#10084; {{ top_post.ig_likes or 0 }} curtidas</span>
+                <span style="color:#60a5fa;">&#128172; {{ top_post.ig_comments or 0 }} comentários</span>
+                {% if top_post.ig_saves %}
+                <span style="color:#a78bfa;">&#128190; {{ top_post.ig_saves }} salvamentos</span>
+                {% endif %}
+            </div>
+            {% if top_post.caption %}
+            <p style="color:#999; font-size:0.8rem; margin-top:0.8rem; font-style:italic;">
+                "{{ top_post.caption[:120] }}{% if top_post.caption|length > 120 %}...{% endif %}"
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Gráfico Engajamento Diário ── -->
+{% if engagement_chart %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>&#128202; Engajamento por Dia (7 dias)</h2>
+    <div style="display:flex; align-items:flex-end; gap:6px; height:160px; padding-top:0.5rem;">
+        {% set max_eng = engagement_chart|map(attribute='likes')|max if engagement_chart else 1 %}
+        {% set max_eng = [max_eng, 1]|max %}
+        {% for d in engagement_chart %}
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+            <span style="font-size:0.65rem; color:#888; margin-bottom:2px;">{{ d.likes }}</span>
+            <div title="{{ d.likes }} curtidas, {{ d.comments }} comentários"
+                 style="width:100%; border-radius:4px 4px 0 0; min-height:4px;
+                        background:linear-gradient(to top, {{ brand.color }}, #f87171);
+                        height:{{ (d.likes / max_eng * 100) if max_eng > 0 else 0 }}%;"></div>
+            {% if d.comments > 0 %}
+            <div style="width:100%; background:#60a5fa; min-height:2px;
+                        height:{{ (d.comments / max_eng * 40) if max_eng > 0 else 0 }}%;"></div>
+            {% endif %}
+            <span style="font-size:0.6rem; color:#666; margin-top:4px; writing-mode:vertical-rl; height:30px;">{{ d.day }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="display:flex; gap:1rem; margin-top:0.5rem; font-size:0.75rem; color:#888;">
+        <span><span style="color:#f87171;">&#9646;</span> Curtidas</span>
+        <span><span style="color:#60a5fa;">&#9646;</span> Comentários</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Posts da Semana com Métricas ── -->
+{% if week_posts %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>&#128247; Posts Publicados — Últimos 7 dias</h2>
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead>
+                <tr style="color:#666; border-bottom:1px solid #1a1a2e; text-align:left;">
+                    <th style="padding:0.5rem;">Post</th>
+                    <th style="padding:0.5rem; text-align:center;">Data</th>
+                    <th style="padding:0.5rem; text-align:center;">&#10084;</th>
+                    <th style="padding:0.5rem; text-align:center;">&#128172;</th>
+                    <th style="padding:0.5rem; text-align:center;">&#128190;</th>
+                    <th style="padding:0.5rem; text-align:center;">&#128065;</th>
+                    <th style="padding:0.5rem; text-align:center;">Alcance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for post in week_posts %}
+                <tr style="border-bottom:1px solid #0f0f1a;">
+                    <td style="padding:0.5rem; color:#ccc; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        <span class="badge" style="background:#1a1a2e; font-size:0.6rem; margin-right:0.3rem;">{{ post.post_type }}</span>
+                        {{ post.image_filename[:25] }}
+                    </td>
+                    <td style="padding:0.5rem; text-align:center; color:#888; font-size:0.78rem; white-space:nowrap;">
+                        {{ post.posted_at.strftime('%d/%m %H:%M') if post.posted_at else '-' }}
+                    </td>
+                    <td style="padding:0.5rem; text-align:center; color:#f87171; font-weight:600;">{{ post.ig_likes or '-' }}</td>
+                    <td style="padding:0.5rem; text-align:center; color:#60a5fa; font-weight:600;">{{ post.ig_comments or '-' }}</td>
+                    <td style="padding:0.5rem; text-align:center; color:#a78bfa; font-weight:600;">{{ post.ig_saves or '-' }}</td>
+                    <td style="padding:0.5rem; text-align:center; color:#34d399; font-weight:600;">{{ post.ig_views or '-' }}</td>
+                    <td style="padding:0.5rem; text-align:center; color:#fbbf24; font-weight:600;">{{ post.ig_reach or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if engagement.posts_with_data == 0 %}
+    <p style="color:#888; font-size:0.82rem; text-align:center; margin-top:1rem;">
+        Clique em <strong>Atualizar Métricas</strong> para buscar curtidas e comentários do Instagram.
+    </p>
+    {% else %}
+    <p style="color:#555; font-size:0.75rem; margin-top:0.8rem; text-align:right;">
+        * Salvamentos e alcance disponíveis apenas para contas business/creator
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- ── Cards resumo volume ── -->
 <div class="stats-grid">
     <div class="stat-card">
         <span class="stat-number" style="color:#4ade80;">{{ stats.today }}</span>
@@ -39,11 +188,12 @@
     </div>
 </div>
 
-<!-- Gráfico 14 dias -->
+<!-- ── Gráfico 14 dias ── -->
 <div class="card">
-    <h2>Posts por dia (últimos 14 dias)</h2>
+    <h2>Posts publicados por dia (últimos 14 dias)</h2>
     <div style="display:flex; align-items:flex-end; gap:4px; height:140px; padding-top:0.5rem;">
         {% set max_count = daily_chart|map(attribute='count')|max if daily_chart else 1 %}
+        {% set max_count = [max_count, 1]|max %}
         {% for day in daily_chart %}
         <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
             <span style="font-size:0.65rem; color:#888; margin-bottom:2px;">{{ day.count }}</span>
@@ -54,34 +204,28 @@
     </div>
 </div>
 
-<!-- Posts por tipo + Horários -->
+<!-- ── Posts por tipo + Horários ── -->
 <div class="grid-2 stats-2col">
     <div class="card">
         <h2>Posts por Tipo</h2>
         {% for ptype, count in by_type.items() %}
         {% if count > 0 %}
         <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid #1a1a2e;">
-            <span style="display:flex; align-items:center; gap:0.5rem;">
-                <span style="font-size:1.2rem;">
-                    {% if ptype == 'photo' %}&#128247;{% elif ptype == 'album' %}&#127912;{% elif ptype == 'reels' %}&#127910;{% elif ptype == 'story' %}&#128247;{% endif %}
-                </span>
-                <span style="text-transform:capitalize;">{{ ptype }}</span>
+            <span>
+                {% if ptype == 'photo' %}📷{% elif ptype == 'album' %}🎠{% elif ptype == 'reels' %}🎬{% elif ptype == 'story' %}📸{% endif %}
+                {{ ptype|capitalize }}
             </span>
             <span style="color:{{ brand.color }}; font-weight:700; font-size:1.1rem;">{{ count }}</span>
         </div>
         {% endif %}
         {% endfor %}
-        {% if not by_type.values()|select('gt', 0)|list %}
-        <p style="color:#666;">Nenhum post ainda.</p>
-        {% endif %}
     </div>
-
     <div class="card">
-        <h2>Melhores Horários</h2>
+        <h2>Melhores Horários (BRT)</h2>
         {% if top_hours %}
         {% for hour, count in top_hours %}
         <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid #1a1a2e;">
-            <span>{{ '%02d'|format(hour) }}:00 - {{ '%02d'|format(hour) }}:59</span>
+            <span>{{ '%02d'|format(hour) }}:00h</span>
             <div style="display:flex; align-items:center; gap:0.5rem;">
                 <div style="height:8px; border-radius:4px; background:{{ brand.color }}; width:{{ (count / top_hours[0][1] * 80)|int }}px;"></div>
                 <span style="color:{{ brand.color }}; font-weight:700;">{{ count }}</span>
@@ -94,37 +238,7 @@
     </div>
 </div>
 
-<!-- Limites Anti-Bloqueio -->
-<div class="card">
-    <h2>Proteção Anti-Bloqueio</h2>
-    <p style="color:#888; font-size:0.85rem; margin-bottom:1rem;">
-        Limites ativos para manter sua conta segura no Instagram/Facebook.
-    </p>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
-        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
-            <span style="font-size:1.5rem; color:#4ade80; font-weight:700;">{{ safe_info.max_posts_per_day }}</span>
-            <br><small style="color:#888;">Posts/dia (máx)</small>
-        </div>
-        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
-            <span style="font-size:1.5rem; color:#60a5fa; font-weight:700;">{{ safe_info.max_stories_per_day }}</span>
-            <br><small style="color:#888;">Stories/dia (máx)</small>
-        </div>
-        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
-            <span style="font-size:1.5rem; color:#fbbf24; font-weight:700;">{{ safe_info.min_interval_minutes }}min</span>
-            <br><small style="color:#888;">Intervalo mínimo</small>
-        </div>
-        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
-            <span style="font-size:1.5rem; color:#c084fc; font-weight:700;">&#177;{{ safe_info.random_delay_minutes }}min</span>
-            <br><small style="color:#888;">Variação aleatória</small>
-        </div>
-        <div style="background:#0f0f1a; padding:1rem; border-radius:8px; text-align:center;">
-            <span style="font-size:1.5rem; color:#ccc; font-weight:700;">{{ safe_info.safe_hours_start }}h-{{ safe_info.safe_hours_end }}h</span>
-            <br><small style="color:#888;">Horário seguro</small>
-        </div>
-    </div>
-</div>
-
-<!-- Próximos agendados -->
+<!-- ── Próximos agendados ── -->
 {% if scheduled_upcoming %}
 <div class="card">
     <h2>Próximos Agendados</h2>
@@ -137,11 +251,50 @@
             {% endif %}
         </div>
         <span style="color:#60a5fa; font-size:0.85rem; font-weight:600;">
-            {{ post.scheduled_at.strftime('%d/%m %H:%M') }}
+            {{ post.scheduled_at.replace(tzinfo=none) | string | truncate(16, True, '') }}
         </span>
     </div>
     {% endfor %}
 </div>
 {% endif %}
+
+<script>
+function refreshInsights() {
+    const btn = document.getElementById('btn-refresh');
+    const msg = document.getElementById('refresh-msg');
+    btn.disabled = true;
+    btn.textContent = 'Buscando...';
+    msg.style.display = 'none';
+
+    fetch('/api/refresh-insights', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.updated > 0) {
+            msg.innerHTML = '<div style="background:#14532d; color:#4ade80; padding:0.75rem 1rem; border-radius:8px;">&#10003; ' + data.updated + ' post(s) atualizado(s). Recarregando...</div>';
+            msg.style.display = 'block';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            msg.innerHTML = '<div style="background:#1a1a2e; color:#fbbf24; padding:0.75rem 1rem; border-radius:8px;">Nenhuma métrica disponível. Verifique se a conta está conectada e tem posts publicados nos últimos 7 dias.</div>';
+            msg.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '↻ Atualizar Métricas';
+        }
+    })
+    .catch(() => {
+        msg.innerHTML = '<div style="background:#450a0a; color:#f87171; padding:0.75rem 1rem; border-radius:8px;">Erro ao buscar métricas.</div>';
+        msg.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '↻ Atualizar Métricas';
+    });
+}
+
+function getCsrf() {
+    const m = document.querySelector('meta[name="csrf-token"]');
+    return m ? m.content : '';
+}
+</script>
 
 {% endblock %}
