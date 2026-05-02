@@ -2,12 +2,20 @@
 Rotas de autenticação: cadastro e login do cliente.
 """
 
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required
 
 from .models import db, Client
 
 auth_bp = Blueprint("auth", __name__)
+
+# In-memory brute-force protection: {ip: {"count": int, "locked_until": datetime|None}}
+_login_attempts: dict = defaultdict(lambda: {"count": 0, "locked_until": None})
+_MAX_ATTEMPTS = 10
+_LOCKOUT_MINUTES = 15
 
 
 @auth_bp.route("/cadastro", methods=["GET", "POST"])
@@ -44,18 +52,38 @@ def register():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        record = _login_attempts[ip]
+        now = datetime.now(timezone.utc)
+
+        # Check temporary lockout
+        if record["locked_until"] and now < record["locked_until"]:
+            remaining = int((record["locked_until"] - now).total_seconds() / 60) + 1
+            flash(f"Muitas tentativas. Tente novamente em {remaining} minuto(s).", "error")
+            return render_template("login.html")
+
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
         client = Client.query.filter_by(email=email).first()
 
         if not client or not client.check_password(password):
-            flash("Email ou senha incorretos.", "error")
+            record["count"] += 1
+            if record["count"] >= _MAX_ATTEMPTS:
+                record["locked_until"] = now + timedelta(minutes=_LOCKOUT_MINUTES)
+                record["count"] = 0
+                flash(f"Conta bloqueada temporariamente por {_LOCKOUT_MINUTES} minutos.", "error")
+            else:
+                flash("Email ou senha incorretos.", "error")
             return render_template("login.html")
 
         if client.is_blocked:
             flash("Sua conta foi suspensa. Entre em contato com o suporte.", "error")
             return render_template("login.html")
+
+        # Reset on successful login
+        record["count"] = 0
+        record["locked_until"] = None
 
         login_user(client)
         return redirect(url_for("dashboard.index"))

@@ -6,6 +6,7 @@ Acessível apenas por usuários com is_admin=True.
 import os
 from datetime import datetime, timezone, timedelta
 from functools import wraps
+from urllib.parse import quote as _urlquote
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
@@ -442,7 +443,7 @@ def _keep_filters():
     plan = request.form.get("plan_filter") or request.args.get("plan", "all")
     params = []
     if q:
-        params.append(f"q={q}")
+        params.append(f"q={_urlquote(q)}")
     if plan and plan != "all":
-        params.append(f"plan={plan}")
+        params.append(f"plan={_urlquote(plan)}")
     return ("?" + "&".join(params)) if params else ""

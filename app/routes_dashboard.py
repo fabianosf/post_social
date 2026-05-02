@@ -1037,7 +1037,10 @@ def update_watermark():
     file = request.files.get("watermark_file")
     current_user.watermark_enabled = request.form.get("watermark_enabled") == "on"
     current_user.watermark_position = request.form.get("watermark_position", "bottom-right")
-    current_user.watermark_opacity = int(request.form.get("watermark_opacity", 80))
+    try:
+        current_user.watermark_opacity = max(0, min(100, int(request.form.get("watermark_opacity", 80))))
+    except (ValueError, TypeError):
+        current_user.watermark_opacity = 80
 
     if file and file.filename:
         ext = file.filename.rsplit(".", 1)[1].lower()
@@ -1206,7 +1209,7 @@ def csv_import():
 
     image_map = {}
     for img in images:
-        if img.filename:
+        if img.filename and _allowed_file(img.filename):
             ext = img.filename.rsplit(".", 1)[1].lower() if "." in img.filename else "jpg"
             safe_name = f"{uuid.uuid4().hex}.{ext}"
             file_path = os.path.join(client_dir, safe_name)
@@ -1342,9 +1345,10 @@ def update_whitelabel():
     brand_name = request.form.get("brand_name", "").strip()
     brand_color = request.form.get("brand_color", "").strip()
 
+    import re as _re
     if brand_name:
         current_user.brand_name = brand_name
-    if brand_color:
+    if brand_color and _re.match(r'^#[0-9a-fA-F]{6}$', brand_color):
         current_user.brand_color = brand_color
 
     db.session.commit()

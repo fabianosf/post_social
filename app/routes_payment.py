@@ -187,12 +187,30 @@ def success():
     status = request.args.get("status")
 
     if status == "approved" and payment_id:
-        if not current_user.is_pro():
-            current_user.plan = "pro"
-            current_user.mp_payment_id = str(payment_id)
-            current_user.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-            db.session.commit()
-        flash("🎉 Pagamento aprovado! Plano Pro ativado com sucesso.", "success")
+        # Verify payment with Mercado Pago API — never trust URL params alone
+        sdk = _mp_sdk()
+        if sdk:
+            try:
+                result = sdk.payment().get(payment_id)
+                payment = result.get("response", {})
+                mp_status = payment.get("status")
+                ext_ref = str(payment.get("external_reference", ""))
+
+                if (mp_status == "approved"
+                        and ext_ref == str(current_user.id)
+                        and not current_user.is_pro()):
+                    current_user.plan = "pro"
+                    current_user.mp_payment_id = str(payment_id)
+                    current_user.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+                    db.session.commit()
+                    flash("Pagamento aprovado! Plano Pro ativado com sucesso.", "success")
+                else:
+                    flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
+            except Exception:
+                flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
+        else:
+            # MP SDK not configured — rely entirely on webhook
+            flash("Pagamento recebido. Seu plano será ativado após confirmação.", "info")
     else:
         flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
 
