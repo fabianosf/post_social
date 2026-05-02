@@ -324,9 +324,11 @@ def index():
     }
 
     # ── Limites diários por conta ──
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
+    now_brt = datetime.now(BRAZIL_TZ)
+    today_start_brt = now_brt.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end_brt   = today_start_brt + timedelta(days=1)
+    today_start = today_start_brt.astimezone(timezone.utc).replace(tzinfo=None)
+    today_end   = today_end_brt.astimezone(timezone.utc).replace(tzinfo=None)
 
     daily_usage = {}
     MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
@@ -613,11 +615,16 @@ def upload():
             return redirect(url_for("dashboard.index"))
 
     # ── Verificar limite diário por plataforma ──────────────────
-    # Usa a data do agendamento (se fornecida) ou hoje
-    now_utc = datetime.now(timezone.utc)
-    ref_day = scheduled_at if scheduled_at else now_utc
-    day_start = ref_day.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start + timedelta(days=1)
+    # Usa horário de Brasília (BRT) para definir o "dia" — evita que posts
+    # agendados após 21h BRT (= meia-noite UTC) caiam no dia seguinte.
+    if scheduled_at:
+        ref_brt = scheduled_at.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+    else:
+        ref_brt = datetime.now(BRAZIL_TZ)
+    day_start_brt = ref_brt.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end_brt   = day_start_brt + timedelta(days=1)
+    day_start = day_start_brt.astimezone(timezone.utc).replace(tzinfo=None)
+    day_end   = day_end_brt.astimezone(timezone.utc).replace(tzinfo=None)
 
     _feed_base = PostQueue.query.filter(
         PostQueue.account_id == target_account.id,
@@ -808,7 +815,7 @@ def upload():
             for p in new_posts:
                 p.scheduled_at = scheduled_at
             db.session.commit()
-            times_str = scheduled_at.strftime("%d/%m %H:%M")
+            times_str = scheduled_at.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ).strftime("%d/%m %H:%M")
             flash(f"{len(new_posts)} postagem(ns) agendada(s) para {times_str}.", "success")
         else:
             # "Agora" — deixa scheduled_at=None, worker posta na próxima rodada (até 5 min)
@@ -1092,7 +1099,7 @@ def api_status():
 @login_required
 def api_week_schedule():
     """Retorna agendamentos da semana atual para a grade semanal."""
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(BRAZIL_TZ).date()
     monday = today - timedelta(days=today.weekday())
 
     account_id = request.args.get("account_id", type=int)
@@ -1112,8 +1119,10 @@ def api_week_schedule():
 
     for i in range(7):
         day = monday + timedelta(days=i)
-        day_start = datetime(day.year, day.month, day.day, 0, 0, 0)
-        day_end = datetime(day.year, day.month, day.day, 23, 59, 59)
+        day_start_brt = datetime(day.year, day.month, day.day, 0, 0, 0, tzinfo=BRAZIL_TZ)
+        day_end_brt   = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=BRAZIL_TZ)
+        day_start = day_start_brt.astimezone(timezone.utc).replace(tzinfo=None)
+        day_end   = day_end_brt.astimezone(timezone.utc).replace(tzinfo=None)
 
         posts_out = []
         ig_count = 0
