@@ -20,7 +20,7 @@ MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "")
 PIX_KEY = os.environ.get("PIX_KEY", "")
 PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "Postay")
 PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo")
-PRO_PRICE = float(os.environ.get("PRO_PRICE", "49.90"))
+PRO_PRICE = float(os.environ.get("PRO_PRICE", "99.90"))
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
 
 
