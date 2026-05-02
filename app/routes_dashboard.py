@@ -565,9 +565,11 @@ def disconnect_instagram(account_id):
 
 # ── Upload (foto, álbum, vídeo/reels) ────────────
 
-@dashboard_bp.route("/upload", methods=["POST"])
+@dashboard_bp.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():
+    if request.method == "GET":
+        return redirect(url_for("dashboard.index"))
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
     if not accounts:
         flash("Conecte seu Instagram primeiro.", "error")
