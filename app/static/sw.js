@@ -1,16 +1,21 @@
-const CACHE = 'postsocial-v1';
-const OFFLINE_URL = '/dashboard';
+const CACHE = 'postsocial-v2';
 
-// Arquivos para cache inicial
+// Só pré-cacheia assets estáticos públicos — rotas autenticadas
+// são cacheadas dinamicamente pelo handler fetch abaixo.
 const PRECACHE = [
-  '/',
-  '/dashboard',
-  '/static/css/style.css',
+  '/static/style.css',
+  '/static/manifest.json',
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(cache =>
+      Promise.allSettled(
+        PRECACHE.map(url =>
+          cache.add(url).catch(() => { /* ignora falha individual */ })
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -23,19 +28,17 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Só interceptar GET de mesma origem
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
 
   e.respondWith(
     fetch(e.request)
       .then(resp => {
-        // Atualizar cache com resposta fresca
         if (resp && resp.status === 200 && resp.type === 'basic') {
           const clone = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return resp;
       })
-      .catch(() => caches.match(e.request).then(r => r || caches.match(OFFLINE_URL)))
+      .catch(() => caches.match(e.request))
   );
 });
