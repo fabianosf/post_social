@@ -851,7 +851,8 @@ def edit_post(post_id):
     new_scheduled = None
     if scheduled_str:
         try:
-            new_scheduled = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
+            local_dt = datetime.strptime(scheduled_str, "%Y-%m-%dT%H:%M")
+            new_scheduled = local_dt.replace(tzinfo=BRAZIL_TZ).astimezone(timezone.utc).replace(tzinfo=None)
         except ValueError:
             pass
 
@@ -889,7 +890,7 @@ def edit_post(post_id):
         )
         db.session.add(new_post)
         db.session.commit()
-        when = new_scheduled.strftime("%d/%m às %H:%M") if new_scheduled else "agora (até 5 min)"
+        when = new_scheduled.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ).strftime("%d/%m às %H:%M") if new_scheduled else "agora (até 5 min)"
         flash(f"Postagem reagendada para {when}!", "success")
     else:
         # Post pendente/rascunho/falhou → editar no lugar

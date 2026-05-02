@@ -13,6 +13,9 @@ import time
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+_BRT = ZoneInfo("America/Sao_Paulo")
 
 from dotenv import load_dotenv
 
@@ -431,13 +434,14 @@ def _send_weekly_reports():
     """
     global _last_weekly_report
     now = datetime.now(timezone.utc)
+    now_brt = now.astimezone(_BRT)
 
-    # Só executa segunda-feira (weekday=0), entre 8h e 9h
-    if now.weekday() != 0 or now.hour != 8:
+    # Só executa segunda-feira (weekday=0), entre 8h e 9h BRT
+    if now_brt.weekday() != 0 or now_brt.hour != 8:
         return
 
     # Evita enviar mais de uma vez por dia
-    today_key = now.strftime("%Y-%m-%d")
+    today_key = now_brt.strftime("%Y-%m-%d")
     if _last_weekly_report == today_key:
         return
     _last_weekly_report = today_key

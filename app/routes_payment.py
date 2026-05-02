@@ -6,6 +6,9 @@ import hashlib
 import hmac
 import os
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+
+_BRT = ZoneInfo("America/Sao_Paulo")
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, Response
 from flask_login import login_required, current_user
@@ -94,7 +97,7 @@ def index():
     if pix_available:
         try:
             from modules.pix import generate_pix_qrcode_base64, generate_pix_payload
-            txid = f"PS{current_user.id}{datetime.now().strftime('%m%y')}"
+            txid = f"PS{current_user.id}{datetime.now(_BRT).strftime('%m%y')}"
             qr_base64 = generate_pix_qrcode_base64(
                 pix_key=PIX_KEY,
                 merchant_name=PIX_MERCHANT_NAME,
@@ -250,7 +253,7 @@ def confirm_payment():
 @login_required
 def qrcode_image():
     from modules.pix import generate_pix_qrcode_bytes
-    txid = f"PS{current_user.id}{datetime.now().strftime('%m%y')}"
+    txid = f"PS{current_user.id}{datetime.now(_BRT).strftime('%m%y')}"
     img_bytes = generate_pix_qrcode_bytes(
         pix_key=PIX_KEY,
         merchant_name=PIX_MERCHANT_NAME,

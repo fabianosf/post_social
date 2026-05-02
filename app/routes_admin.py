@@ -6,6 +6,9 @@ Acessível apenas por usuários com is_admin=True.
 import os
 from datetime import datetime, timezone, timedelta
 from functools import wraps
+from zoneinfo import ZoneInfo
+
+_BRT = ZoneInfo("America/Sao_Paulo")
 from urllib.parse import quote as _urlquote
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
@@ -59,24 +62,25 @@ def index():
     failed = PostQueue.query.filter_by(status="failed").count()
     drafts = PostQueue.query.filter_by(status="draft").count()
 
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
+    now_brt = datetime.now(_BRT)
+    today_start_utc = now_brt.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
     posted_today = PostQueue.query.filter(
         PostQueue.status == "posted",
-        PostQueue.posted_at >= today,
+        PostQueue.posted_at >= today_start_utc,
     ).count()
 
     # Posts últimos 7 dias
     weekly_data = []
     for i in range(6, -1, -1):
-        day = datetime.now(timezone.utc) - timedelta(days=i)
-        day_start = day.replace(hour=0, minute=0, second=0)
-        day_end = day_start + timedelta(days=1)
+        day_brt = now_brt - timedelta(days=i)
+        day_start_utc = day_brt.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+        day_end_utc = (day_brt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).astimezone(timezone.utc).replace(tzinfo=None)
         count = PostQueue.query.filter(
             PostQueue.status == "posted",
-            PostQueue.posted_at >= day_start,
-            PostQueue.posted_at < day_end,
+            PostQueue.posted_at >= day_start_utc,
+            PostQueue.posted_at < day_end_utc,
         ).count()
-        weekly_data.append({"day": day.strftime("%d/%m"), "count": count})
+        weekly_data.append({"day": day_brt.strftime("%d/%m"), "count": count})
 
     # Posts recentes
     recent_posts = PostQueue.query.order_by(PostQueue.created_at.desc()).limit(20).all()
@@ -338,7 +342,7 @@ def api_stats():
         "pending_pro": Client.query.filter_by(plan="pending_pro").count(),
         "posts_today": PostQueue.query.filter(
             PostQueue.status == "posted",
-            PostQueue.posted_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0),
+            PostQueue.posted_at >= datetime.now(_BRT).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None),
         ).count(),
         "failed": PostQueue.query.filter_by(status="failed").count(),
     })
