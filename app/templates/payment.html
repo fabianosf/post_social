@@ -76,6 +76,7 @@
 
         <form method="POST" action="{{ url_for('payment.confirm_payment') }}"
               onsubmit="return confirm('Confirma que já realizou o pagamento PIX de R$ {{ '%.2f'|format(price) }}?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-success" style="width:100%; padding:1rem; font-size:1rem;">
                 ✔ Já paguei — Ativar meu Pro
             </button>

@@ -78,6 +78,11 @@ class Client(UserMixin, db.Model):
             if datetime.now(timezone.utc) > expires:
                 self.plan = "free"
                 self.mp_subscription_id = None
+                self.plan_expires_at = None
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
 
     def get_monthly_limit(self) -> int:
         if self.is_admin or self.plan == "pro":
