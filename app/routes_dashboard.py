@@ -1098,9 +1098,8 @@ def api_status():
 @dashboard_bp.route("/api/week-schedule")
 @login_required
 def api_week_schedule():
-    """Retorna agendamentos da semana atual para a grade semanal."""
+    """Retorna agendamentos dos próximos 7 dias a partir de hoje."""
     today = datetime.now(BRAZIL_TZ).date()
-    monday = today - timedelta(days=today.weekday())
 
     account_id = request.args.get("account_id", type=int)
     all_accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
@@ -1118,7 +1117,7 @@ def api_week_schedule():
     week = []
 
     for i in range(7):
-        day = monday + timedelta(days=i)
+        day = today + timedelta(days=i)
         day_start_brt = datetime(day.year, day.month, day.day, 0, 0, 0, tzinfo=BRAZIL_TZ)
         day_end_brt   = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=BRAZIL_TZ)
         day_start = day_start_brt.astimezone(timezone.utc).replace(tzinfo=None)
@@ -1176,8 +1175,8 @@ def api_week_schedule():
 
         week.append({
             "date": day.isoformat(),
-            "weekday": i,
-            "day_name": day_names[i],
+            "weekday": day.weekday(),
+            "day_name": day_names[day.weekday()],
             "day_short": day.strftime("%d/%m"),
             "posts": posts_out,
             "ig_count": ig_count,
