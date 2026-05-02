@@ -364,12 +364,12 @@ def index():
         suggested = SAFE_LIMITS.get("suggested_times", [9, 17])
         next_available = None
         for h in sorted(suggested):
-            candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
-            if candidate > now + timedelta(minutes=10):
+            candidate = now_brt.replace(hour=h, minute=0, second=0, microsecond=0)
+            if candidate > now_brt + timedelta(minutes=10):
                 next_available = candidate
                 break
         if not next_available:
-            next_available = (now + timedelta(days=1)).replace(
+            next_available = (now_brt + timedelta(days=1)).replace(
                 hour=suggested[0], minute=0, second=0, microsecond=0
             )
 
@@ -385,7 +385,7 @@ def index():
             "stories_max": SAFE_LIMITS["max_stories_per_day"],
             "stories_remaining": remaining_stories,
             "next_available": next_available.strftime("%H:%M"),
-            "next_available_day": "hoje" if next_available.date() == now.date() else "amanhã",
+            "next_available_day": "hoje" if next_available.date() == now_brt.date() else "amanhã",
             "ig_blocked": ig_remaining <= 0,
             "fb_blocked": fb_remaining <= 0,
             # legado para compatibilidade no template
