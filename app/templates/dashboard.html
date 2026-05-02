@@ -234,10 +234,6 @@ function onbSkip() {
         <a href="{{ url_for('tiktok.connect') }}" class="btn btn-outline btn-sm" style="font-size:0.8rem;">
             🎵 Conectar TikTok
         </a>
-        {% else %}
-        <p style="color:#555; font-size:0.78rem; margin:0.3rem 0 0;">
-            🎵 TikTok disponível — configure <code>TIKTOK_CLIENT_KEY</code> no servidor para habilitar.
-        </p>
         {% endif %}
     </div>
     {% endif %}
