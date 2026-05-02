@@ -106,20 +106,36 @@ def _next_free_slot(account_id: int, after: datetime) -> datetime:
         if posts_day >= MAX_DAY:
             continue  # dia cheio, próximo
 
+        # 1ª tentativa: slots configurados pelo usuário
         for slot_str in slots:
             h, m = map(int, slot_str.split(":"))
             slot_br = datetime(candidate_day_br.year, candidate_day_br.month, candidate_day_br.day,
                                h, m, 0, tzinfo=BRAZIL_TZ)
             slot_utc = slot_br.astimezone(timezone.utc).replace(tzinfo=None)
 
-            # Deve ser futuro (ao menos 5 min de agora)
             if slot_utc <= after + timedelta(minutes=5):
                 continue
-            # Não pode estar já ocupado
             if slot_utc in occupied:
                 continue
 
             return slot_utc
+
+        # 2ª tentativa: dia tem capacidade mas slots configurados estão ocupados/passados.
+        # Varre janelas de 30 min dentro do horário seguro para não jogar pro dia seguinte.
+        safe_start = SAFE_LIMITS.get("safe_hours_start", 8)
+        safe_end = SAFE_LIMITS.get("safe_hours_end", 22)
+        for try_h in range(safe_start, safe_end):
+            for try_m in (0, 30):
+                slot_br = datetime(
+                    candidate_day_br.year, candidate_day_br.month, candidate_day_br.day,
+                    try_h, try_m, 0, tzinfo=BRAZIL_TZ,
+                )
+                slot_utc = slot_br.astimezone(timezone.utc).replace(tzinfo=None)
+                if slot_utc <= after + timedelta(minutes=5):
+                    continue
+                if slot_utc in occupied:
+                    continue
+                return slot_utc
 
     # Fallback: amanhã às 9h
     fallback_br = (after_br + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
