@@ -441,7 +441,7 @@ def uploaded_file(filename):
 @dashboard_bp.route("/instagram/connect", methods=["POST"])
 @login_required
 def connect_instagram():
-    ig_username = request.form.get("ig_username", "").strip()
+    ig_username = request.form.get("ig_username", "").strip().lstrip("@")
     ig_password = request.form.get("ig_password", "")
     share_fb = request.form.get("share_facebook") == "on"
     label = request.form.get("label", "").strip() or ig_username

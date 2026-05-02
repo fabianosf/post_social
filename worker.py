@@ -46,7 +46,7 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
     cl.delay_range = [2, 5]
 
     session_file = SESSION_DIR / f"account_{account.id}.json"
-    username = account.ig_username
+    username = account.ig_username.lstrip("@")
     password = account.get_ig_password()
 
     # Cooldown: se login_error recente, não retentar ainda
