@@ -58,7 +58,7 @@
         <div style="flex:1; min-width:200px;">
             <p style="color:#ccc; margin:0 0 0.5rem;">{{ top_post.image_filename[:40] }}</p>
             <p style="color:#888; font-size:0.82rem; margin:0 0 0.8rem;">
-                {{ top_post.posted_at.strftime('%d/%m/%Y %H:%M') if top_post.posted_at else '' }}
+                {{ top_post.posted_at | tobrt('%d/%m/%Y %H:%M') if top_post.posted_at else '' }}
                 &nbsp;·&nbsp; {{ top_post.post_type }}
             </p>
             <div style="display:flex; gap:1.5rem;">
@@ -132,7 +132,7 @@
                         {{ post.image_filename[:25] }}
                     </td>
                     <td style="padding:0.5rem; text-align:center; color:#888; font-size:0.78rem; white-space:nowrap;">
-                        {{ post.posted_at.strftime('%d/%m %H:%M') if post.posted_at else '-' }}
+                        {{ post.posted_at | tobrt if post.posted_at else '-' }}
                     </td>
                     <td style="padding:0.5rem; text-align:center; color:#f87171; font-weight:600;">{{ post.ig_likes or '-' }}</td>
                     <td style="padding:0.5rem; text-align:center; color:#60a5fa; font-weight:600;">{{ post.ig_comments or '-' }}</td>

@@ -130,7 +130,7 @@ function onbSkip() {
             {% if n.status == 'posted' %}
                 <strong>{{ n.image_filename }}</strong> postada no Instagram!
                 {% if n.post_to_facebook %}<br><small style="color:#1877f2;">+ Facebook</small>{% endif %}
-                <br><small style="color:#888;">{{ n.posted_at.strftime('%d/%m %H:%M') if n.posted_at }}</small>
+                <br><small style="color:#888;">{{ n.posted_at | tobrt if n.posted_at }}</small>
             {% else %}
                 <strong>{{ n.image_filename }}</strong> falhou.
                 <br><small style="color:#f87171;">{{ n.error_message or 'Erro' }}</small>
@@ -1115,7 +1115,7 @@ function saveTelegramConfig() {
                     {% if post.post_to_facebook %}<span class="badge badge-fb" style="font-size:0.6rem;">FB</span>{% endif %}
                     {% if post.post_to_tiktok %}<span class="badge" style="background:#1a1a2e; color:#a78bfa; font-size:0.6rem; border:1px solid #4a3a7a;">TK</span>{% endif %}
                     {% if post.scheduled_at %}
-                    <span style="color:#60a5fa; font-size:0.65rem;">&#128337; {{ post.scheduled_at.strftime('%d/%m %H:%M') }}</span>
+                    <span style="color:#60a5fa; font-size:0.65rem;">&#128337; {{ post.scheduled_at | tobrt }}</span>
                     {% else %}
                     <span style="color:#888; font-size:0.65rem;">sem horário</span>
                     {% endif %}
@@ -1141,7 +1141,7 @@ function saveTelegramConfig() {
                 {% if post.status in ('pending', 'draft', 'failed') %}
                 <button type="button"
                         title="Editar horário/legenda"
-                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at.strftime('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }}, false)"
+                        onclick="openEditPost({{ post.id }}, '{{ post.scheduled_at | tobrt('%Y-%m-%dT%H:%M') if post.scheduled_at else '' }}', {{ post.caption|tojson if post.caption else '\"\"' }}, {{ post.hashtags|tojson if post.hashtags else '\"\"' }}, false)"
                         class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.25rem 0.5rem;">
                     ✏
                 </button>
@@ -1206,7 +1206,7 @@ function saveTelegramConfig() {
                     {% if post.post_to_tiktok %}<span class="badge" style="background:#1a1a2e; color:#a78bfa; font-size:0.55rem; border:1px solid #4a3a7a;">TK</span>{% endif %}
                     {% if post.posted_at %}
                     <span style="color:#4ade80; font-size:0.65rem;">
-                        ✓ {{ post.posted_at.strftime('%H:%M') }}
+                        ✓ {{ post.posted_at | tobrt('%H:%M') }}
                     </span>
                     {% endif %}
                 </div>
