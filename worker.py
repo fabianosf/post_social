@@ -38,6 +38,9 @@ app = create_app()
 logger = setup_global_logger(str(BASE_DIR))
 
 
+_LOGIN_ERROR_COOLDOWN_MINUTES = 30  # Só retentar login_error após 30 min
+
+
 def get_ig_client(account: InstagramAccount) -> IGClient | None:
     cl = IGClient()
     cl.delay_range = [2, 5]
@@ -46,12 +49,29 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
     username = account.ig_username
     password = account.get_ig_password()
 
+    # Cooldown: se login_error recente, não retentar ainda
+    if account.status == "login_error" and account.last_login_at:
+        last = account.last_login_at
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds() / 60
+        if elapsed < _LOGIN_ERROR_COOLDOWN_MINUTES:
+            logger.warning(
+                f"[@{username}] Login error recente ({elapsed:.0f}min atrás). "
+                f"Cooldown de {_LOGIN_ERROR_COOLDOWN_MINUTES}min — pulando."
+            )
+            return None
+
+    # Restaurar sessão sem re-autenticar (apenas valida o token salvo)
     if session_file.exists():
         try:
             cl.load_settings(session_file)
-            cl.login(username, password)
-            cl.get_timeline_feed()
+            cl.get_timeline_feed()  # valida sem fazer login fresh
             logger.info(f"[@{username}] Sessão restaurada")
+            account.status = "active"
+            account.status_message = None
+            account.last_login_at = datetime.now(timezone.utc)
+            db.session.commit()
             return cl
         except Exception as e:
             logger.warning(f"[@{username}] Sessão expirada: {e}")
@@ -72,27 +92,31 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
     except BadPassword:
         logger.error(f"[@{username}] Senha incorreta")
         account.status = "login_error"
-        account.status_message = "Senha incorreta."
+        account.status_message = "Senha incorreta. Atualize a senha no painel."
+        account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
 
     except ChallengeRequired:
         logger.error(f"[@{username}] Challenge required")
         account.status = "challenge_required"
-        account.status_message = "Verificação necessária. Faça login pelo app do celular e tente novamente."
+        account.status_message = "Verificação necessária. Faça login pelo app do Instagram no celular e tente novamente."
+        account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
 
     except TwoFactorRequired:
         logger.error(f"[@{username}] 2FA ativo")
         account.status = "login_error"
-        account.status_message = "2FA ativo. Desative ou use senha de app."
+        account.status_message = "2FA ativo. Desative o 2FA na conta do Instagram ou use senha de app."
+        account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
 
     except PleaseWaitFewMinutes:
         logger.error(f"[@{username}] Rate limit")
-        account.status_message = "Rate limit. Tentaremos novamente em breve."
+        account.status_message = "Instagram pediu para aguardar. Tentaremos em breve."
+        account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
 
@@ -100,6 +124,7 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
         logger.error(f"[@{username}] Erro: {e}")
         account.status = "login_error"
         account.status_message = str(e)[:200]
+        account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
 
@@ -514,7 +539,7 @@ def process_queue():
             posts = account_posts[acc_id]
             account = db.session.get(InstagramAccount, acc_id)
 
-            if not account or account.status != "active":
+            if not account or account.status not in ("active", "login_error", "challenge_required"):
                 logger.warning(f"Conta #{acc_id} não ativa, pulando")
                 continue
 
