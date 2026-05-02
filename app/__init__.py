@@ -83,6 +83,18 @@ def create_app():
     except ImportError:
         pass  # flask-limiter não instalado
 
+    # ── Filtro Jinja2: converte UTC naive → BRT ───────────────────
+    from zoneinfo import ZoneInfo as _ZI
+    _BRT = _ZI("America/Sao_Paulo")
+
+    @app.template_filter("tobrt")
+    def tobrt_filter(dt, fmt="%d/%m %H:%M"):
+        if dt is None:
+            return ""
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=__import__("datetime").timezone.utc)
+        return dt.astimezone(_BRT).strftime(fmt)
+
     # ── Security headers ───────────────────────────────────────────
     @app.after_request
     def set_security_headers(response):
