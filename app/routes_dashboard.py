@@ -650,29 +650,21 @@ def upload():
     ).count()
 
     MAX_DAY = SAFE_LIMITS["max_posts_per_day"]
-    _BLOCK_MSG = (
-        "⚠️ O Instagram e o Facebook detectam automações por volume de posts e podem "
-        "SUSPENDER ou aplicar SHADOWBAN na conta, reduzindo drasticamente o alcance. "
-        "O limite de {limit} posts/dia por plataforma existe para manter sua conta segura."
-    )
 
     day_label = ref_brt.strftime("%d/%m")
-    if not post_story:
-        if ig_today >= MAX_DAY:
-            flash(
-                f"Limite do Instagram atingido para @{target_account.ig_username}: "
-                f"{ig_today}/{MAX_DAY} posts em {day_label}. " + _BLOCK_MSG.format(limit=MAX_DAY),
-                "error",
-            )
-            return redirect(url_for("dashboard.index"))
-
-        if post_fb and fb_today >= MAX_DAY:
-            flash(
-                f"Limite do Facebook atingido para @{target_account.ig_username}: "
-                f"{fb_today}/{MAX_DAY} posts em {day_label}. " + _BLOCK_MSG.format(limit=MAX_DAY),
-                "error",
-            )
-            return redirect(url_for("dashboard.index"))
+    # Se o dia escolhido está cheio, mover automaticamente para o próximo slot livre
+    if not post_story and (ig_today >= MAX_DAY or (post_fb and fb_today >= MAX_DAY)):
+        search_after = day_start  # UTC naive — começa a buscar a partir deste dia
+        new_slot = _next_free_slot(target_account.id, search_after)
+        new_slot_brt = new_slot.replace(tzinfo=timezone.utc).astimezone(BRAZIL_TZ)
+        flash(
+            f"Dia {day_label} já tem {MAX_DAY}/{MAX_DAY} posts. "
+            f"Agendamento movido automaticamente para {new_slot_brt.strftime('%d/%m às %H:%M')}.",
+            "info",
+        )
+        scheduled_at = new_slot
+        # Recalcular ref_brt para o novo dia (usado abaixo na flash de confirmação)
+        ref_brt = new_slot_brt
 
     if post_story and stories_today >= SAFE_LIMITS["max_stories_per_day"]:
         flash(
