@@ -377,6 +377,9 @@ def index():
             "blocked": ig_remaining <= 0,
         }
 
+    import os as _os
+    tiktok_configured = bool(_os.environ.get("TIKTOK_CLIENT_KEY", "").strip())
+
     return render_template(
         "dashboard.html",
         accounts=accounts,
@@ -392,6 +395,7 @@ def index():
         daily_usage=daily_usage,
         safe_limits=SAFE_LIMITS,
         history_days=history_days,
+        tiktok_configured=tiktok_configured,
     )
 
 

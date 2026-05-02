@@ -227,7 +227,7 @@ function onbSkip() {
     </div>
     {% endfor %}
 
-    {% if not current_user.tiktok_accounts %}
+    {% if not current_user.tiktok_accounts and tiktok_configured %}
     <div style="margin-top:0.5rem;">
         <a href="{{ url_for('tiktok.connect') }}" class="btn btn-outline btn-sm" style="font-size:0.8rem;">
             🎵 Conectar TikTok
@@ -625,7 +625,7 @@ loadSlotsConfig();
             <div class="checkbox-row" style="margin-bottom:1rem;">
                 <label style="font-size:0.85rem;"><span style="font-size:0.9rem;">📸</span> Instagram (sempre)</label>
                 <label style="font-size:0.85rem;"><input type="checkbox" name="share_facebook" id="week-fb-check"> <span style="font-size:0.9rem;">👥</span> Facebook</label>
-                {% if current_user.tiktok_accounts %}
+                {% if tiktok_configured and current_user.tiktok_accounts %}
                 <label style="font-size:0.85rem;"><input type="checkbox" name="post_to_tiktok"> 🎵 TikTok</label>
                 {% endif %}
             </div>
@@ -793,7 +793,7 @@ loadSlotsConfig();
             {% if accounts[0].share_to_facebook %}
             <label><input type="checkbox" name="share_facebook" checked> Facebook</label>
             {% endif %}
-            {% if current_user.tiktok_accounts %}
+            {% if tiktok_configured and current_user.tiktok_accounts %}
             <label><input type="checkbox" name="post_to_tiktok" id="tiktok-check"> 🎵 TikTok</label>
             {% endif %}
             {% if current_user.is_pro() %}
