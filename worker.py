@@ -121,9 +121,15 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
         return None
 
     except Exception as e:
-        logger.error(f"[@{username}] Erro: {e}")
+        err_str = str(e)
+        logger.error(f"[@{username}] Erro: {err_str}")
         account.status = "login_error"
-        account.status_message = str(e)[:200]
+        if "can't find an account" in err_str.lower() or "não encontr" in err_str.lower():
+            account.status_message = (
+                "Usuário não encontrado. Verifique o nome de usuário e reconecte a conta."
+            )
+        else:
+            account.status_message = "Falha no login. Reconecte a conta no painel."
         account.last_login_at = datetime.now(timezone.utc)
         db.session.commit()
         return None
