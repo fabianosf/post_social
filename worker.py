@@ -615,6 +615,17 @@ def process_queue():
         logger.info("Fila processada.")
 
 
+_HEARTBEAT_FILE = BASE_DIR / "logs" / "worker_heartbeat.txt"
+
+
+def _write_heartbeat():
+    try:
+        _HEARTBEAT_FILE.parent.mkdir(exist_ok=True)
+        _HEARTBEAT_FILE.write_text(datetime.now(_BRT).strftime("%Y-%m-%d %H:%M:%S BRT"))
+    except Exception:
+        pass
+
+
 def run_daemon(interval: int = 300):
     """Roda em loop contínuo."""
     logger.info(f"Modo daemon — intervalo: {interval}s")
@@ -623,6 +634,7 @@ def run_daemon(interval: int = 300):
             process_queue()
         except Exception as e:
             logger.error(f"Erro no ciclo: {e}")
+        _write_heartbeat()
         logger.info(f"Próximo ciclo em {interval}s...")
         time.sleep(interval)
 

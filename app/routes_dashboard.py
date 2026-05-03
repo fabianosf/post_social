@@ -53,7 +53,10 @@ def select_account():
 @dashboard_bp.route("/api/set-active-account", methods=["POST"])
 @login_required
 def set_active_account():
-    acc_id = request.form.get("account_id", type=int) or request.json.get("account_id") if request.is_json else None
+    if request.is_json:
+        acc_id = (request.get_json(silent=True) or {}).get("account_id")
+    else:
+        acc_id = request.form.get("account_id", type=int)
     acc = InstagramAccount.query.filter_by(id=acc_id, client_id=current_user.id).first()
     if acc:
         session["active_account_id"] = acc.id

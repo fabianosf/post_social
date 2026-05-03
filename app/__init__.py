@@ -164,6 +164,12 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN default_account_id INTEGER REFERENCES instagram_accounts(id)",
         ]
         with db.engine.connect() as conn:
+            # WAL mode: permite leituras simultâneas entre web e worker sem travar
+            conn.execute(text("PRAGMA journal_mode=WAL"))
+            conn.execute(text("PRAGMA synchronous=NORMAL"))
+            conn.execute(text("PRAGMA busy_timeout=5000"))
+            conn.commit()
+
             for stmt in migrations:
                 try:
                     conn.execute(text(stmt))

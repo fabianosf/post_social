@@ -2,7 +2,7 @@ services:
   web:
     build: .
     container_name: postay-web
-    restart: unless-stopped
+    restart: always
     ports:
       - "8095:5000"
     env_file:
@@ -25,7 +25,7 @@ services:
   worker:
     build: .
     container_name: postay-worker
-    restart: unless-stopped
+    restart: always
     command: python worker.py --daemon --interval=300
     env_file:
       - .env
@@ -36,6 +36,12 @@ services:
       - ./uploads:/app/uploads
       - ./sessions:/app/sessions
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /app/logs/worker_heartbeat.txt && [ $(($(date +%s) - $(date +%s -r /app/logs/worker_heartbeat.txt))) -lt 900 ]"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   backup:
     image: alpine
