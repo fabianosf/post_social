@@ -210,8 +210,30 @@ function onbSkip() {
 </div>
 {% endif %}
 
+{% set error_accounts = accounts | selectattr('status', 'ne', 'active') | list %}
+{% if error_accounts %}
+<div style="background:#2d1a1a; border:1px solid #ef4444; border-radius:10px; padding:1rem 1.2rem; margin-bottom:1rem; display:flex; align-items:flex-start; gap:0.75rem;">
+    <span style="font-size:1.3rem; flex-shrink:0;">🚨</span>
+    <div>
+        <strong style="color:#f87171;">Ação necessária — conta(s) com erro de login</strong>
+        <ul style="margin:0.4rem 0 0; padding-left:1.2rem; color:#fca5a5; font-size:0.85rem;">
+        {% for acc in error_accounts %}
+            <li>
+                <strong>@{{ acc.ig_username }}</strong> —
+                {{ acc.status_message or acc.status }}
+                &nbsp;<a href="#instagram-connect" style="color:#f87171; font-size:0.78rem;">[reconectar ↓]</a>
+            </li>
+        {% endfor %}
+        </ul>
+        <p style="margin:0.5rem 0 0; color:#aaa; font-size:0.78rem;">
+            Os posts agendados para esta(s) conta(s) <strong>não serão publicados</strong> até que seja reconectada com usuário e senha corretos.
+        </p>
+    </div>
+</div>
+{% endif %}
+
 <!-- Contas Instagram -->
-<div class="card">
+<div class="card" id="instagram-connect">
     <h2>Contas Instagram</h2>
     {% for acc in accounts %}
     <div class="account-card">

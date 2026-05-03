@@ -41,7 +41,8 @@ app = create_app()
 logger = setup_global_logger(str(BASE_DIR))
 
 
-_LOGIN_ERROR_COOLDOWN_MINUTES = 30  # Só retentar login_error após 30 min
+_LOGIN_ERROR_COOLDOWN_MINUTES = 30    # Erro genérico: retry após 30 min
+_NOT_FOUND_COOLDOWN_MINUTES   = 1440  # Usuário não encontrado: retry após 24h
 
 
 def get_ig_client(account: InstagramAccount) -> IGClient | None:
@@ -58,11 +59,13 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
         if last.tzinfo is None:
             last = last.replace(tzinfo=timezone.utc)
         elapsed = (datetime.now(timezone.utc) - last).total_seconds() / 60
-        if elapsed < _LOGIN_ERROR_COOLDOWN_MINUTES:
-            logger.warning(
-                f"[@{username}] Login error recente ({elapsed:.0f}min atrás). "
-                f"Cooldown de {_LOGIN_ERROR_COOLDOWN_MINUTES}min — pulando."
-            )
+        not_found = "não encontrado" in (account.status_message or "").lower()
+        cooldown = _NOT_FOUND_COOLDOWN_MINUTES if not_found else _LOGIN_ERROR_COOLDOWN_MINUTES
+        if elapsed < cooldown:
+            if not_found:
+                logger.warning(f"[@{username}] Usuário não encontrado — aguardando reconexão manual. Pulando.")
+            else:
+                logger.warning(f"[@{username}] Login error ({elapsed:.0f}min atrás). Cooldown {cooldown}min — pulando.")
             return None
 
     # Restaurar sessão sem re-autenticar (apenas valida o token salvo)
