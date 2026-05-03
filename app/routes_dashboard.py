@@ -296,13 +296,17 @@ def index():
     history_days = list(history_by_day.values())
 
     all_posts = PostQueue.query.filter_by(client_id=current_user.id)
+    _now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     stats = {
         "total": all_posts.count(),
         "posted": all_posts.filter_by(status="posted").count(),
-        "pending": all_posts.filter_by(status="pending").count(),
+        "queued": all_posts.filter(
+            PostQueue.status == "pending",
+            db.or_(PostQueue.scheduled_at.is_(None), PostQueue.scheduled_at <= _now_utc)
+        ).count(),
         "failed": all_posts.filter_by(status="failed").count(),
         "draft": all_posts.filter_by(status="draft").count(),
-        "scheduled": all_posts.filter(PostQueue.scheduled_at.isnot(None), PostQueue.status == "pending").count(),
+        "scheduled": all_posts.filter(PostQueue.scheduled_at > _now_utc, PostQueue.status == "pending").count(),
     }
 
     notifications = (
