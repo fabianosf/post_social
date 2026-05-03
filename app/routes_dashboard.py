@@ -516,24 +516,55 @@ def connect_instagram():
         client_id=current_user.id, ig_username=ig_username
     ).first()
 
+    # Testar login antes de salvar
+    try:
+        from instagrapi import Client as _IGClient
+        _cl = _IGClient()
+        _cl.delay_range = [1, 3]
+        _session_path = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"test_{current_user.id}.json"
+        _cl.login(ig_username, ig_password)
+        _cl.dump_settings(_session_path)
+    except Exception as _e:
+        err = str(_e)
+        if "bad_password" in err.lower() or "incorrect" in err.lower():
+            flash("Senha incorreta. Verifique e tente novamente.", "error")
+        elif "challenge" in err.lower():
+            flash("Instagram pediu verificação. Confirme no app do celular e tente novamente.", "error")
+        elif "two_factor" in err.lower() or "2fa" in err.lower():
+            flash("2FA ativo. Desative o 2FA no Instagram ou use um Session ID.", "error")
+        elif "not found" in err.lower() or "can't find" in err.lower():
+            flash(f"Usuário @{ig_username} não encontrado no Instagram. Verifique o nome de usuário.", "error")
+        else:
+            flash(f"Não foi possível conectar: {err[:120]}", "error")
+        return redirect(url_for("dashboard.index"))
+
     if existing:
         existing.set_ig_password(ig_password)
         existing.share_to_facebook = share_fb
         existing.label = label
         existing.status = "active"
         existing.status_message = None
+        existing.last_login_at = datetime.now(timezone.utc)
+        # Mover session de teste para o arquivo definitivo
+        session_file = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"account_{existing.id}.json"
+        _session_path.rename(session_file)
     else:
         account = InstagramAccount(
             client_id=current_user.id,
             ig_username=ig_username,
             share_to_facebook=share_fb,
             label=label,
+            status="active",
+            last_login_at=datetime.now(timezone.utc),
         )
         account.set_ig_password(ig_password)
         db.session.add(account)
+        db.session.flush()  # gera o ID antes do commit
+        session_file = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"account_{account.id}.json"
+        _session_path.rename(session_file)
 
     db.session.commit()
-    flash(f"@{ig_username} conectado!", "success")
+    flash(f"@{ig_username} conectado e verificado com sucesso!", "success")
     return redirect(url_for("dashboard.index"))
 
 
