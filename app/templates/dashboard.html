@@ -287,22 +287,8 @@ function onbSkip() {
             <a href="{{ url_for('payment.index') }}" class="btn btn-sm" style="padding:0.5rem 1.2rem;">Fazer Upgrade Pro — R$ 49,90/mês</a>
         </div>
         {% else %}
-        <!-- Abas: Session ID (recomendado) ou Usuário/Senha -->
-        <div style="display:flex; gap:0; margin-top:0.8rem; margin-bottom:0.8rem;">
-            <button onclick="showTab('tab-session')" id="btn-tab-session"
-                style="flex:1; padding:0.5rem; border:1px solid #7c5cff; border-radius:8px 0 0 8px;
-                       background:#7c5cff; color:#fff; cursor:pointer; font-size:0.85rem; font-weight:600;">
-                🍪 Session ID (Recomendado)
-            </button>
-            <button onclick="showTab('tab-password')" id="btn-tab-password"
-                style="flex:1; padding:0.5rem; border:1px solid #3a3a5a; border-radius:0 8px 8px 0;
-                       background:#1a1a2e; color:#888; cursor:pointer; font-size:0.85rem;">
-                🔑 Usuário + Senha
-            </button>
-        </div>
-
-        <!-- Tab Session ID -->
-        <div id="tab-session">
+        <!-- Conectar via Session ID -->
+        <div style="margin-top:0.8rem;">
             <div style="background:#0f1a2e; border:1px solid #2a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem; font-size:0.82rem; color:#aaa; line-height:1.7;">
                 <strong style="color:#7c5cff;">Como pegar o Session ID:</strong><br>
                 1. Abra <strong style="color:#eee;">instagram.com</strong> no navegador e faça login<br>
@@ -317,38 +303,9 @@ function onbSkip() {
                 <div class="checkbox-row">
                     <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
                 </div>
-                <button type="submit" class="btn btn-sm" style="width:100%;">Conectar via Session ID</button>
+                <button type="submit" class="btn btn-sm" style="width:100%;">Conectar Instagram</button>
             </form>
         </div>
-
-        <!-- Tab Usuário + Senha -->
-        <div id="tab-password" style="display:none;">
-            <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}">
-                <label>Apelido (ex: "Loja Principal")</label>
-                <input type="text" name="label" placeholder="Opcional">
-                <label>Usuário Instagram</label>
-                <input type="text" name="ig_username" required placeholder="seu_usuario">
-                <label>Senha</label>
-                <input type="password" name="ig_password" required>
-                <div class="checkbox-row">
-                    <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
-                </div>
-                <button type="submit" class="btn btn-meta btn-sm">Conectar</button>
-            </form>
-        </div>
-
-        <script>
-        function showTab(tab) {
-            document.getElementById('tab-session').style.display = tab === 'tab-session' ? 'block' : 'none';
-            document.getElementById('tab-password').style.display = tab === 'tab-password' ? 'block' : 'none';
-            document.getElementById('btn-tab-session').style.background = tab === 'tab-session' ? '#7c5cff' : '#1a1a2e';
-            document.getElementById('btn-tab-session').style.color = tab === 'tab-session' ? '#fff' : '#888';
-            document.getElementById('btn-tab-session').style.borderColor = tab === 'tab-session' ? '#7c5cff' : '#3a3a5a';
-            document.getElementById('btn-tab-password').style.background = tab === 'tab-password' ? '#7c5cff' : '#1a1a2e';
-            document.getElementById('btn-tab-password').style.color = tab === 'tab-password' ? '#fff' : '#888';
-            document.getElementById('btn-tab-password').style.borderColor = tab === 'tab-password' ? '#7c5cff' : '#3a3a5a';
-        }
-        </script>
         {% endif %}
     </details>
 </div>

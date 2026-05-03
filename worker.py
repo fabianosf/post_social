@@ -83,9 +83,16 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
             logger.warning(f"[@{username}] Sessão expirada: {e}")
             session_file.unlink(missing_ok=True)
 
+    # Session ID: string longa sem espaços (formato Instagram sessionid)
+    _is_session_id = bool(password) and len(password) > 40 and " " not in password
+
     try:
-        logger.info(f"[@{username}] Login fresh...")
-        cl.login(username, password)
+        if _is_session_id:
+            logger.info(f"[@{username}] Re-auth via session_id...")
+            cl.login_by_sessionid(password)
+        else:
+            logger.info(f"[@{username}] Login fresh (usuário/senha)...")
+            cl.login(username, password)
         cl.dump_settings(session_file)
         logger.info(f"[@{username}] Login OK")
 
@@ -130,7 +137,9 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
         err_str = str(e)
         logger.error(f"[@{username}] Erro: {err_str}")
         account.status = "login_error"
-        if "can't find an account" in err_str.lower() or "não encontr" in err_str.lower():
+        if _is_session_id:
+            account.status_message = "Session ID expirado. Reconecte a conta no painel com um novo Session ID."
+        elif "can't find an account" in err_str.lower() or "não encontr" in err_str.lower():
             account.status_message = (
                 "Usuário não encontrado. Verifique o nome de usuário e reconecte a conta."
             )
