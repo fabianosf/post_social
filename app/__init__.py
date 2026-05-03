@@ -105,10 +105,10 @@ def create_app():
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com; "
+            "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://connect.facebook.net; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob: https:; "
-            "connect-src 'self' https://api.mercadopago.com; "
+            "connect-src 'self' https://api.mercadopago.com https://www.facebook.com; "
             "frame-src https://www.mercadopago.com.br https://mercadopago.com.br; "
             "object-src 'none'; "
             "base-uri 'self';"
@@ -160,6 +160,8 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN ig_saves INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN ig_reach INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN insights_updated_at DATETIME",
+            # clients — conta padrão
+            "ALTER TABLE clients ADD COLUMN default_account_id INTEGER REFERENCES instagram_accounts(id)",
         ]
         with db.engine.connect() as conn:
             for stmt in migrations:

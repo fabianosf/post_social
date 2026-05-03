@@ -141,6 +141,25 @@ function onbSkip() {
 </div>
 {% endif %}
 
+<!-- Switcher de conta ativa (múltiplas contas) -->
+{% if accounts|length > 1 %}
+<div style="background:#1a1a2e; border:1px solid #3a3a6a; border-radius:10px; padding:0.7rem 1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+    <span style="color:#888; font-size:0.82rem; white-space:nowrap;">📸 Conta ativa:</span>
+    <form method="POST" action="{{ url_for('dashboard.set_active_account') }}" style="display:flex; align-items:center; gap:0.5rem; flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="account_id" onchange="this.form.submit()" style="background:#0d0d1a; color:#e2e8f0; border:1px solid #3a3a6a; border-radius:6px; padding:0.3rem 0.6rem; font-size:0.85rem; flex:1; max-width:260px;">
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}" {% if acc.id == active_account_id %}selected{% endif %}>
+                @{{ acc.ig_username }}{% if acc.label %} — {{ acc.label }}{% endif %}
+                {% if acc.status != 'active' %} ⚠{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+    <a href="{{ url_for('dashboard.select_account') }}" style="color:#7c5cff; font-size:0.78rem; white-space:nowrap;">Gerenciar contas</a>
+</div>
+{% endif %}
+
 <!-- Estatísticas + Plano -->
 <div style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
     <a href="{{ url_for('dashboard.stats_page') }}" class="btn btn-outline btn-sm">Ver Estatísticas Completas</a>
@@ -716,9 +735,14 @@ loadSlotsConfig();
         <label>Conta</label>
         <select name="account_id" id="account-select">
             {% for acc in accounts %}
-            <option value="{{ acc.id }}" data-username="{{ acc.ig_username }}">@{{ acc.ig_username }}{% if acc.label %} ({{ acc.label }}){% endif %}</option>
+            <option value="{{ acc.id }}" data-username="{{ acc.ig_username }}"
+                {% if acc.id == active_account_id %}selected{% endif %}>
+                @{{ acc.ig_username }}{% if acc.label %} ({{ acc.label }}){% endif %}
+            </option>
             {% endfor %}
         </select>
+        {% else %}
+        <input type="hidden" name="account_id" value="{{ accounts[0].id if accounts else '' }}">
         {% endif %}
 
         <label>Legenda (vazio = gerar com IA)</label>

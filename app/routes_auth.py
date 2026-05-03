@@ -5,10 +5,10 @@ Rotas de autenticação: cadastro e login do cliente.
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required
 
-from .models import db, Client
+from .models import db, Client, InstagramAccount
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -86,6 +86,20 @@ def login():
         record["locked_until"] = None
 
         login_user(client)
+
+        # Auto-selecionar conta Instagram ao logar
+        active_accounts = InstagramAccount.query.filter_by(client_id=client.id).all()
+        if len(active_accounts) == 1:
+            session["active_account_id"] = active_accounts[0].id
+            if client.default_account_id != active_accounts[0].id:
+                client.default_account_id = active_accounts[0].id
+                db.session.commit()
+        elif len(active_accounts) > 1:
+            if client.default_account_id:
+                session["active_account_id"] = client.default_account_id
+            else:
+                return redirect(url_for("dashboard.select_account"))
+
         return redirect(url_for("dashboard.index"))
 
     return render_template("login.html")

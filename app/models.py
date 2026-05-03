@@ -49,6 +49,9 @@ class Client(UserMixin, db.Model):
     # Google Drive
     gdrive_folder_id = db.Column(db.String(200))   # ID ou URL da pasta
 
+    # Conta Instagram padrão para novos posts
+    default_account_id = db.Column(db.Integer, db.ForeignKey("instagram_accounts.id"), nullable=True)
+
     # Controle de acesso
     is_blocked = db.Column(db.Boolean, default=False)
 

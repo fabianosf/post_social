@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Selecionar Conta{% endblock %}
+{% block content %}
+<div style="max-width:480px; margin:3rem auto; padding:0 1rem;">
+    <div class="card" style="text-align:center; padding:2rem;">
+        <div style="font-size:2.5rem; margin-bottom:1rem;">📸</div>
+        <h2 style="margin:0 0 0.5rem;">Qual conta deseja usar?</h2>
+        <p style="color:#888; margin:0 0 2rem; font-size:0.9rem;">
+            Você tem {{ accounts|length }} contas conectadas. Escolha a conta padrão para novos posts.<br>
+            <small>Você pode trocar a qualquer momento no painel.</small>
+        </p>
+        <form method="POST" action="{{ url_for('dashboard.select_account') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.5rem;">
+                {% for acc in accounts %}
+                <label style="display:flex; align-items:center; gap:1rem; background:#1a1a2e; border:2px solid {% if acc.status == 'active' %}#7c5cff{% else %}#ef4444{% endif %}; border-radius:10px; padding:1rem 1.2rem; cursor:pointer;">
+                    <input type="radio" name="account_id" value="{{ acc.id }}" required
+                           style="width:18px; height:18px; accent-color:#7c5cff;"
+                           {% if loop.first %}checked{% endif %}>
+                    <div style="text-align:left; flex:1;">
+                        <div style="font-weight:600; color:#e2e8f0;">@{{ acc.ig_username }}</div>
+                        {% if acc.label %}
+                        <div style="font-size:0.78rem; color:#888;">{{ acc.label }}</div>
+                        {% endif %}
+                        <div style="font-size:0.72rem; margin-top:0.2rem;">
+                            {% if acc.status == 'active' %}
+                            <span style="color:#4ade80;">● Ativa</span>
+                            {% elif acc.status == 'login_error' %}
+                            <span style="color:#ef4444;">● Erro de login</span>
+                            {% else %}
+                            <span style="color:#f59e0b;">● {{ acc.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; padding:0.85rem;">
+                Usar esta conta
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

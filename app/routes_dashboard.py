@@ -17,7 +17,7 @@ BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
 
 from flask import (
     Blueprint, render_template, redirect, url_for, flash,
-    request, current_app, send_from_directory, jsonify,
+    request, current_app, send_from_directory, jsonify, session,
 )
 from flask_login import login_required, current_user
 from PIL import Image
@@ -25,6 +25,43 @@ from PIL import Image
 from .models import db, InstagramAccount, PostQueue, CaptionTemplate, Client
 
 dashboard_bp = Blueprint("dashboard", __name__)
+
+
+@dashboard_bp.route("/selecionar-conta", methods=["GET", "POST"])
+@login_required
+def select_account():
+    accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
+    if not accounts:
+        return redirect(url_for("dashboard.index"))
+    if len(accounts) == 1:
+        session["active_account_id"] = accounts[0].id
+        current_user.default_account_id = accounts[0].id
+        db.session.commit()
+        return redirect(url_for("dashboard.index"))
+    if request.method == "POST":
+        acc_id = request.form.get("account_id", type=int)
+        acc = next((a for a in accounts if a.id == acc_id), None)
+        if acc:
+            session["active_account_id"] = acc.id
+            current_user.default_account_id = acc.id
+            db.session.commit()
+            flash(f"Conta @{acc.ig_username} selecionada como padrão.", "success")
+        return redirect(url_for("dashboard.index"))
+    return render_template("select_account.html", accounts=accounts)
+
+
+@dashboard_bp.route("/api/set-active-account", methods=["POST"])
+@login_required
+def set_active_account():
+    acc_id = request.form.get("account_id", type=int) or request.json.get("account_id") if request.is_json else None
+    acc = InstagramAccount.query.filter_by(id=acc_id, client_id=current_user.id).first()
+    if acc:
+        session["active_account_id"] = acc.id
+        current_user.default_account_id = acc.id
+        db.session.commit()
+        return jsonify({"ok": True, "username": acc.ig_username})
+    return jsonify({"ok": False}), 400
+
 
 ALLOWED_IMG = {"jpg", "jpeg", "png", "webp"}
 ALLOWED_VID = {"mp4", "mov"}
@@ -398,6 +435,8 @@ def index():
     import os as _os
     tiktok_configured = bool(_os.environ.get("TIKTOK_CLIENT_KEY", "").strip())
 
+    active_account_id = session.get("active_account_id") or current_user.default_account_id
+
     return render_template(
         "dashboard.html",
         accounts=accounts,
@@ -414,6 +453,7 @@ def index():
         safe_limits=SAFE_LIMITS,
         history_days=history_days,
         tiktok_configured=tiktok_configured,
+        active_account_id=active_account_id,
     )
 
 
@@ -594,7 +634,9 @@ def upload():
     scheduled_str = request.form.get("scheduled_at", "").strip()
     needs_approval = request.form.get("needs_approval") == "on"
 
-    # Determinar qual conta usar
+    # Determinar qual conta usar: form > sessão ativa > primeira da lista
+    if not account_id:
+        account_id = session.get("active_account_id") or (current_user.default_account_id)
     if account_id:
         target_account = InstagramAccount.query.filter_by(
             id=account_id, client_id=current_user.id
