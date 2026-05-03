@@ -555,11 +555,21 @@ def process_queue():
 
             cl = get_ig_client(account)
             if not cl:
+                # Se a conta está com login_error permanente, falha os posts
+                # que já passaram do horário (não adianta manter em pending)
+                if account.status == "login_error":
+                    for post in posts:
+                        sched = post.scheduled_at or post.created_at
+                        if sched and (now - sched).total_seconds() > 7200:  # > 2h
+                            post.status = "failed"
+                            post.error_message = account.status_message or "Conta Instagram com erro de login."
+                            db.session.commit()
+                            logger.warning(f"Post #{post.id} marcado como falha — conta @{account.ig_username} inativa há mais de 2h.")
                 continue
 
             # Limite diário anti-bloqueio — máx 2 posts/dia por plataforma
             MAX_PER_DAY = 2
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(_BRT).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
             posted_today = PostQueue.query.filter(
                 PostQueue.account_id == acc_id,
                 PostQueue.post_type != "story",
