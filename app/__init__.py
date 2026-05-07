@@ -105,10 +105,10 @@ def create_app():
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://connect.facebook.net; "
+            "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob: https:; "
-            "connect-src 'self' https://api.mercadopago.com https://www.facebook.com; "
+            "connect-src 'self' https://api.mercadopago.com; "
             "frame-src https://www.mercadopago.com.br https://mercadopago.com.br; "
             "object-src 'none'; "
             "base-uri 'self';"
