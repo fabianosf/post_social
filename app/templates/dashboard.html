@@ -1687,7 +1687,11 @@ document.getElementById('week-photos')?.addEventListener('change', function(e) {
 });
 
 /* Carregar grade ao iniciar */
-document.addEventListener('DOMContentLoaded', loadWeekGrid);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadWeekGrid);
+} else {
+    loadWeekGrid();
+}
 </script>
 
 <!-- Modal Editar / Reagendar Post -->
