@@ -72,7 +72,7 @@ ALLOWED_ALL = ALLOWED_IMG | ALLOWED_VID
 
 # ── Limites anti-bloqueio (Instagram / Facebook) ──────────
 SAFE_LIMITS = {
-    "max_posts_per_day": 2,         # Máximo de posts no feed por dia por plataforma
+    "max_posts_per_day": 3,         # Máximo de posts no feed por dia por plataforma
     "max_stories_per_day": 4,       # Máximo de stories por dia
     "min_interval_minutes": 240,    # Intervalo mínimo entre posts (4 horas)
     "random_delay_minutes": 20,     # Variação aleatória no horário (±minutos)
