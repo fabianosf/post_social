@@ -39,6 +39,9 @@ def register():
 
         client = Client(name=name, email=email)
         client.set_password(password)
+        # Trial de 3 dias Pro gratuito
+        client.plan = "pro"
+        client.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=3)
         db.session.add(client)
         db.session.commit()
 

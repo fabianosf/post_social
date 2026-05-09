@@ -444,6 +444,15 @@ def index():
 
     active_account_id = session.get("active_account_id") or current_user.default_account_id
 
+    # Trial info
+    trial_days_left = None
+    if not current_user.is_admin and current_user.plan == "pro" and current_user.plan_expires_at and not current_user.mp_subscription_id:
+        expires = current_user.plan_expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        diff = (expires - datetime.now(timezone.utc)).days
+        trial_days_left = max(0, diff)
+
     return render_template(
         "dashboard.html",
         accounts=accounts,
@@ -461,6 +470,7 @@ def index():
         history_days=history_days,
         tiktok_configured=tiktok_configured,
         active_account_id=active_account_id,
+        trial_days_left=trial_days_left,
     )
 
 
