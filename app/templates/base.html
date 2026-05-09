@@ -148,7 +148,13 @@
     </style>
     {% endif %}
     <nav class="navbar">
-        <a href="{{ url_for('dashboard.index') }}" class="logo" style="text-decoration:none;">{{ _brand_name }}</a>
+        <a href="{{ url_for('dashboard.index') }}" class="logo" style="text-decoration:none; display:flex; align-items:center; gap:0.5rem;">
+            {% if _brand_name == 'Postay' %}
+            <img src="/static/logo.png" alt="Postay" style="height:32px; width:auto; object-fit:contain;">
+            {% else %}
+            {{ _brand_name }}
+            {% endif %}
+        </a>
         <button class="nav-hamburger" onclick="toggleNav()" aria-label="Menu">&#9776;</button>
         <div class="nav-links" id="main-nav-links">
             <a href="{{ url_for('dashboard.stats_page') }}">Stats</a>
