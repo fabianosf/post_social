@@ -45,21 +45,10 @@
 }
 
 @media (max-width: 640px) {
-    .landing-hamburger { display: block; }
     .nav .links {
-        display: none !important;
-        flex-direction: column;
-        position: absolute;
-        top: 100%;
-        left: 0; right: 0;
-        background: #1a1a2e;
-        border-bottom: 1px solid #2a2a4a;
-        padding: 1rem 1.5rem;
-        gap: 1rem;
-        z-index: 200;
+        gap: 0.8rem;
     }
-    .nav .links.open { display: flex !important; }
-    .nav .links a { font-size: 1rem !important; color: #ccc !important; display: block !important; }
+    .nav .links a { font-size: 0.8rem !important; }
 }
 
 /* ── Responsive grid utilities ── */
