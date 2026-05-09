@@ -33,6 +33,16 @@ def faq():
     return render_template("landing.html", scroll_to="faq")
 
 
+@landing_bp.route("/termos")
+def terms():
+    return render_template("terms.html")
+
+
+@landing_bp.route("/privacidade")
+def privacy():
+    return render_template("privacy.html")
+
+
 @landing_bp.route("/robots.txt")
 def robots():
     content = f"""User-agent: *
