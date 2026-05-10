@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postay-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: postay
+      POSTGRES_USER: postay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postay"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   web:
     build: .
     container_name: postay-web
@@ -15,7 +31,10 @@ services:
       - ./sessions:/app/sessions
       - ./logs:/app/logs
     depends_on:
-      - worker
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
       interval: 30s
@@ -36,6 +55,9 @@ services:
       - ./uploads:/app/uploads
       - ./sessions:/app/sessions
       - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "sh", "-c", "test -f /app/logs/worker_heartbeat.txt && [ $(($(date +%s) - $(date +%s -r /app/logs/worker_heartbeat.txt))) -lt 900 ]"]
       interval: 5m
@@ -50,9 +72,15 @@ services:
     volumes:
       - ./data:/data:ro
       - ./backups:/backups
+      - postgres_data:/pgdata:ro
     entrypoint: >
       sh -c "while true; do
-        cp /data/postsocial.db /backups/postsocial_$$(date +%Y%m%d_%H%M).db;
+        if [ -f /data/postsocial.db ]; then
+          cp /data/postsocial.db /backups/postsocial_$$(date +%Y%m%d_%H%M).db;
+        fi;
         find /backups -name '*.db' -mtime +7 -delete;
         sleep 86400;
       done"
+
+volumes:
+  postgres_data:

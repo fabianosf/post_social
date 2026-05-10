@@ -40,3 +40,6 @@ google-auth>=2.0.0
 
 # Mercado Pago — pagamento automático
 mercadopago>=2.2.0
+
+# PostgreSQL
+psycopg2-binary>=2.9.0

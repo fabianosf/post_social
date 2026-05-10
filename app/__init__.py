@@ -22,9 +22,16 @@ def create_app():
     if not secret_key or secret_key == "troque-por-uma-chave-segura":
         secret_key = secrets.token_hex(32)
     app.config["SECRET_KEY"] = secret_key
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "data", "postsocial.db"
-    )
+    _database_url = os.environ.get("DATABASE_URL", "")
+    if _database_url:
+        # Heroku-style postgres:// → postgresql://
+        if _database_url.startswith("postgres://"):
+            _database_url = _database_url.replace("postgres://", "postgresql://", 1)
+        app.config["SQLALCHEMY_DATABASE_URI"] = _database_url
+    else:
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "data", "postsocial.db"
+        )
     app.config["UPLOAD_FOLDER"] = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "uploads"
     )
@@ -53,7 +60,7 @@ def create_app():
         pass  # flask-wtf não instalado
 
     from .routes_auth import auth_bp
-    from .routes_dashboard import dashboard_bp
+    from .dashboard import dashboard_bp
     from .routes_admin import admin_bp
     from .routes_landing import landing_bp
     from .routes_payment import payment_bp
@@ -119,7 +126,11 @@ def create_app():
         db.create_all()
         # Auto-migração: adiciona colunas novas sem quebrar o banco existente
         from sqlalchemy import text
-        migrations = [
+        _is_sqlite = "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]
+        _is_pg = not _is_sqlite
+
+        # SQLite: usa sintaxe simples (ignora erro se coluna já existe)
+        sqlite_migrations = [
             # clients — colunas adicionadas progressivamente
             "ALTER TABLE clients ADD COLUMN gdrive_folder_id VARCHAR(200)",
             "ALTER TABLE clients ADD COLUMN watermark_path VARCHAR(500)",
@@ -132,7 +143,7 @@ def create_app():
             # instagram_accounts
             "ALTER TABLE instagram_accounts ADD COLUMN label VARCHAR(100)",
             "ALTER TABLE instagram_accounts ADD COLUMN status_message TEXT",
-            "ALTER TABLE instagram_accounts ADD COLUMN last_login_at DATETIME",
+            "ALTER TABLE instagram_accounts ADD COLUMN last_login_at TIMESTAMP",
             # post_queue
             "ALTER TABLE post_queue ADD COLUMN post_type VARCHAR(20) DEFAULT 'photo'",
             "ALTER TABLE post_queue ADD COLUMN needs_approval BOOLEAN DEFAULT 0",
@@ -152,29 +163,74 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN is_blocked BOOLEAN DEFAULT 0",
             "ALTER TABLE clients ADD COLUMN mp_subscription_id VARCHAR(200)",
             "ALTER TABLE clients ADD COLUMN mp_payment_id VARCHAR(200)",
-            "ALTER TABLE clients ADD COLUMN plan_expires_at DATETIME",
+            "ALTER TABLE clients ADD COLUMN plan_expires_at TIMESTAMP",
             # post_queue — métricas de engajamento Instagram
             "ALTER TABLE post_queue ADD COLUMN ig_likes INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN ig_comments INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN ig_views INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN ig_saves INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN ig_reach INTEGER DEFAULT 0",
-            "ALTER TABLE post_queue ADD COLUMN insights_updated_at DATETIME",
+            "ALTER TABLE post_queue ADD COLUMN insights_updated_at TIMESTAMP",
             # clients — conta padrão
             "ALTER TABLE clients ADD COLUMN default_account_id INTEGER REFERENCES instagram_accounts(id)",
         ]
-        with db.engine.connect() as conn:
-            # WAL mode: permite leituras simultâneas entre web e worker sem travar
-            conn.execute(text("PRAGMA journal_mode=WAL"))
-            conn.execute(text("PRAGMA synchronous=NORMAL"))
-            conn.execute(text("PRAGMA busy_timeout=5000"))
-            conn.commit()
 
-            for stmt in migrations:
-                try:
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except Exception:
-                    pass  # Coluna já existe
+        # PostgreSQL: usa IF NOT EXISTS (suportado desde PG 9.6)
+        pg_migrations = [
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS gdrive_folder_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS watermark_path VARCHAR(500)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS watermark_enabled BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS watermark_position VARCHAR(20) DEFAULT 'bottom-right'",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS watermark_opacity INTEGER DEFAULT 80",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS notify_email BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_name VARCHAR(100)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_color VARCHAR(7)",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS label VARCHAR(100)",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS status_message TEXT",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS post_type VARCHAR(20) DEFAULT 'photo'",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS needs_approval BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS notified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS post_to_instagram BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS post_to_facebook BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS post_to_tiktok BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS instagram_media_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100)",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS weekday_slots TEXT DEFAULT '[\"09:00\",\"17:00\"]'",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS weekend_slots TEXT DEFAULT '[\"10:30\",\"16:00\"]'",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS mp_subscription_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS mp_payment_id VARCHAR(200)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_saves INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_reach INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS insights_updated_at TIMESTAMP",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_account_id INTEGER REFERENCES instagram_accounts(id)",
+        ]
+
+        with db.engine.connect() as conn:
+            if _is_sqlite:
+                conn.execute(text("PRAGMA journal_mode=WAL"))
+                conn.execute(text("PRAGMA synchronous=NORMAL"))
+                conn.execute(text("PRAGMA busy_timeout=5000"))
+                conn.commit()
+                for stmt in sqlite_migrations:
+                    try:
+                        conn.execute(text(stmt))
+                        conn.commit()
+                    except Exception:
+                        pass  # Coluna já existe
+            else:
+                for stmt in pg_migrations:
+                    try:
+                        conn.execute(text(stmt))
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
 
     return app

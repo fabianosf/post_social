@@ -125,6 +125,9 @@ class Client(UserMixin, db.Model):
 
 class InstagramAccount(db.Model):
     __tablename__ = "instagram_accounts"
+    __table_args__ = (
+        db.Index("ix_ig_accounts_client_id", "client_id"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
@@ -157,6 +160,11 @@ class InstagramAccount(db.Model):
 
 class PostQueue(db.Model):
     __tablename__ = "post_queue"
+    __table_args__ = (
+        db.Index("ix_post_queue_client_status", "client_id", "status"),
+        db.Index("ix_post_queue_account_scheduled", "account_id", "scheduled_at"),
+        db.Index("ix_post_queue_status_scheduled", "status", "scheduled_at"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
