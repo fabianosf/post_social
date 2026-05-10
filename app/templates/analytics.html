@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+
+<style>
+.an-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0.8rem; margin-bottom:1.5rem; }
+.an-card { background:#0f0f1a; border-radius:10px; padding:1rem; text-align:center; }
+.an-val { font-size:1.6rem; font-weight:700; }
+.an-label { font-size:0.72rem; color:#666; margin-top:0.2rem; }
+.an-delta { font-size:0.75rem; margin-top:0.3rem; }
+.delta-up { color:#4ade80; }
+.delta-down { color:#f87171; }
+.delta-flat { color:#888; }
+
+/* Heatmap */
+.heatmap { display:grid; grid-template-columns:60px repeat(6,1fr); gap:2px; font-size:0.65rem; }
+.hm-cell { border-radius:3px; padding:0.3rem 0; text-align:center; }
+.hm-label { color:#666; display:flex; align-items:center; padding-right:4px; }
+
+/* Bar chart horizontal */
+.bar-h { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem; }
+.bar-h-fill { height:20px; border-radius:4px; min-width:4px; transition:width 0.4s; }
+.bar-h-label { font-size:0.72rem; color:#888; white-space:nowrap; }
+.bar-h-val { font-size:0.72rem; color:#ccc; margin-left:auto; white-space:nowrap; }
+
+/* Score bar */
+.score-bar { height:6px; border-radius:3px; background:#1a1a2e; overflow:hidden; }
+.score-fill { height:100%; border-radius:3px; transition:width 0.4s; }
+
+/* Insights */
+.insight { display:flex; align-items:flex-start; gap:0.6rem; padding:0.7rem 1rem; border-radius:8px; margin-bottom:0.5rem; }
+.insight.success { background:#1a3a2a; border-left:3px solid #4ade80; }
+.insight.warning { background:#3a2a1a; border-left:3px solid #fbbf24; }
+.insight.info    { background:#1a2a3a; border-left:3px solid #60a5fa; }
+.insight-icon { font-size:1.1rem; flex-shrink:0; }
+.insight-text { font-size:0.85rem; color:#ccc; line-height:1.4; }
+
+@media(max-width:600px) {
+  .heatmap { grid-template-columns:44px repeat(6,1fr); font-size:0.55rem; }
+}
+</style>
+
+<!-- Header -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="margin:0; font-size:1.4rem;">&#128202; Analytics Inteligentes</h1>
+    <p style="color:#666; font-size:0.8rem; margin:0.2rem 0 0;">{{ total_posts_analyzed }} post(s) com dados de engajamento analisados</p>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    {% for d in [7,30,90] %}
+    <a href="{{ url_for('analytics.index', days=d) }}"
+       class="btn btn-sm {% if days==d %}btn-active{% else %}btn-outline{% endif %}">
+      {{ d }} dias
+    </a>
+    {% endfor %}
+    <a href="{{ url_for('dashboard.stats_page') }}" class="btn btn-outline btn-sm">Engajamento IG</a>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline btn-sm">Painel</a>
+  </div>
+</div>
+
+{% if total_posts_analyzed == 0 %}
+<div class="card" style="text-align:center; padding:3rem;">
+  <p style="font-size:2rem; margin-bottom:0.5rem;">📊</p>
+  <p style="color:#888;">Nenhum post com métricas disponível neste período.</p>
+  <p style="color:#555; font-size:0.82rem; margin-top:0.5rem;">
+    Acesse <a href="{{ url_for('dashboard.stats_page') }}">Engajamento IG</a> e clique em "Atualizar Métricas" para buscar curtidas e alcance do Instagram.
+  </p>
+</div>
+{% else %}
+
+<!-- ── Insights Automáticos ── -->
+{% if insights %}
+<div class="card" style="margin-bottom:1.5rem; border-color:{{ brand.color }};">
+  <h2 style="margin-bottom:1rem;">&#129504; Insights Automáticos</h2>
+  {% for ins in insights %}
+  <div class="insight {{ ins.severity }}">
+    <span class="insight-icon">{{ ins.icon }}</span>
+    <span class="insight-text">{{ ins.text }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── Comparação de Períodos ── -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <h2 style="margin-bottom:1rem;">&#128260; Este período vs Anterior ({{ days }} dias)</h2>
+  <div class="an-grid">
+    {% set metrics = [
+      ('count',    '📝', 'Posts',       '#7c5cff'),
+      ('likes',    '❤️', 'Curtidas',    '#f87171'),
+      ('comments', '💬', 'Comentários', '#60a5fa'),
+      ('saves',    '💾', 'Salvamentos', '#a78bfa'),
+      ('reach',    '📡', 'Alcance',     '#fbbf24'),
+    ] %}
+    {% for key, icon, label, color in metrics %}
+    {% set val = comparison.current[key] %}
+    {% set d = comparison.delta[key] %}
+    <div class="an-card">
+      <div class="an-val" style="color:{{ color }};">{{ icon }} {{ val }}</div>
+      <div class="an-label">{{ label }}</div>
+      <div class="an-delta {% if d > 5 %}delta-up{% elif d < -5 %}delta-down{% else %}delta-flat{% endif %}">
+        {% if d > 0 %}▲{% elif d < 0 %}▼{% else %}—{% endif %}
+        {{ d | abs | round(1) }}%
+        <span style="color:#555; font-size:0.65rem;">vs anterior</span>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="an-card">
+      <div class="an-val" style="color:{{ avg_score_color }};">{{ avg_score }}</div>
+      <div class="an-label">Score médio</div>
+      <div class="an-delta" style="color:{{ avg_score_color }};">{{ avg_score_label }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tendência diária ── -->
+{% if daily %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+    <h2 style="margin:0;">&#128200; Tendência de Alcance</h2>
+    <span style="font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:12px;
+      {% if trend.trend == 'up' %}background:#1a3a2a; color:#4ade80;
+      {% elif trend.trend == 'down' %}background:#3a1a1a; color:#f87171;
+      {% else %}background:#1a1a2e; color:#888;{% endif %}">
+      {% if trend.trend == 'up' %}📈 Crescendo
+      {% elif trend.trend == 'down' %}📉 Caindo
+      {% else %}➡️ Estável{% endif %}
+    </span>
+  </div>
+  {% set max_reach = daily | map(attribute='reach') | max %}
+  {% set max_reach = [max_reach, 1] | max %}
+  <div style="display:flex; align-items:flex-end; gap:3px; height:100px; margin-bottom:0.5rem;">
+    {% for d in daily %}
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end;">
+      <div title="{{ d.day }}: {{ d.reach }} alcance, {{ d.count }} posts"
+           style="width:100%; border-radius:3px 3px 0 0; min-height:2px; background:{{ brand.color }}88;
+                  height:{{ (d.reach / max_reach * 100) | round }}%;"></div>
+      {% if loop.index % (daily|length // 7 + 1) == 1 %}
+      <span style="font-size:0.55rem; color:#555; margin-top:2px; writing-mode:vertical-rl; height:24px;">{{ d.day }}</span>
+      {% else %}
+      <span style="height:24px;"></span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <p style="font-size:0.72rem; color:#555; margin:0;">Barras representam alcance diário total</p>
+</div>
+{% endif %}
+
+<!-- ── Best time to post + Heatmap ── -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
+
+  <!-- Melhores horários -->
+  <div class="card">
+    <h2 style="margin-bottom:1rem;">⏰ Melhores Horários</h2>
+    {% if best_time.best_hours %}
+      {% set max_h = best_time.best_hours[0][1] if best_time.best_hours else 1 %}
+      {% set max_h = [max_h, 0.01] | max %}
+      {% for hour, score in best_time.best_hours %}
+      <div class="bar-h">
+        <span class="bar-h-label" style="width:32px;">{{ '%02d'|format(hour) }}h</span>
+        <div style="flex:1;">
+          <div style="background:#1a1a2e; border-radius:4px; overflow:hidden; height:20px;">
+            <div style="height:100%; border-radius:4px; background:{{ brand.color }};
+                        width:{{ (score/max_h*100)|round }}%;"></div>
+          </div>
+        </div>
+        <span class="bar-h-val">{{ score }}</span>
+      </div>
+      {% endfor %}
+      {% if best_time.worst_hours %}
+      <p style="color:#555; font-size:0.72rem; margin-top:1rem; margin-bottom:0.3rem;">Evitar:</p>
+      {% for hour, score in best_time.worst_hours %}
+      <div class="bar-h">
+        <span class="bar-h-label" style="width:32px;">{{ '%02d'|format(hour) }}h</span>
+        <div style="flex:1;">
+          <div style="background:#1a1a2e; border-radius:4px; overflow:hidden; height:20px;">
+            <div style="height:100%; border-radius:4px; background:#3a1a1a;
+                        width:{{ ([score/max_h*100, 3]|max)|round }}%;"></div>
+          </div>
+        </div>
+        <span class="bar-h-val" style="color:#888;">{{ score }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
+    {% else %}
+      <p style="color:#666; font-size:0.85rem;">Dados insuficientes.</p>
+    {% endif %}
+  </div>
+
+  <!-- Melhores dias -->
+  <div class="card">
+    <h2 style="margin-bottom:1rem;">📅 Melhores Dias</h2>
+    {% if best_time.best_weekdays %}
+      {% set max_d = best_time.best_weekdays[0][1] if best_time.best_weekdays else 1 %}
+      {% set max_d = [max_d, 0.01] | max %}
+      {% for wd, score in best_time.best_weekdays %}
+      <div class="bar-h">
+        <span class="bar-h-label" style="width:50px;">{{ day_names[wd][:3] }}</span>
+        <div style="flex:1;">
+          <div style="background:#1a1a2e; border-radius:4px; overflow:hidden; height:20px;">
+            <div style="height:100%; border-radius:4px; background:#4ade80;
+                        width:{{ (score/max_d*100)|round }}%;"></div>
+          </div>
+        </div>
+        <span class="bar-h-val">{{ score }}</span>
+      </div>
+      {% endfor %}
+      {% if best_time.worst_weekdays %}
+      <p style="color:#555; font-size:0.72rem; margin-top:1rem; margin-bottom:0.3rem;">Menor engajamento:</p>
+      {% for wd, score in best_time.worst_weekdays %}
+      <div class="bar-h">
+        <span class="bar-h-label" style="width:50px;">{{ day_names[wd][:3] }}</span>
+        <div style="flex:1;">
+          <div style="background:#1a1a2e; border-radius:4px; overflow:hidden; height:20px;">
+            <div style="height:100%; border-radius:4px; background:#3a1a1a;
+                        width:{{ ([score/max_d*100, 3]|max)|round }}%;"></div>
+          </div>
+        </div>
+        <span class="bar-h-val" style="color:#888;">{{ score }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
+    {% else %}
+      <p style="color:#666; font-size:0.85rem;">Dados insuficientes.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Heatmap ── -->
+{% if heatmap_list %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <h2 style="margin-bottom:1rem;">🗓️ Heatmap de Engajamento (Dia × Horário)</h2>
+  <div class="heatmap">
+    <!-- Header -->
+    <div></div>
+    {% for bl in block_labels %}
+    <div style="text-align:center; color:#555; padding-bottom:4px; font-size:0.62rem;">{{ bl }}</div>
+    {% endfor %}
+    <!-- Rows -->
+    {% for wd in range(7) %}
+    <div class="hm-label" style="font-size:0.65rem;">{{ day_names[wd][:3] }}</div>
+    {% for blk in range(6) %}
+      {% set intensity = namespace(val=0) %}
+      {% for item in heatmap_list %}
+        {% if item.wd == wd and item.block == blk %}
+          {% set intensity.val = item.intensity %}
+        {% endif %}
+      {% endfor %}
+      {% if intensity.val >= 60 %}
+        {% set bg = '#4ade8066' %}
+      {% elif intensity.val >= 30 %}
+        {% set bg = brand.color + '55' %}
+      {% elif intensity.val >= 10 %}
+        {% set bg = '#2a2a4a' %}
+      {% else %}
+        {% set bg = '#0f0f1a' %}
+      {% endif %}
+      <div class="hm-cell" style="background:{{ bg }};"
+           title="{{ day_names[wd] }} {{ block_labels[blk] }}: {{ intensity.val }}%"></div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+  <div style="display:flex; gap:1rem; margin-top:0.8rem; font-size:0.7rem; color:#666;">
+    <span><span style="background:#4ade8066; padding:2px 8px; border-radius:3px;"></span> Alto</span>
+    <span><span style="background:{{ brand.color }}55; padding:2px 8px; border-radius:3px;"></span> Médio</span>
+    <span><span style="background:#2a2a4a; padding:2px 8px; border-radius:3px;"></span> Baixo</span>
+    <span><span style="background:#0f0f1a; padding:2px 8px; border-radius:3px;"></span> Sem dados</span>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Performance por tipo ── -->
+{% if types %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <h2 style="margin-bottom:1rem;">🏅 Performance por Formato</h2>
+  {% set max_type = types[0].avg_score if types else 1 %}
+  {% set max_type = [max_type, 0.01] | max %}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.8rem;">
+    {% for t in types %}
+    <div style="background:#0f0f1a; border-radius:10px; padding:1rem; text-align:center; border:1px solid #1a1a2e;">
+      <div style="font-size:1.4rem; font-weight:700; color:{{ t.color }};">{{ t.avg_score }}</div>
+      <div style="font-size:0.8rem; color:#ccc; margin:0.2rem 0;">{{ t.label }}</div>
+      <div style="font-size:0.7rem; color:{{ t.color }};">{{ t.label_score }}</div>
+      <div style="font-size:0.65rem; color:#555; margin-top:0.3rem;">{{ t.count }} post(s)</div>
+      <div class="score-bar" style="margin-top:0.5rem;">
+        <div class="score-fill" style="width:{{ (t.avg_score/max_type*100)|round }}%; background:{{ t.color }};"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Top Posts ranqueados ── -->
+{% if ranked %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <h2 style="margin-bottom:1rem;">🏆 Ranking de Posts — Score de Performance</h2>
+  <div class="table-responsive">
+    <table style="width:100%;">
+      <thead>
+        <tr style="color:#555; font-size:0.72rem; border-bottom:1px solid #1a1a2e;">
+          <th style="padding:0.5rem; text-align:center;">#</th>
+          <th style="padding:0.5rem;">Post</th>
+          <th style="padding:0.5rem; text-align:center;">Tipo</th>
+          <th style="padding:0.5rem; text-align:center;">Data</th>
+          <th style="padding:0.5rem; text-align:center;">❤️</th>
+          <th style="padding:0.5rem; text-align:center;">💬</th>
+          <th style="padding:0.5rem; text-align:center;">💾</th>
+          <th style="padding:0.5rem; text-align:center;">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in ranked %}
+        {% set p = item.post %}
+        <tr style="border-bottom:1px solid #0f0f1a; font-size:0.82rem;">
+          <td style="padding:0.5rem; text-align:center; color:#555; font-weight:700;">{{ item.rank }}</td>
+          <td style="padding:0.5rem; color:#ccc; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            {{ p.image_filename[:30] }}
+          </td>
+          <td style="padding:0.5rem; text-align:center;">
+            <span class="badge" style="background:#1a1a2e; font-size:0.6rem;">{{ p.post_type }}</span>
+          </td>
+          <td style="padding:0.5rem; text-align:center; color:#666; font-size:0.75rem; white-space:nowrap;">
+            {{ p.posted_at | tobrt if p.posted_at else '—' }}
+          </td>
+          <td style="padding:0.5rem; text-align:center; color:#f87171; font-weight:600;">{{ p.ig_likes or '—' }}</td>
+          <td style="padding:0.5rem; text-align:center; color:#60a5fa; font-weight:600;">{{ p.ig_comments or '—' }}</td>
+          <td style="padding:0.5rem; text-align:center; color:#a78bfa; font-weight:600;">{{ p.ig_saves or '—' }}</td>
+          <td style="padding:0.5rem; text-align:center; min-width:100px;">
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <div class="score-bar" style="flex:1; height:8px;">
+                <div class="score-fill" style="width:{{ item.score }}%; background:{{ item.color }};"></div>
+              </div>
+              <span style="color:{{ item.color }}; font-weight:700; font-size:0.8rem; min-width:32px;">{{ item.score }}</span>
+            </div>
+            <div style="font-size:0.6rem; color:{{ item.color }}; text-align:right;">{{ item.label }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.72rem; color:#444; margin-top:0.8rem;">
+    Score = (❤️×1 + 💬×3 + 💾×5 + 👁×0.1) / alcance × 100. Máximo: 100.
+  </p>
+</div>
+{% endif %}
+
+{% endif %}{# end total_posts_analyzed > 0 #}
+
+{% endblock %}

@@ -152,6 +152,7 @@
         <button class="nav-hamburger" onclick="toggleNav()" aria-label="Menu">&#9776;</button>
         <div class="nav-links" id="main-nav-links">
             <a href="{{ url_for('dashboard.stats_page') }}">Stats</a>
+            <a href="{{ url_for('analytics.index') }}">Analytics</a>
             {% if current_user.is_admin %}
                 <a href="{{ url_for('admin.index') }}">Admin</a>
             {% endif %}
