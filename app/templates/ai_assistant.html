@@ -80,13 +80,21 @@
 {% endif %}
 
 <!-- Abas -->
+<div style="margin-bottom:0.3rem; font-size:0.7rem; color:#555; text-transform:uppercase; letter-spacing:1px;">Análise</div>
+<div class="ai-tabs" style="margin-bottom:0.5rem;">
+  <div class="ai-tab active" data-tab="insights" onclick="switchTab('insights')">📊 Insights da Conta</div>
+  <div class="ai-tab" data-tab="caption" onclick="switchTab('caption')">✍️ Analisar Legenda</div>
+  <div class="ai-tab" data-tab="hook" onclick="switchTab('hook')">🪝 Analisar Hook</div>
+  <div class="ai-tab" data-tab="hashtags" onclick="switchTab('hashtags')">🏷️ Gerar Hashtags</div>
+  <div class="ai-tab" data-tab="cta" onclick="switchTab('cta')">💬 Gerar CTA</div>
+  <div class="ai-tab" data-tab="predict" onclick="switchTab('predict')">🎯 Prever Performance</div>
+</div>
+<div style="margin-bottom:0.3rem; font-size:0.7rem; color:#7c5cff; text-transform:uppercase; letter-spacing:1px;">✨ Criação com IA</div>
 <div class="ai-tabs">
-  <div class="ai-tab active" onclick="switchTab('insights')">📊 Insights da Conta</div>
-  <div class="ai-tab" onclick="switchTab('caption')">✍️ Analisar Legenda</div>
-  <div class="ai-tab" onclick="switchTab('hook')">🪝 Analisar Hook</div>
-  <div class="ai-tab" onclick="switchTab('hashtags')">🏷️ Gerar Hashtags</div>
-  <div class="ai-tab" onclick="switchTab('cta')">💬 Gerar CTA</div>
-  <div class="ai-tab" onclick="switchTab('predict')">🎯 Prever Performance</div>
+  <div class="ai-tab" data-tab="create" onclick="switchTab('create')">🖊️ Criar Legenda</div>
+  <div class="ai-tab" data-tab="rewrite" onclick="switchTab('rewrite')">🔄 Reescrever</div>
+  <div class="ai-tab" data-tab="calendar" onclick="switchTab('calendar')">📅 Calendário IA</div>
+  <div class="ai-tab" data-tab="viralize" onclick="switchTab('viralize')">🔥 Viralizar</div>
 </div>
 
 <!-- ── Painel: Insights da conta ────────────────────────────────── -->
@@ -234,17 +242,203 @@
   </div>
 </div>
 
+<!-- ── Painel: Criar Legenda ─────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-create">
+  <h2 style="margin-bottom:0.5rem;">🖊️ Criar Legenda do Zero</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Informe o tema e a IA cria uma legenda completa com hook, desenvolvimento e CTA.
+  </p>
+  <div class="row2">
+    <div>
+      <label>Nicho</label>
+      <select id="cr-niche" onchange="updateNicheCreate()">
+        <option value="geral">Geral</option>
+        <option value="fitness">Fitness & Saúde</option>
+        <option value="gastronomia">Gastronomia</option>
+        <option value="moda">Moda & Estilo</option>
+        <option value="negocios">Negócios</option>
+        <option value="educacao">Educação</option>
+        <option value="tecnologia">Tecnologia</option>
+        <option value="beleza">Beleza</option>
+        <option value="financas">Finanças</option>
+        <option value="viagem">Viagem</option>
+      </select>
+    </div>
+    <div>
+      <label>Tipo de post</label>
+      <select id="cr-type">
+        <option value="photo">Foto</option>
+        <option value="album">Carrossel</option>
+        <option value="reels">Reels</option>
+        <option value="story">Story</option>
+      </select>
+    </div>
+  </div>
+  <label>Tema / Tópico do post <span style="color:#f87171;">*</span></label>
+  <input type="text" id="cr-topic" placeholder="ex: como perder barriga em 30 dias, receita de bolo fit, como economizar dinheiro...">
+  <div class="row2">
+    <div>
+      <label>Tom</label>
+      <select id="cr-tone">
+        <option value="informativo">Informativo</option>
+        <option value="inspirador">Inspirador</option>
+        <option value="storytelling">Storytelling</option>
+        <option value="humoristico">Humorístico</option>
+        <option value="vendas">Vendas</option>
+      </select>
+    </div>
+    <div>
+      <label>Objetivo</label>
+      <select id="cr-goal">
+        <option value="engajamento">Engajamento</option>
+        <option value="seguidores">Crescer seguidores</option>
+        <option value="salvamentos">Salvamentos</option>
+        <option value="vendas">Vendas</option>
+        <option value="tráfego">Tráfego bio</option>
+      </select>
+    </div>
+  </div>
+  <div>
+    <label>Tamanho</label>
+    <div style="display:flex; gap:0.5rem; margin-bottom:0.8rem;">
+      <label style="display:flex; align-items:center; gap:0.4rem; color:#ccc; font-size:0.88rem; margin:0;">
+        <input type="radio" name="cr-length" value="curta"> Curta (~50 palavras)
+      </label>
+      <label style="display:flex; align-items:center; gap:0.4rem; color:#ccc; font-size:0.88rem; margin:0;">
+        <input type="radio" name="cr-length" value="media" checked> Média (~100)
+      </label>
+      <label style="display:flex; align-items:center; gap:0.4rem; color:#ccc; font-size:0.88rem; margin:0;">
+        <input type="radio" name="cr-length" value="longa"> Longa (~200)
+      </label>
+    </div>
+  </div>
+  <button class="btn btn-sm" onclick="createCaption()">Criar Legenda com IA</button>
+  <div class="ai-result" id="result-create"><div id="create-content"></div></div>
+</div>
+
+<!-- ── Painel: Reescrever ────────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-rewrite">
+  <h2 style="margin-bottom:0.5rem;">🔄 Reescrever e Melhorar Post</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Cole sua legenda e a IA melhora hook, estrutura e CTA mantendo sua voz.
+  </p>
+  <label>Legenda original</label>
+  <textarea id="rw-caption" rows="6" placeholder="Cole sua legenda aqui..."></textarea>
+  <div class="row2">
+    <div>
+      <label>Objetivo da reescrita</label>
+      <select id="rw-goal">
+        <option value="engajamento">Mais engajamento</option>
+        <option value="salvamentos">Mais salvamentos</option>
+        <option value="seguidores">Atrair seguidores</option>
+        <option value="vendas">Converter vendas</option>
+      </select>
+    </div>
+    <div>
+      <label>Tom desejado</label>
+      <select id="rw-tone">
+        <option value="informativo">Informativo</option>
+        <option value="inspirador">Inspirador</option>
+        <option value="storytelling">Storytelling</option>
+        <option value="humoristico">Humorístico</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <button class="btn btn-sm" onclick="rewriteCaption()">Reescrever com IA</button>
+    <button class="btn btn-outline btn-sm" onclick="optimizeRetention()">Otimizar Retenção</button>
+  </div>
+  <div class="ai-result" id="result-rewrite"><div id="rewrite-content"></div></div>
+</div>
+
+<!-- ── Painel: Calendário IA ─────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-calendar">
+  <h2 style="margin-bottom:0.5rem;">📅 Calendário de Conteúdo com IA</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    A IA cria um plano editorial completo com temas, hooks e CTAs para cada post.
+  </p>
+  <div class="row2">
+    <div>
+      <label>Nicho</label>
+      <select id="cal-niche">
+        <option value="geral">Geral</option>
+        <option value="fitness">Fitness & Saúde</option>
+        <option value="gastronomia">Gastronomia</option>
+        <option value="moda">Moda & Estilo</option>
+        <option value="negocios">Negócios</option>
+        <option value="educacao">Educação</option>
+        <option value="tecnologia">Tecnologia</option>
+        <option value="beleza">Beleza</option>
+        <option value="financas">Finanças</option>
+        <option value="viagem">Viagem</option>
+      </select>
+    </div>
+    <div>
+      <label>Posts por semana</label>
+      <select id="cal-ppw">
+        <option value="2">2 posts/semana</option>
+        <option value="3" selected>3 posts/semana</option>
+        <option value="4">4 posts/semana</option>
+        <option value="5">5 posts/semana</option>
+        <option value="7">7 posts/semana (diário)</option>
+      </select>
+    </div>
+  </div>
+  <div class="row2">
+    <div>
+      <label>Semanas de conteúdo</label>
+      <select id="cal-weeks">
+        <option value="1">1 semana</option>
+        <option value="2" selected>2 semanas</option>
+        <option value="4">4 semanas (1 mês)</option>
+      </select>
+    </div>
+    <div>
+      <label>Objetivos (separados por vírgula)</label>
+      <input type="text" id="cal-goals" placeholder="ex: engajamento, seguidores, vendas">
+    </div>
+  </div>
+  <button class="btn btn-sm" onclick="generateCalendar()">Gerar Calendário com IA</button>
+  <p style="color:#888; font-size:0.75rem; margin-top:0.5rem;">⏳ Pode levar 15-30 segundos para calendários longos.</p>
+  <div class="ai-result" id="result-calendar"><div id="calendar-content"></div></div>
+</div>
+
+<!-- ── Painel: Viralizar ─────────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-viralize">
+  <h2 style="margin-bottom:0.5rem;">🔥 Análise de Viralização</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Táticas específicas para maximizar o alcance e potencial viral do seu conteúdo.
+  </p>
+  <div>
+    <label>Nicho</label>
+    <select id="vz-niche" style="margin-bottom:0.8rem;">
+      <option value="geral">Geral</option>
+      <option value="fitness">Fitness & Saúde</option>
+      <option value="gastronomia">Gastronomia</option>
+      <option value="moda">Moda & Estilo</option>
+      <option value="negocios">Negócios</option>
+      <option value="educacao">Educação</option>
+      <option value="tecnologia">Tecnologia</option>
+      <option value="beleza">Beleza</option>
+      <option value="financas">Finanças</option>
+      <option value="viagem">Viagem</option>
+    </select>
+  </div>
+  <label>Legenda ou conteúdo do post</label>
+  <textarea id="vz-caption" rows="5" placeholder="Cole sua legenda para análise de viralização..."></textarea>
+  <button class="btn btn-sm" onclick="viralizeContent()">Analisar com IA</button>
+  <div class="ai-result" id="result-viralize"><div id="viralize-content"></div></div>
+</div>
+
 <script>
 // ── Abas ─────────────────────────────────────────────────────────
 function switchTab(name) {
-  document.querySelectorAll('.ai-tab').forEach(function(t, i) {
-    var ids = ['insights','caption','hook','hashtags','cta','predict'];
-    t.classList.toggle('active', ids[i] === name);
+  document.querySelectorAll('.ai-tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === name);
   });
   document.querySelectorAll('.ai-panel').forEach(function(p) {
-    p.classList.remove('active');
+    p.classList.toggle('active', p.id === 'panel-' + name);
   });
-  document.getElementById('panel-' + name).classList.add('active');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -486,6 +680,227 @@ function generateCTA() {
 }
 
 // ── Prever performance ────────────────────────────────────────────
+// ── FASE 7: Funções de geração ───────────────────────────────────
+function createCaption() {
+  var topic = document.getElementById('cr-topic').value.trim();
+  if (!topic) { alert('Informe o tema/tópico do post.'); return; }
+  showLoading('create');
+  var length = document.querySelector('input[name="cr-length"]:checked');
+  fetch('/api/ai/generate/caption', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      niche: document.getElementById('cr-niche').value,
+      topic: topic,
+      post_type: document.getElementById('cr-type').value,
+      tone: document.getElementById('cr-tone').value,
+      goal: document.getElementById('cr-goal').value,
+      length: length ? length.value : 'media',
+    })
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('create', d.error); return; }
+      var html = '';
+      if (d.caption) {
+        html += '<div style="background:#1a3a2a; border-radius:8px; padding:1rem; margin-bottom:0.8rem; position:relative;">'
+              + '<div style="color:#4ade80; font-size:0.75rem; margin-bottom:0.5rem; font-weight:600;">📝 Legenda gerada</div>'
+              + '<div style="color:#fff; font-size:0.9rem; line-height:1.7; white-space:pre-line;">' + d.caption + '</div>'
+              + '<span class="copy-btn" style="display:block; margin-top:0.5rem;" onclick="copyText(\'' + (d.caption||'').replace(/'/g,"\\'").replace(/\n/g,'\\n') + '\', this)">copiar legenda</span>'
+              + '</div>';
+      }
+      if (d.hashtags) {
+        html += '<div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">'
+              + '<div style="color:#7c5cff; font-size:0.75rem; margin-bottom:0.3rem;">🏷️ Hashtags sugeridas</div>'
+              + '<div style="color:#a78bfa; font-size:0.82rem;">' + d.hashtags + '</div>'
+              + '<span class="copy-btn" onclick="copyText(\'' + (d.hashtags||'').replace(/'/g,"\\'") + '\', this)">copiar</span>'
+              + '</div>';
+      }
+      if (d.tips && d.tips.length) {
+        html += '<div style="color:#888; font-size:0.75rem; margin-bottom:0.3rem;">💡 Dicas</div>';
+        d.tips.forEach(function(t) { html += '<div style="font-size:0.82rem; color:#aaa; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + t + '</div>'; });
+      }
+      document.getElementById('create-content').innerHTML = html;
+    })
+    .catch(function(){ showError('create', 'Erro de conexão'); });
+}
+
+function rewriteCaption() {
+  var cap = document.getElementById('rw-caption').value.trim();
+  if (!cap) { alert('Cole a legenda original.'); return; }
+  showLoading('rewrite');
+  fetch('/api/ai/generate/rewrite', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      caption: cap,
+      goal: document.getElementById('rw-goal').value,
+      tone: document.getElementById('rw-tone').value,
+    })
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('rewrite', d.error); return; }
+      var html = '';
+      if (d.hook_before && d.hook_after) {
+        html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; margin-bottom:1rem;">'
+              + '<div style="background:#3a1a1a; border-radius:8px; padding:0.7rem;">'
+              + '<div style="color:#f87171; font-size:0.7rem; margin-bottom:0.3rem;">ANTES</div>'
+              + '<div style="color:#ccc; font-size:0.83rem;">' + d.hook_before + '</div></div>'
+              + '<div style="background:#1a3a2a; border-radius:8px; padding:0.7rem;">'
+              + '<div style="color:#4ade80; font-size:0.7rem; margin-bottom:0.3rem;">DEPOIS</div>'
+              + '<div style="color:#fff; font-size:0.83rem; font-weight:600;">' + d.hook_after + '</div></div>'
+              + '</div>';
+      }
+      if (d.rewritten) {
+        html += '<div style="background:#1a3a2a; border-radius:8px; padding:1rem; margin-bottom:0.8rem;">'
+              + '<div style="color:#4ade80; font-size:0.75rem; margin-bottom:0.5rem; font-weight:600;">✨ Legenda reescrita</div>'
+              + '<div style="color:#fff; font-size:0.88rem; line-height:1.7; white-space:pre-line;">' + d.rewritten + '</div>'
+              + '<span class="copy-btn" style="display:block; margin-top:0.5rem;" onclick="copyText(\'' + (d.rewritten||'').replace(/'/g,"\\'").replace(/\n/g,'\\n') + '\', this)">copiar</span>'
+              + '</div>';
+      }
+      if (d.changes && d.changes.length) {
+        html += '<div style="color:#888; font-size:0.75rem; margin-bottom:0.3rem;">O que mudou</div>';
+        d.changes.forEach(function(c) { html += '<div style="font-size:0.82rem; color:#aaa; padding-left:0.8rem;">• ' + c + '</div>'; });
+      }
+      if (d.score_before !== undefined) {
+        html += '<div style="display:flex; gap:1.5rem; margin-top:0.8rem;">'
+              + '<span style="font-size:0.8rem; color:#f87171;">Score antes: <strong>' + d.score_before + '/10</strong></span>'
+              + '<span style="font-size:0.8rem; color:#4ade80;">Score depois: <strong>' + d.score_after + '/10</strong></span>'
+              + '</div>';
+      }
+      document.getElementById('rewrite-content').innerHTML = html;
+    })
+    .catch(function(){ showError('rewrite', 'Erro de conexão'); });
+}
+
+function optimizeRetention() {
+  var cap = document.getElementById('rw-caption').value.trim();
+  if (!cap) { alert('Cole a legenda antes de otimizar.'); return; }
+  showLoading('rewrite');
+  fetch('/api/ai/generate/retention', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('rewrite', d.error); return; }
+      var html = '';
+      if (d.techniques_used && d.techniques_used.length) {
+        html += '<div style="margin-bottom:0.8rem; display:flex; flex-wrap:wrap; gap:0.4rem;">';
+        d.techniques_used.forEach(function(t){ html += '<span class="ai-tag">' + t + '</span>'; });
+        html += '</div>';
+      }
+      if (d.optimized) {
+        html += '<div style="background:#1a2a3a; border-radius:8px; padding:1rem; margin-bottom:0.8rem;">'
+              + '<div style="color:#60a5fa; font-size:0.75rem; margin-bottom:0.5rem; font-weight:600;">🧠 Legenda otimizada para retenção</div>'
+              + '<div style="color:#fff; font-size:0.88rem; line-height:1.7; white-space:pre-line;">' + d.optimized + '</div>'
+              + '<span class="copy-btn" style="display:block; margin-top:0.5rem;" onclick="copyText(\'' + (d.optimized||'').replace(/'/g,"\\'").replace(/\n/g,'\\n') + '\', this)">copiar</span>'
+              + '</div>';
+      }
+      if (d.structure_tips && d.structure_tips.length) {
+        html += '<div style="color:#888; font-size:0.75rem; margin-bottom:0.3rem;">Dicas estruturais</div>';
+        d.structure_tips.forEach(function(t) { html += '<div style="font-size:0.82rem; color:#aaa; padding-left:0.8rem;">• ' + t + '</div>'; });
+      }
+      document.getElementById('rewrite-content').innerHTML = html;
+    })
+    .catch(function(){ showError('rewrite', 'Erro de conexão'); });
+}
+
+function generateCalendar() {
+  showLoading('calendar');
+  var goalsRaw = document.getElementById('cal-goals').value;
+  var goals = goalsRaw ? goalsRaw.split(',').map(function(s){ return s.trim(); }) : [];
+  fetch('/api/ai/generate/calendar', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      niche: document.getElementById('cal-niche').value,
+      posts_per_week: parseInt(document.getElementById('cal-ppw').value),
+      weeks: parseInt(document.getElementById('cal-weeks').value),
+      goals: goals,
+    })
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('calendar', d.error); return; }
+      var html = '';
+      if (d.calendar_theme) {
+        html += '<div style="color:#7c5cff; font-size:0.85rem; font-weight:600; margin-bottom:1rem;">'
+              + '📌 Tema: ' + d.calendar_theme + '</div>';
+      }
+      var typeIcons = {reels:'🎬', album:'📋', photo:'📷', story:'⭕'};
+      (d.weeks || []).forEach(function(week) {
+        html += '<div style="margin-bottom:1.2rem;">'
+              + '<div style="color:#fff; font-size:0.88rem; font-weight:600; margin-bottom:0.5rem; padding:0.4rem 0.8rem; background:#1a1a2e; border-radius:6px;">'
+              + 'Semana ' + week.week_number + ' — ' + (week.weekly_focus || '') + '</div>';
+        (week.posts || []).forEach(function(post) {
+          var icon = typeIcons[post.type] || '📱';
+          html += '<div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; margin-bottom:0.4rem; border-left:3px solid #7c5cff44;">'
+                + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem; flex-wrap:wrap; gap:0.3rem;">'
+                + '<span style="color:#7c5cff; font-weight:600; font-size:0.82rem;">' + (post.day || '') + '</span>'
+                + '<span style="color:#888; font-size:0.75rem;">' + icon + ' ' + (post.type || '') + '</span>'
+                + '</div>'
+                + '<div style="color:#fff; font-size:0.85rem; font-weight:600; margin-bottom:0.2rem;">🪝 ' + (post.hook || '') + '</div>'
+                + '<div style="color:#aaa; font-size:0.8rem; margin-bottom:0.2rem;">📌 ' + (post.topic || '') + '</div>'
+                + (post.caption_idea ? '<div style="color:#888; font-size:0.78rem; margin-bottom:0.2rem;">💬 ' + post.caption_idea + '</div>' : '')
+                + (post.cta ? '<div style="color:#4ade80; font-size:0.78rem;">→ ' + post.cta + '</div>' : '')
+                + '</div>';
+        });
+        html += '</div>';
+      });
+      if (d.general_tips && d.general_tips.length) {
+        html += '<div style="margin-top:0.8rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">'
+              + '<div style="color:#888; font-size:0.75rem; margin-bottom:0.4rem;">💡 Dicas estratégicas</div>';
+        d.general_tips.forEach(function(t){ html += '<div style="font-size:0.82rem; color:#ccc; margin-bottom:0.2rem;">• ' + t + '</div>'; });
+        html += '</div>';
+      }
+      document.getElementById('calendar-content').innerHTML = html;
+    })
+    .catch(function(){ showError('calendar', 'Erro de conexão'); });
+}
+
+function viralizeContent() {
+  var cap = document.getElementById('vz-caption').value.trim();
+  if (!cap) { alert('Cole o conteúdo para analisar.'); return; }
+  showLoading('viralize');
+  fetch('/api/ai/generate/viralize', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap, niche: document.getElementById('vz-niche').value})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('viralize', d.error); return; }
+      var impactColors = {alto:'#4ade80', medio:'#fbbf24', baixo:'#888'};
+      var html = '';
+      if (d.viral_score !== undefined) {
+        var vs = d.viral_score;
+        var vc = vs >= 70 ? '#4ade80' : vs >= 40 ? '#fbbf24' : '#f87171';
+        html += '<div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:1rem; flex-wrap:wrap;">'
+              + '<div style="text-align:center;"><div class="score-ring" style="border-color:' + vc + '; color:' + vc + '; width:70px; height:70px; font-size:1.2rem;">' + vs + '</div>'
+              + '<div style="font-size:0.7rem; color:#888; margin-top:0.3rem;">Score viral</div></div>'
+              + (d.best_posting_time ? '<div style="font-size:0.85rem; color:#ccc;">⏰ Melhor horário: <strong>' + d.best_posting_time + '</strong></div>' : '')
+              + '</div>';
+      }
+      if (d.tactics && d.tactics.length) {
+        html += '<div style="color:#fff; font-size:0.82rem; font-weight:600; margin-bottom:0.5rem;">🚀 Táticas de viralização</div>';
+        d.tactics.forEach(function(t) {
+          var col = impactColors[t.impact] || '#888';
+          html += '<div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; margin-bottom:0.4rem; border-left:3px solid ' + col + ';">'
+                + '<div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">'
+                + '<span style="color:#fff; font-size:0.83rem; font-weight:600;">' + (t.tactic || '') + '</span>'
+                + '<span style="color:' + col + '; font-size:0.72rem;">' + (t.impact || '') + '</span></div>'
+                + '<div style="color:#aaa; font-size:0.8rem;">' + (t.implementation || '') + '</div>'
+                + '</div>';
+        });
+      }
+      if (d.viral_elements_missing && d.viral_elements_missing.length) {
+        html += '<div style="margin-top:0.8rem;"><div style="color:#fbbf24; font-size:0.78rem; margin-bottom:0.3rem;">⚠️ Elementos virais faltando</div>';
+        d.viral_elements_missing.forEach(function(e){ html += '<div style="font-size:0.82rem; color:#aaa; padding-left:0.8rem;">• ' + e + '</div>'; });
+        html += '</div>';
+      }
+      if (d.collaboration_idea) {
+        html += '<div style="margin-top:0.8rem; padding:0.8rem; background:#1a2a3a; border-radius:8px;">'
+              + '<div style="color:#60a5fa; font-size:0.75rem; margin-bottom:0.2rem;">🤝 Ideia de collab</div>'
+              + '<div style="color:#ccc; font-size:0.82rem;">' + d.collaboration_idea + '</div></div>';
+      }
+      document.getElementById('viralize-content').innerHTML = html;
+    })
+    .catch(function(){ showError('viralize', 'Erro de conexão'); });
+}
+
 function predictPerformance() {
   showLoading('predict');
   var body = {

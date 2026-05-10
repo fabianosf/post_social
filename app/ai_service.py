@@ -249,3 +249,300 @@ def generate_ai_insights(stats: dict) -> dict | None:
         '], "summary": "...", "growth_potential": "alto"}'
     )
     return _chat(system, user, max_tokens=900)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FASE 7 — GERAÇÃO DE CONTEÚDO
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Sistema de nichos ─────────────────────────────────────────────
+
+_NICHES: dict[str, dict] = {
+    "fitness": {
+        "label": "Fitness & Saúde",
+        "audience": "pessoas que buscam emagrecimento, saúde e qualidade de vida",
+        "pain_points": "falta de tempo, dificuldade de emagrecer, desmotivação, falta de disciplina",
+        "desires": "corpo definido, energia, autoestima, hábitos saudáveis",
+        "pillars": ["dica rápida", "mito x verdade", "treino", "receita fit", "motivação"],
+        "tone": "motivador e direto",
+    },
+    "gastronomia": {
+        "label": "Gastronomia & Culinária",
+        "audience": "pessoas que amam cozinhar, foodies, aprendizes de culinária",
+        "pain_points": "falta de criatividade, receitas difíceis, ingredientes caros",
+        "desires": "receitas fáceis, elogios, impressionar, economizar tempo",
+        "pillars": ["receita rápida", "dica de cozinha", "ingrediente do dia", "erro comum", "variação"],
+        "tone": "acolhedor e apetitoso",
+    },
+    "moda": {
+        "label": "Moda & Estilo",
+        "audience": "pessoas que se preocupam com aparência, tendências e expressão pessoal",
+        "pain_points": "não saber combinar roupas, falta de verba, insegurança com estilo",
+        "desires": "looks elegantes, autoconfiança, ser elogiada, tendências acessíveis",
+        "pillars": ["look do dia", "como combinar", "tendência", "guarda-roupa cápsula", "dica de compra"],
+        "tone": "confiante e inspirador",
+    },
+    "negocios": {
+        "label": "Negócios & Empreendedorismo",
+        "audience": "empreendedores, freelancers, donos de pequenos negócios",
+        "pain_points": "falta de clientes, gestão financeira, marketing digital, tempo",
+        "desires": "escalar o negócio, mais vendas, liberdade financeira, reconhecimento",
+        "pillars": ["estratégia", "erro comum", "case de sucesso", "dica prática", "motivação"],
+        "tone": "profissional e estratégico",
+    },
+    "educacao": {
+        "label": "Educação & Cursos",
+        "audience": "estudantes, profissionais em transição, pessoas que buscam crescimento",
+        "pain_points": "falta de tempo para estudar, dificuldade de foco, conteúdo complexo",
+        "desires": "aprender rápido, certificações, nova carreira, crescimento profissional",
+        "pillars": ["conceito simplificado", "dica de estudo", "mapa mental", "quiz", "motivação"],
+        "tone": "didático e acessível",
+    },
+    "tecnologia": {
+        "label": "Tecnologia & IA",
+        "audience": "profissionais de tech, entusiastas, pessoas curiosas sobre o futuro",
+        "pain_points": "velocidade das mudanças, não saber por onde começar, jargões",
+        "desires": "ficar atualizado, usar IA no trabalho, produtividade, diferencial competitivo",
+        "pillars": ["novidade", "tutorial", "comparativo", "opinião", "dica de produtividade"],
+        "tone": "moderno e acessível",
+    },
+    "beleza": {
+        "label": "Beleza & Skincare",
+        "audience": "mulheres que se preocupam com aparência, skincare e autocuidado",
+        "pain_points": "acne, pele opaca, produtos caros, rotinas complexas, cabelo",
+        "desires": "pele perfeita, autoestima, produtos eficientes, rotina prática",
+        "pillars": ["rotina de skincare", "produto favorito", "antes e depois", "dica rápida", "ingrediente"],
+        "tone": "acolhedor e confiante",
+    },
+    "financas": {
+        "label": "Finanças Pessoais",
+        "audience": "pessoas que querem sair das dívidas, investir ou ter reserva financeira",
+        "pain_points": "endividamento, falta de controle, medo de investir, salário baixo",
+        "desires": "reserva de emergência, independência financeira, primeiro investimento",
+        "pillars": ["dica de economia", "mito financeiro", "simulação", "investimento para iniciantes", "hábito"],
+        "tone": "didático e motivador",
+    },
+    "viagem": {
+        "label": "Viagem & Turismo",
+        "audience": "viajantes, mochileiros, famílias que planejam férias",
+        "pain_points": "custo alto, falta de planejamento, destinos desconhecidos",
+        "desires": "viajar mais, economizar, experiências únicas, roteiros prontos",
+        "pillars": ["roteiro", "dica de economia", "destino", "erro de viagem", "experiência pessoal"],
+        "tone": "aventureiro e inspirador",
+    },
+    "geral": {
+        "label": "Geral",
+        "audience": "público amplo",
+        "pain_points": "desafios do cotidiano",
+        "desires": "melhorar a vida, aprender algo novo",
+        "pillars": ["dica prática", "reflexão", "motivação", "curiosidade", "storytelling"],
+        "tone": "autêntico e acessível",
+    },
+}
+
+NICHES_LIST = [{"key": k, "label": v["label"]} for k, v in _NICHES.items()]
+
+_TONES = {
+    "inspirador":   "motivador, emocional, usa storytelling e transformação",
+    "informativo":  "educativo, baseado em dados e fatos, clareza acima de tudo",
+    "humoristico":  "leve, divertido, relatable, usa humor autêntico sem forçar",
+    "vendas":       "direto ao ponto, benefícios claros, urgência, CTA forte",
+    "storytelling": "narrativa pessoal, vulnerável, arco dramático, conexão emocional",
+}
+
+
+def _niche_ctx(niche: str) -> str:
+    """Retorna contexto de nicho para enriquecer prompts."""
+    d = _NICHES.get(niche, _NICHES["geral"])
+    return (
+        f"Nicho: {d['label']}\n"
+        f"Público: {d['audience']}\n"
+        f"Dores: {d['pain_points']}\n"
+        f"Desejos: {d['desires']}\n"
+        f"Tom: {d.get('tone', 'autêntico')}"
+    )
+
+
+# ── Geração de legenda completa ───────────────────────────────────
+
+def generate_caption(
+    niche: str,
+    topic: str,
+    post_type: str = "photo",
+    tone: str = "informativo",
+    goal: str = "engajamento",
+    length: str = "media",
+) -> dict | None:
+    """
+    Gera legenda completa com hook, desenvolvimento e CTA.
+    length: curta (~50 palavras) | media (~100) | longa (~200)
+    """
+    length_map = {"curta": "~50 palavras", "media": "~100-120 palavras", "longa": "~180-220 palavras"}
+    tone_desc = _TONES.get(tone, tone)
+
+    system = (
+        "Você é um copywriter especialista em Instagram brasileiro com foco em crescimento orgânico. "
+        "Cria legendas que convertem e geram engajamento real. Retorne JSON válido em português."
+    )
+    user = (
+        f"{_niche_ctx(niche)}\n\n"
+        f"Tipo de post: {post_type}\n"
+        f"Tema/tópico: {topic}\n"
+        f"Tom: {tone_desc}\n"
+        f"Objetivo: {goal}\n"
+        f"Tamanho: {length_map.get(length, length_map['media'])}\n\n"
+        'Retorne JSON: {"caption": "legenda completa com quebras de linha e emojis", '
+        '"hook": "apenas a primeira linha", '
+        '"cta": "apenas o CTA final", '
+        '"hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5", '
+        '"tips": ["por que este hook funciona", "como adaptar para o seu perfil"]}'
+    )
+    return _chat(system, user, max_tokens=1000)
+
+
+# ── Geração de hooks variados ─────────────────────────────────────
+
+def generate_hooks(niche: str, topic: str, quantity: int = 5) -> dict | None:
+    """
+    Gera N variações de hook para o mesmo tema em estilos diferentes.
+    """
+    system = (
+        "Você é especialista em hooks virais para Instagram brasileiro. "
+        "Cria primeiras linhas que param o scroll. Retorne JSON válido em português."
+    )
+    user = (
+        f"{_niche_ctx(niche)}\n"
+        f"Tema: {topic}\n\n"
+        f"Gere {quantity} hooks diferentes em estilos variados:\n"
+        'Retorne JSON: {"hooks": ['
+        '{"hook": "...", "style": "pergunta|choque|curiosidade|número|promessa|polêmica", "why": "por que funciona"}'
+        '], "best_hook": "o mais forte dos cinco"}'
+    )
+    return _chat(system, user, max_tokens=700)
+
+
+# ── Geração de títulos / headlines ────────────────────────────────
+
+def generate_titles(niche: str, topic: str, post_type: str = "reels") -> dict | None:
+    """
+    Gera títulos/headlines para Reels, Carrosséis e Stories.
+    """
+    system = (
+        "Você cria títulos e headlines para Instagram brasileiro que geram cliques e salvamentos. "
+        "Retorne JSON válido em português."
+    )
+    user = (
+        f"{_niche_ctx(niche)}\n"
+        f"Tipo de post: {post_type}\n"
+        f"Tema: {topic}\n\n"
+        'Retorne JSON: {"titles": ['
+        '{"title": "...", "format": "lista|tutorial|revelação|pergunta|polêmica", "appeal": "por que atrai"}'
+        '], "best_title": "o mais forte"}'
+    )
+    return _chat(system, user, max_tokens=600)
+
+
+# ── Reescrita e melhoria de legenda ──────────────────────────────
+
+def rewrite_caption(original: str, goal: str = "engajamento", tone: str = "informativo") -> dict | None:
+    """
+    Reescreve uma legenda existente mantendo a essência mas melhorando estrutura, hook e CTA.
+    """
+    tone_desc = _TONES.get(tone, tone)
+    system = (
+        "Você é editor-chefe de conteúdo para Instagram brasileiro. "
+        "Melhora legendas preservando a voz do criador. Retorne JSON válido em português."
+    )
+    user = (
+        f"Legenda original:\n{original[:700]}\n\n"
+        f"Objetivo: {goal}\n"
+        f"Tom desejado: {tone_desc}\n\n"
+        'Retorne JSON: {"rewritten": "nova versão completa", '
+        '"changes": ["mudança 1", "mudança 2", "mudança 3"], '
+        '"hook_before": "hook original", '
+        '"hook_after": "hook melhorado", '
+        '"score_before": 5, "score_after": 8, '
+        '"explanation": "por que as mudanças melhoram o resultado"}'
+    )
+    return _chat(system, user, max_tokens=1000)
+
+
+# ── Otimização de retenção ────────────────────────────────────────
+
+def optimize_retention(caption: str) -> dict | None:
+    """
+    Reestrutura a legenda usando técnicas de retenção: padrão de interrupção,
+    gap de curiosidade, micro-compromisso, prova social, cliffhanger.
+    """
+    system = (
+        "Você é especialista em retenção e copywriting para Instagram. "
+        "Aplique técnicas psicológicas de retenção sem perder autenticidade. "
+        "Retorne JSON válido em português."
+    )
+    user = (
+        f"Legenda para otimizar:\n{caption[:700]}\n\n"
+        'Retorne JSON: {"optimized": "legenda reestruturada", '
+        '"techniques_used": ["padrão de interrupção", "gap de curiosidade"], '
+        '"structure_tips": ["Use quebra de linha após o hook", "Adicione micro-comprometimento"], '
+        '"retention_score_before": 5, "retention_score_after": 8}'
+    )
+    return _chat(system, user, max_tokens=900)
+
+
+# ── Sugestões de viralização ──────────────────────────────────────
+
+def suggest_viralization(caption: str, niche: str = "geral") -> dict | None:
+    """
+    Analisa o conteúdo e sugere táticas específicas para maximizar o potencial viral.
+    """
+    system = (
+        "Você é especialista em crescimento viral no Instagram brasileiro. "
+        "Sugira táticas práticas e específicas para viralização. Retorne JSON válido em português."
+    )
+    user = (
+        f"{_niche_ctx(niche)}\n\n"
+        f"Conteúdo:\n{caption[:600]}\n\n"
+        'Retorne JSON: {"tactics": ['
+        '{"tactic": "nome da tática", "implementation": "como aplicar especificamente", "impact": "alto|medio|baixo"}'
+        '], "viral_elements_missing": ["...", "..."], '
+        '"best_posting_time": "dia e horário ideal", '
+        '"collaboration_idea": "ideia de collab para amplificar", '
+        '"viral_score": 65}'
+    )
+    return _chat(system, user, max_tokens=800)
+
+
+# ── Geração de calendário de conteúdo ────────────────────────────
+
+def generate_content_calendar(
+    niche: str,
+    posts_per_week: int = 3,
+    weeks: int = 2,
+    goals: list | None = None,
+) -> dict | None:
+    """
+    Gera calendário editorial completo com temas, tipos, hooks e CTAs.
+    """
+    d = _NICHES.get(niche, _NICHES["geral"])
+    pillars = ", ".join(d.get("pillars", ["dica", "motivação", "curiosidade"]))
+    goals_str = ", ".join(goals) if goals else "engajamento, crescimento de seguidores"
+
+    system = (
+        "Você é estrategista de conteúdo para Instagram brasileiro. "
+        "Cria calendários editoriais completos e variados. Retorne JSON válido em português."
+    )
+    user = (
+        f"Nicho: {d['label']}\n"
+        f"Pilares de conteúdo: {pillars}\n"
+        f"Objetivos: {goals_str}\n"
+        f"Posts por semana: {posts_per_week}\n"
+        f"Semanas: {weeks}\n\n"
+        "Crie um calendário com dias distribuídos ao longo da semana (Seg, Qua, Sex para 3x/semana etc).\n"
+        'Retorne JSON: {"calendar_theme": "tema geral do período", '
+        '"weeks": [{"week_number": 1, "weekly_focus": "tema da semana", '
+        '"posts": [{"day": "Segunda", "type": "reels", "hook": "...", '
+        '"topic": "...", "caption_idea": "desenvolvimento em 1 frase", "cta": "...", '
+        '"hashtag_theme": "categoria das hashtags"}]}], '
+        '"general_tips": ["dica estratégica 1", "dica estratégica 2"]}'
+    )
+    return _chat(system, user, max_tokens=2500)

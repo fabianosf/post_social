@@ -250,3 +250,161 @@ def api_clear_cache():
     AIInsight.query.filter_by(client_id=current_user.id).delete()
     db.session.commit()
     return jsonify({"ok": True})
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FASE 7 — ENDPOINTS DE GERAÇÃO DE CONTEÚDO
+# ═══════════════════════════════════════════════════════════════════
+
+def _gen_guard():
+    """Retorna 503 se IA não configurada, None se OK."""
+    if not ai_service.is_available():
+        return jsonify({"error": "IA não configurada"}), 503
+    return None
+
+
+# ── Gerar legenda ─────────────────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/caption", methods=["POST"])
+@login_required
+def gen_caption():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    niche = b.get("niche", "geral")
+    topic = (b.get("topic") or "").strip()
+    if not topic:
+        return jsonify({"error": "Informe o tema/tópico do post"}), 400
+    result = ai_service.generate_caption(
+        niche=niche,
+        topic=topic,
+        post_type=b.get("post_type", "photo"),
+        tone=b.get("tone", "informativo"),
+        goal=b.get("goal", "engajamento"),
+        length=b.get("length", "media"),
+    )
+    return jsonify(result) if result else (jsonify({"error": "Falha na geração"}), 500)
+
+
+# ── Gerar hooks ───────────────────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/hooks", methods=["POST"])
+@login_required
+def gen_hooks():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    topic = (b.get("topic") or "").strip()
+    if not topic:
+        return jsonify({"error": "Informe o tema"}), 400
+    result = ai_service.generate_hooks(
+        niche=b.get("niche", "geral"),
+        topic=topic,
+        quantity=min(int(b.get("quantity", 5)), 8),
+    )
+    return jsonify(result) if result else (jsonify({"error": "Falha na geração"}), 500)
+
+
+# ── Gerar títulos ─────────────────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/titles", methods=["POST"])
+@login_required
+def gen_titles():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    topic = (b.get("topic") or "").strip()
+    if not topic:
+        return jsonify({"error": "Informe o tema"}), 400
+    result = ai_service.generate_titles(
+        niche=b.get("niche", "geral"),
+        topic=topic,
+        post_type=b.get("post_type", "reels"),
+    )
+    return jsonify(result) if result else (jsonify({"error": "Falha na geração"}), 500)
+
+
+# ── Reescrever legenda ────────────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/rewrite", methods=["POST"])
+@login_required
+def gen_rewrite():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    original = (b.get("caption") or "").strip()
+    if not original:
+        return jsonify({"error": "Cole a legenda original"}), 400
+    result = ai_service.rewrite_caption(
+        original=original,
+        goal=b.get("goal", "engajamento"),
+        tone=b.get("tone", "informativo"),
+    )
+    return jsonify(result) if result else (jsonify({"error": "Falha na reescrita"}), 500)
+
+
+# ── Otimizar retenção ─────────────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/retention", methods=["POST"])
+@login_required
+def gen_retention():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    caption = (b.get("caption") or "").strip()
+    if not caption:
+        return jsonify({"error": "Cole a legenda para otimizar"}), 400
+    result = ai_service.optimize_retention(caption)
+    return jsonify(result) if result else (jsonify({"error": "Falha na otimização"}), 500)
+
+
+# ── Sugestões de viralização ──────────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/viralize", methods=["POST"])
+@login_required
+def gen_viralize():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    caption = (b.get("caption") or "").strip()
+    if not caption:
+        return jsonify({"error": "Cole o conteúdo para analisar"}), 400
+    result = ai_service.suggest_viralization(caption, b.get("niche", "geral"))
+    return jsonify(result) if result else (jsonify({"error": "Falha na análise"}), 500)
+
+
+# ── Gerar calendário de conteúdo ──────────────────────────────────
+
+@ai_bp.route("/api/ai/generate/calendar", methods=["POST"])
+@login_required
+def gen_calendar():
+    err = _gen_guard()
+    if err:
+        return err
+    b = request.get_json(silent=True) or {}
+    niche = b.get("niche", "geral")
+    posts_per_week = max(1, min(7, int(b.get("posts_per_week", 3))))
+    weeks = max(1, min(4, int(b.get("weeks", 2))))
+    goals = b.get("goals", [])
+
+    result = ai_service.generate_content_calendar(
+        niche=niche,
+        posts_per_week=posts_per_week,
+        weeks=weeks,
+        goals=goals if isinstance(goals, list) else [goals],
+    )
+    return jsonify(result) if result else (jsonify({"error": "Falha na geração do calendário"}), 500)
+
+
+# ── Metadados: lista de nichos disponíveis ────────────────────────
+
+@ai_bp.route("/api/ai/niches")
+@login_required
+def api_niches():
+    return jsonify(ai_service.NICHES_LIST)
