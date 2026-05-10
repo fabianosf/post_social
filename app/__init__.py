@@ -66,6 +66,7 @@ def create_app():
     from .routes_payment import payment_bp
     from .routes_tiktok import tiktok_bp
     from .routes_analytics import analytics_bp
+    from .routes_recommendations import recommendations_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -74,6 +75,7 @@ def create_app():
     app.register_blueprint(payment_bp)
     app.register_blueprint(tiktok_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(recommendations_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:

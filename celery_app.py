@@ -19,6 +19,7 @@ celery = Celery(
         "tasks.post_tasks",
         "tasks.maintenance_tasks",
         "tasks.analytics_tasks",
+        "tasks.recommendations_tasks",
     ],
 )
 
@@ -75,6 +76,11 @@ celery.conf.update(
         "nightly-analytics-refresh": {
             "task": "tasks.analytics_tasks.nightly_refresh",
             "schedule": 86400.0,       # Uma vez por dia (meia-noite)
+            "options": {"queue": "postay.maintenance"},
+        },
+        "weekly-recommendations": {
+            "task": "tasks.recommendations_tasks.precompute_profiles",
+            "schedule": 604800.0,      # Uma vez por semana
             "options": {"queue": "postay.maintenance"},
         },
     },

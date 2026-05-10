@@ -153,6 +153,7 @@
         <div class="nav-links" id="main-nav-links">
             <a href="{{ url_for('dashboard.stats_page') }}">Stats</a>
             <a href="{{ url_for('analytics.index') }}">Analytics</a>
+            <a href="{{ url_for('recommendations.index') }}">Recomendações</a>
             {% if current_user.is_admin %}
                 <a href="{{ url_for('admin.index') }}">Admin</a>
             {% endif %}
