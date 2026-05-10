@@ -15,6 +15,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: postay-redis
+    restart: always
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   web:
     build: .
     container_name: postay-web
@@ -33,8 +46,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      worker:
-        condition: service_started
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
       interval: 30s
@@ -58,12 +71,72 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "sh", "-c", "test -f /app/logs/worker_heartbeat.txt && [ $(($(date +%s) - $(date +%s -r /app/logs/worker_heartbeat.txt))) -lt 900 ]"]
       interval: 5m
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  celery_worker:
+    build: .
+    container_name: postay-celery
+    restart: always
+    command: celery -A celery_app worker --loglevel=info -Q postay.posts,postay.maintenance -c 2
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+      - ./modules:/app/modules
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "celery_app", "inspect", "ping", "--timeout", "5"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  celery_beat:
+    build: .
+    container_name: postay-beat
+    restart: always
+    command: celery -A celery_app beat --loglevel=info -s /app/data/celerybeat-schedule
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+      - ./modules:/app/modules
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  flower:
+    build: .
+    container_name: postay-flower
+    restart: always
+    command: celery -A celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASS:-postay123}
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    depends_on:
+      - redis
 
   backup:
     image: alpine
@@ -72,7 +145,6 @@ services:
     volumes:
       - ./data:/data:ro
       - ./backups:/backups
-      - postgres_data:/pgdata:ro
     entrypoint: >
       sh -c "while true; do
         if [ -f /data/postsocial.db ]; then
@@ -84,3 +156,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
