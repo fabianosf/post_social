@@ -81,6 +81,18 @@
 </div>
 {% endif %}
 
+<!-- ── Insights de IA ── -->
+<div class="card" style="margin-bottom:1.5rem; border-color:#7c5cff44;" id="ai-insights-card">
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
+    <h2 style="margin:0;">🤖 Insights com Inteligência Artificial</h2>
+    <div style="display:flex; gap:0.5rem;">
+      <button class="btn btn-sm" onclick="loadAIInsights()" id="btn-ai">Gerar com IA</button>
+      <a href="{{ url_for('ai.index') }}" class="btn btn-outline btn-sm">Assistente IA →</a>
+    </div>
+  </div>
+  <div id="ai-insights-result" style="margin-top:0.8rem; display:none;"></div>
+</div>
+
 <!-- ── Comparação de Períodos ── -->
 <div class="card" style="margin-bottom:1.5rem;">
   <h2 style="margin-bottom:1rem;">&#128260; Este período vs Anterior ({{ days }} dias)</h2>
@@ -349,4 +361,39 @@
 
 {% endif %}{# end total_posts_analyzed > 0 #}
 
+<script>
+function loadAIInsights() {
+  var result = document.getElementById('ai-insights-result');
+  var btn = document.getElementById('btn-ai');
+  result.style.display = 'block';
+  result.innerHTML = '<p style="color:#7c5cff; animation:pulse 1s infinite; font-size:0.85rem;">⏳ Gerando insights com IA...</p>';
+  btn.disabled = true;
+
+  fetch('/api/ai/insights')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      btn.disabled = false;
+      if (d.error) {
+        result.innerHTML = '<p style="color:#f87171; font-size:0.85rem;">⚠️ ' + d.error + ' — <a href="/ai">Configurar IA</a></p>';
+        return;
+      }
+      var html = '';
+      if (d.summary) html += '<p style="color:#ccc; font-size:0.88rem; padding:0.7rem; background:#0f0f1a; border-radius:8px; margin-bottom:0.8rem;">💬 ' + d.summary + '</p>';
+      (d.insights || []).forEach(function(ins) {
+        var prio = ins.priority || 'baixa';
+        var colors = {alta:'#f87171', media:'#fbbf24', baixa:'#60a5fa'};
+        var bgs = {alta:'#3a1a1a', media:'#3a3a1a', baixa:'#1a2a3a'};
+        html += '<div style="display:flex; gap:0.7rem; padding:0.6rem 0.9rem; border-radius:8px; margin-bottom:0.4rem; background:' + (bgs[prio]||'#1a1a2e') + '; border-left:3px solid ' + (colors[prio]||'#7c5cff') + ';">'
+              + '<span style="font-size:1.1rem; flex-shrink:0;">' + (ins.icon||'💡') + '</span>'
+              + '<div><div style="font-size:0.83rem; color:#ccc;">' + ins.text + '</div>'
+              + (ins.action ? '<div style="font-size:0.75rem; color:#7c5cff; margin-top:0.2rem;">→ ' + ins.action + '</div>' : '')
+              + '</div></div>';
+      });
+      if (d.cached) html += '<p style="color:#444; font-size:0.7rem; margin-top:0.5rem;">Resultado em cache — acesse o <a href="/ai">Assistente IA</a> para regenerar.</p>';
+      result.innerHTML = html;
+    })
+    .catch(function(){ btn.disabled = false; result.innerHTML = '<p style="color:#f87171; font-size:0.85rem;">Erro de conexão</p>'; });
+}
+
+</script>
 {% endblock %}

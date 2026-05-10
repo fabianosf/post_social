@@ -20,6 +20,7 @@ celery = Celery(
         "tasks.maintenance_tasks",
         "tasks.analytics_tasks",
         "tasks.recommendations_tasks",
+        "tasks.ai_tasks",
     ],
 )
 
@@ -80,6 +81,11 @@ celery.conf.update(
         },
         "weekly-recommendations": {
             "task": "tasks.recommendations_tasks.precompute_profiles",
+            "schedule": 604800.0,      # Uma vez por semana
+            "options": {"queue": "postay.maintenance"},
+        },
+        "weekly-ai-insights": {
+            "task": "tasks.ai_tasks.generate_weekly_ai_insights",
             "schedule": 604800.0,      # Uma vez por semana
             "options": {"queue": "postay.maintenance"},
         },

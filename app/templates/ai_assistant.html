@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% block title %}Assistente IA{% endblock %}
+{% block content %}
+<style>
+  .ai-tabs { display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .ai-tab  { padding:0.5rem 1rem; background:#0f0f1a; border:1px solid #2a2a4a;
+              border-radius:8px; cursor:pointer; font-size:0.85rem; color:#888; }
+  .ai-tab.active { background:#7c5cff22; border-color:#7c5cff; color:#7c5cff; font-weight:600; }
+  .ai-panel { display:none; }
+  .ai-panel.active { display:block; }
+
+  .ai-result { background:#0a0a18; border:1px solid #2a2a4a; border-radius:10px;
+               padding:1.2rem; margin-top:1rem; display:none; }
+  .ai-result.visible { display:block; }
+  .ai-loading { color:#7c5cff; font-size:0.85rem; animation:pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .ai-tag  { display:inline-block; background:#7c5cff22; color:#a78bfa; border:1px solid #7c5cff44;
+              border-radius:6px; padding:0.2rem 0.6rem; font-size:0.78rem; margin:0.2rem; cursor:pointer; }
+  .ai-tag:hover { background:#7c5cff44; }
+
+  .score-ring { display:inline-flex; align-items:center; justify-content:center;
+                width:60px; height:60px; border-radius:50%; font-size:1.3rem; font-weight:700;
+                border:3px solid; flex-shrink:0; }
+
+  .ai-insight-item { display:flex; gap:0.8rem; padding:0.7rem 1rem; border-radius:8px; margin-bottom:0.5rem; }
+  .ai-insight-item.alta    { background:#3a1a1a; border-left:3px solid #f87171; }
+  .ai-insight-item.media   { background:#3a3a1a; border-left:3px solid #fbbf24; }
+  .ai-insight-item.baixa   { background:#1a2a3a; border-left:3px solid #60a5fa; }
+
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media(max-width:600px) { .row2 { grid-template-columns:1fr; } }
+
+  .copy-btn { font-size:0.72rem; color:#7c5cff; cursor:pointer; margin-left:0.5rem; }
+  .copy-btn:hover { text-decoration:underline; }
+
+  .cta-item2 { display:flex; align-items:center; justify-content:space-between;
+               padding:0.6rem 0.8rem; background:#0f0f1a; border-radius:8px; margin-bottom:0.4rem; }
+  .cta-text2 { font-size:0.85rem; color:#ccc; flex:1; }
+
+  .hook-score-bar { height:8px; border-radius:4px; background:#1a1a2e; overflow:hidden; margin-top:0.3rem; }
+  .hook-score-fill { height:100%; border-radius:4px; }
+</style>
+
+<!-- Header -->
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="color:#fff; font-size:1.3rem; margin:0;">🤖 Assistente de IA</h1>
+    <p style="color:#888; font-size:0.82rem; margin:0.2rem 0 0;">
+      {% if ai_available %}
+        <span style="color:#4ade80;">● IA ativa</span>
+        — Provedor: <strong>{{ ai_provider }}</strong>
+      {% else %}
+        <span style="color:#f87171;">● IA não configurada</span>
+        — Defina <code>OPENAI_API_KEY</code> ou <code>GROQ_API_KEY</code> + <code>AI_PROVIDER=groq</code> no seu <code>.env</code>
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:0.5rem;">
+    <a href="{{ url_for('analytics.index') }}" class="btn btn-outline btn-sm">Analytics</a>
+    <a href="{{ url_for('recommendations.index') }}" class="btn btn-outline btn-sm">Recomendações</a>
+  </div>
+</div>
+
+{% if not ai_available %}
+<div class="card" style="border-color:#5a2a2a; background:#3a1a1a22; margin-bottom:1.5rem;">
+  <h3 style="color:#f87171; margin-bottom:0.8rem;">⚠️ Configure sua IA em 2 minutos</h3>
+  <p style="color:#ccc; font-size:0.9rem; margin-bottom:0.8rem;">Adicione ao seu arquivo <strong>.env</strong>:</p>
+  <div style="background:#0a0a18; border-radius:8px; padding:1rem; font-family:monospace; font-size:0.85rem; color:#4ade80;">
+    # Opção 1 — OpenAI (pago, mais preciso)<br>
+    OPENAI_API_KEY=sk-...<br><br>
+    # Opção 2 — Groq (gratuito, muito rápido)<br>
+    GROQ_API_KEY=gsk_...<br>
+    AI_PROVIDER=groq
+  </div>
+  <p style="color:#888; font-size:0.8rem; margin-top:0.8rem;">
+    Groq oferece <strong>plano gratuito generoso</strong> em <a href="https://console.groq.com" target="_blank">console.groq.com</a>
+  </p>
+</div>
+{% endif %}
+
+<!-- Abas -->
+<div class="ai-tabs">
+  <div class="ai-tab active" onclick="switchTab('insights')">📊 Insights da Conta</div>
+  <div class="ai-tab" onclick="switchTab('caption')">✍️ Analisar Legenda</div>
+  <div class="ai-tab" onclick="switchTab('hook')">🪝 Analisar Hook</div>
+  <div class="ai-tab" onclick="switchTab('hashtags')">🏷️ Gerar Hashtags</div>
+  <div class="ai-tab" onclick="switchTab('cta')">💬 Gerar CTA</div>
+  <div class="ai-tab" onclick="switchTab('predict')">🎯 Prever Performance</div>
+</div>
+
+<!-- ── Painel: Insights da conta ────────────────────────────────── -->
+<div class="ai-panel active card" id="panel-insights">
+  <h2 style="margin-bottom:0.5rem;">📊 Insights Estratégicos da Conta</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Análise dos seus últimos 30 dias de publicação. Resultado armazenado em cache por 24h.
+  </p>
+  <button class="btn btn-sm" onclick="loadInsights()" id="btn-insights">Gerar Insights com IA</button>
+  <button class="btn btn-outline btn-sm" onclick="clearCacheAndReload()" style="margin-left:0.5rem;">↺ Forçar atualização</button>
+
+  <div class="ai-result" id="result-insights">
+    <div id="insights-content"></div>
+  </div>
+</div>
+
+<!-- ── Painel: Analisar legenda ─────────────────────────────────── -->
+<div class="ai-panel card" id="panel-caption">
+  <h2 style="margin-bottom:0.5rem;">✍️ Análise de Legenda</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Cole sua legenda para receber pontos fortes, melhorias e análise de hook e emoção.
+  </p>
+  <label>Legenda</label>
+  <textarea id="cap-input" rows="6" placeholder="Cole sua legenda aqui..."></textarea>
+  <button class="btn btn-sm" onclick="analyzeCaption()">Analisar com IA</button>
+  <div class="ai-result" id="result-caption">
+    <div id="caption-content"></div>
+  </div>
+</div>
+
+<!-- ── Painel: Analisar hook ────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-hook">
+  <h2 style="margin-bottom:0.5rem;">🪝 Análise de Hook</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    A primeira linha é o que segura (ou perde) o leitor. Avalie e melhore seu hook.
+  </p>
+  <label>Legenda completa (ou apenas a primeira linha)</label>
+  <textarea id="hook-input" rows="4" placeholder="Cole o texto aqui..."></textarea>
+  <button class="btn btn-sm" onclick="analyzeHook()">Analisar Hook</button>
+  <div class="ai-result" id="result-hook">
+    <div id="hook-content"></div>
+  </div>
+</div>
+
+<!-- ── Painel: Gerar hashtags ───────────────────────────────────── -->
+<div class="ai-panel card" id="panel-hashtags">
+  <h2 style="margin-bottom:0.5rem;">🏷️ Gerador de Hashtags</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Hashtags segmentadas em 3 camadas: nicho, populares e amplas.
+  </p>
+  <div class="row2">
+    <div>
+      <label>Nicho / Segmento</label>
+      <input type="text" id="ht-niche" placeholder="ex: fitness, gastronomia, moda...">
+    </div>
+    <div>
+      <label>Tipo de post</label>
+      <select id="ht-type">
+        <option value="photo">Foto</option>
+        <option value="album">Carrossel</option>
+        <option value="reels">Reels</option>
+        <option value="story">Story</option>
+      </select>
+    </div>
+  </div>
+  <label>Legenda (opcional — melhora as sugestões)</label>
+  <textarea id="ht-caption" rows="3" placeholder="Cole sua legenda para hashtags mais precisas..."></textarea>
+  <button class="btn btn-sm" onclick="generateHashtags()">Gerar Hashtags</button>
+  <div class="ai-result" id="result-hashtags">
+    <div id="hashtags-content"></div>
+  </div>
+</div>
+
+<!-- ── Painel: Gerar CTA ─────────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-cta">
+  <h2 style="margin-bottom:0.5rem;">💬 Gerador de CTA</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Chamadas para ação em português, adaptadas ao seu objetivo.
+  </p>
+  <div class="row2">
+    <div>
+      <label>Objetivo</label>
+      <select id="cta-goal">
+        <option value="engajamento">Engajamento (curtidas e comentários)</option>
+        <option value="seguidores">Crescer seguidores</option>
+        <option value="salvamentos">Maximizar salvamentos</option>
+        <option value="vendas">Gerar vendas</option>
+        <option value="tráfego">Tráfego para o link na bio</option>
+      </select>
+    </div>
+    <div></div>
+  </div>
+  <label>Legenda (opcional)</label>
+  <textarea id="cta-caption" rows="3" placeholder="Cole sua legenda para CTAs mais personalizados..."></textarea>
+  <button class="btn btn-sm" onclick="generateCTA()">Gerar CTAs</button>
+  <div class="ai-result" id="result-cta">
+    <div id="cta-content"></div>
+  </div>
+</div>
+
+<!-- ── Painel: Prever performance ───────────────────────────────── -->
+<div class="ai-panel card" id="panel-predict">
+  <h2 style="margin-bottom:0.5rem;">🎯 Previsão de Performance</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Com base no seu histórico de 30 dias, prevemos o desempenho esperado do próximo post.
+  </p>
+  <div class="row2">
+    <div>
+      <label>Tipo de post</label>
+      <select id="pred-type">
+        <option value="photo">Foto</option>
+        <option value="album">Carrossel</option>
+        <option value="reels">Reels</option>
+        <option value="story">Story</option>
+      </select>
+    </div>
+    <div>
+      <label>Horário planejado</label>
+      <select id="pred-hour">
+        {% for h in range(0, 24) %}
+        <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="row2" style="margin-top:0;">
+    <div>
+      <label>Tem legenda?</label>
+      <select id="pred-caption">
+        <option value="true">Sim</option>
+        <option value="false">Não</option>
+      </select>
+    </div>
+    <div>
+      <label>Tem hashtags?</label>
+      <select id="pred-hashtags">
+        <option value="true">Sim</option>
+        <option value="false">Não</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-sm" onclick="predictPerformance()">Prever Performance</button>
+  <div class="ai-result" id="result-predict">
+    <div id="predict-content"></div>
+  </div>
+</div>
+
+<script>
+// ── Abas ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.ai-tab').forEach(function(t, i) {
+    var ids = ['insights','caption','hook','hashtags','cta','predict'];
+    t.classList.toggle('active', ids[i] === name);
+  });
+  document.querySelectorAll('.ai-panel').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function showLoading(id) {
+  var el = document.getElementById('result-' + id);
+  el.classList.add('visible');
+  document.getElementById(id + '-content').innerHTML = '<p class="ai-loading">⏳ Processando com IA...</p>';
+}
+
+function showError(id, msg) {
+  document.getElementById(id + '-content').innerHTML =
+    '<p style="color:#f87171; font-size:0.85rem;">⚠️ ' + msg + '</p>';
+}
+
+function copyText(text, el) {
+  navigator.clipboard.writeText(text).then(function() {
+    var o = el.textContent; el.textContent = 'copiado!';
+    setTimeout(function(){ el.textContent = o; }, 1500);
+  });
+}
+
+function scoreColor(s) {
+  if (s >= 8) return '#4ade80';
+  if (s >= 6) return '#60a5fa';
+  if (s >= 4) return '#fbbf24';
+  return '#f87171';
+}
+
+// ── Insights da conta ─────────────────────────────────────────────
+function loadInsights() {
+  showLoading('insights');
+  document.getElementById('btn-insights').disabled = true;
+  fetch('/api/ai/insights')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      document.getElementById('btn-insights').disabled = false;
+      if (d.error) { showError('insights', d.error); return; }
+
+      var html = '';
+      if (d.summary) {
+        html += '<p style="color:#ccc; font-size:0.9rem; margin-bottom:1rem; padding:0.8rem; background:#1a1a2e; border-radius:8px;">'
+              + '💬 ' + d.summary + '</p>';
+      }
+      if (d.growth_potential) {
+        var gpColor = d.growth_potential === 'alto' ? '#4ade80' : d.growth_potential === 'médio' ? '#fbbf24' : '#f87171';
+        html += '<div style="margin-bottom:1rem;">Potencial de crescimento: <strong style="color:' + gpColor + ';">' + d.growth_potential + '</strong></div>';
+      }
+      if (d.insights && d.insights.length) {
+        d.insights.forEach(function(ins) {
+          var prio = ins.priority || 'baixa';
+          html += '<div class="ai-insight-item ' + prio + '">'
+                + '<span style="font-size:1.2rem; flex-shrink:0;">' + (ins.icon || '💡') + '</span>'
+                + '<div>'
+                + '<div style="font-size:0.85rem; color:#ccc;">' + ins.text + '</div>'
+                + (ins.action ? '<div style="font-size:0.78rem; color:#7c5cff; margin-top:0.3rem;">→ ' + ins.action + '</div>' : '')
+                + '</div></div>';
+        });
+      }
+      if (d.cached) html += '<p style="color:#555; font-size:0.7rem; margin-top:0.8rem;">Resultado em cache — clique "Forçar atualização" para regenerar</p>';
+      document.getElementById('insights-content').innerHTML = html;
+    })
+    .catch(function(){ document.getElementById('btn-insights').disabled = false; showError('insights', 'Erro de conexão'); });
+}
+
+function clearCacheAndReload() {
+  fetch('/api/ai/cache/clear', {method:'POST'}).then(function(){ loadInsights(); });
+}
+
+// ── Analisar legenda ──────────────────────────────────────────────
+function analyzeCaption() {
+  var cap = document.getElementById('cap-input').value.trim();
+  if (!cap) { alert('Cole uma legenda antes de analisar.'); return; }
+  showLoading('caption');
+  fetch('/api/ai/caption', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('caption', d.error); return; }
+
+      var hookColor = scoreColor(d.hook_score || 0);
+      var readColor = scoreColor(d.readability_score || 0);
+      var emotionIcons = {curiosidade:'🤔', entretenimento:'😄', educação:'📚', inspiração:'✨', outro:'💬'};
+
+      var html = '<div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; align-items:flex-start;">'
+        + '<div style="text-align:center;">'
+        + '<div class="score-ring" style="border-color:' + hookColor + '; color:' + hookColor + ';">' + (d.hook_score || '—') + '</div>'
+        + '<div style="font-size:0.7rem; color:#888; margin-top:0.3rem;">Hook</div></div>'
+        + '<div style="text-align:center;">'
+        + '<div class="score-ring" style="border-color:' + readColor + '; color:' + readColor + ';">' + (d.readability_score || '—') + '</div>'
+        + '<div style="font-size:0.7rem; color:#888; margin-top:0.3rem;">Legibilidade</div></div>'
+        + '<div style="flex:1; min-width:180px;">'
+        + '<div style="color:#888; font-size:0.78rem; margin-bottom:0.3rem;">Emoção dominante</div>'
+        + '<div style="font-size:1rem; font-weight:600; color:#ccc;">' + (emotionIcons[d.emotion] || '💬') + ' ' + (d.emotion || '—') + '</div>'
+        + '<div style="font-size:0.78rem; color:' + (d.has_cta ? '#4ade80' : '#f87171') + '; margin-top:0.3rem;">'
+        + (d.has_cta ? '✅ Tem CTA' : '⚠️ Sem CTA — adicione um') + '</div>'
+        + '</div></div>';
+
+      if (d.strengths && d.strengths.length) {
+        html += '<div style="margin-bottom:0.8rem;"><div style="color:#4ade80; font-size:0.8rem; font-weight:600; margin-bottom:0.4rem;">✅ Pontos fortes</div>';
+        d.strengths.forEach(function(s){ html += '<div style="font-size:0.83rem; color:#ccc; margin-bottom:0.3rem; padding-left:0.8rem;">• ' + s + '</div>'; });
+        html += '</div>';
+      }
+      if (d.improvements && d.improvements.length) {
+        html += '<div style="margin-bottom:0.8rem;"><div style="color:#fbbf24; font-size:0.8rem; font-weight:600; margin-bottom:0.4rem;">💡 Melhorias sugeridas</div>';
+        d.improvements.forEach(function(s){ html += '<div style="font-size:0.83rem; color:#ccc; margin-bottom:0.3rem; padding-left:0.8rem;">• ' + s + '</div>'; });
+        html += '</div>';
+      }
+      if (d.suggested_hook) {
+        html += '<div style="background:#1a2a3a; border-radius:8px; padding:0.8rem;">'
+              + '<div style="color:#60a5fa; font-size:0.78rem; margin-bottom:0.3rem;">💡 Hook sugerido</div>'
+              + '<div style="color:#ccc; font-size:0.85rem;">' + d.suggested_hook + '</div>'
+              + '<span class="copy-btn" onclick="copyText(\'' + d.suggested_hook.replace(/'/g,"\\'") + '\', this)">copiar</span></div>';
+      }
+      document.getElementById('caption-content').innerHTML = html;
+    })
+    .catch(function(){ showError('caption', 'Erro de conexão'); });
+}
+
+// ── Analisar hook ─────────────────────────────────────────────────
+function analyzeHook() {
+  var cap = document.getElementById('hook-input').value.trim();
+  if (!cap) { alert('Cole o texto antes de analisar.'); return; }
+  showLoading('hook');
+  fetch('/api/ai/hook', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('hook', d.error); return; }
+
+      var sc = d.hook_score || 0;
+      var col = scoreColor(sc);
+      var typeLabels = {pergunta:'❓ Pergunta', curiosidade:'🤔 Curiosidade', choque:'😱 Choque',
+                        promessa:'🎁 Promessa', número:'📊 Número', outro:'💬 Outro'};
+
+      var html = '<div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:1rem; flex-wrap:wrap;">'
+        + '<div style="text-align:center;"><div class="score-ring" style="border-color:' + col + '; color:' + col + ';">' + sc + '</div>'
+        + '<div style="font-size:0.7rem; color:#888; margin-top:0.3rem;">Score (0-10)</div></div>'
+        + '<div><div style="color:#aaa; font-size:0.8rem;">Tipo: <strong style="color:#ccc;">' + (typeLabels[d.type] || d.type || '—') + '</strong></div>'
+        + '<div style="color:' + (d.is_effective ? '#4ade80' : '#f87171') + '; font-size:0.82rem; margin-top:0.3rem;">'
+        + (d.is_effective ? '✅ Hook eficaz' : '⚠️ Precisa melhorar') + '</div></div></div>';
+
+      if (d.why) {
+        html += '<div style="background:#1a1a2e; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">'
+              + '<div style="color:#888; font-size:0.78rem; margin-bottom:0.3rem;">Análise</div>'
+              + '<div style="color:#ccc; font-size:0.85rem;">' + d.why + '</div></div>';
+      }
+      if (d.improved_version) {
+        html += '<div style="background:#1a3a2a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">'
+              + '<div style="color:#4ade80; font-size:0.78rem; margin-bottom:0.3rem;">✨ Versão melhorada</div>'
+              + '<div style="color:#ccc; font-size:0.9rem; font-weight:600;">' + d.improved_version + '</div>'
+              + '<span class="copy-btn" onclick="copyText(\'' + d.improved_version.replace(/'/g,"\\'") + '\', this)">copiar</span></div>';
+      }
+      if (d.alternative_hooks && d.alternative_hooks.length) {
+        html += '<div style="color:#888; font-size:0.78rem; margin-bottom:0.4rem;">Alternativas</div>';
+        d.alternative_hooks.forEach(function(h) {
+          html += '<div class="cta-item2"><div class="cta-text2">' + h + '</div>'
+                + '<span class="copy-btn" onclick="copyText(\'' + h.replace(/'/g,"\\'") + '\', this)">copiar</span></div>';
+        });
+      }
+      document.getElementById('hook-content').innerHTML = html;
+    })
+    .catch(function(){ showError('hook', 'Erro de conexão'); });
+}
+
+// ── Gerar hashtags ────────────────────────────────────────────────
+function generateHashtags() {
+  var niche = document.getElementById('ht-niche').value.trim();
+  var type  = document.getElementById('ht-type').value;
+  var cap   = document.getElementById('ht-caption').value.trim();
+  if (!niche && !cap) { alert('Informe o nicho ou cole uma legenda.'); return; }
+  showLoading('hashtags');
+  fetch('/api/ai/hashtags', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap, niche: niche, type: type})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('hashtags', d.error); return; }
+
+      var groups = [
+        {key:'niche_tags',   label:'Nicho',     color:'#a78bfa'},
+        {key:'popular_tags', label:'Populares',  color:'#60a5fa'},
+        {key:'broad_tags',   label:'Amplas',     color:'#4ade80'},
+      ];
+      var html = '';
+      groups.forEach(function(g) {
+        var tags = d[g.key] || [];
+        if (!tags.length) return;
+        html += '<div style="margin-bottom:1rem;"><div style="color:' + g.color + '; font-size:0.78rem; font-weight:600; margin-bottom:0.4rem;">' + g.label + '</div><div>';
+        tags.forEach(function(t) {
+          html += '<span class="ai-tag" onclick="copyText(\'' + t + '\', this)">' + t + '</span>';
+        });
+        html += '</div></div>';
+      });
+      if (d.all_hashtags) {
+        html += '<div style="margin-top:0.8rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">'
+              + '<div style="color:#888; font-size:0.75rem; margin-bottom:0.4rem;">Todas as hashtags:</div>'
+              + '<div style="color:#ccc; font-size:0.8rem; word-break:break-all;">' + d.all_hashtags + '</div>'
+              + '<span class="copy-btn" onclick="copyText(\'' + (d.all_hashtags||'').replace(/'/g,"\\'") + '\', this)" style="margin-top:0.4rem; display:inline-block;">copiar todas</span></div>';
+      }
+      document.getElementById('hashtags-content').innerHTML = html;
+    })
+    .catch(function(){ showError('hashtags', 'Erro de conexão'); });
+}
+
+// ── Gerar CTA ─────────────────────────────────────────────────────
+function generateCTA() {
+  var goal = document.getElementById('cta-goal').value;
+  var cap  = document.getElementById('cta-caption').value.trim();
+  showLoading('cta');
+  fetch('/api/ai/cta', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({caption: cap, goal: goal})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('cta', d.error); return; }
+
+      var html = '';
+      if (d.best_cta) {
+        html += '<div style="background:#1a3a2a; border-radius:8px; padding:0.8rem; margin-bottom:1rem; border-left:3px solid #4ade80;">'
+              + '<div style="color:#4ade80; font-size:0.78rem; margin-bottom:0.3rem;">⭐ Melhor CTA para este objetivo</div>'
+              + '<div style="color:#fff; font-size:0.95rem; font-weight:600;">' + d.best_cta + '</div>'
+              + '<span class="copy-btn" onclick="copyText(\'' + (d.best_cta||'').replace(/'/g,"\\'") + '\', this)">copiar</span></div>';
+      }
+      if (d.ctas && d.ctas.length) {
+        html += '<div style="color:#888; font-size:0.78rem; margin-bottom:0.4rem;">Outras opções</div>';
+        d.ctas.forEach(function(c) {
+          html += '<div class="cta-item2"><div class="cta-text2">' + c + '</div>'
+                + '<span class="copy-btn" onclick="copyText(\'' + c.replace(/'/g,"\\'") + '\', this)">copiar</span></div>';
+        });
+      }
+      if (d.reasoning) {
+        html += '<p style="color:#555; font-size:0.75rem; margin-top:0.8rem;">' + d.reasoning + '</p>';
+      }
+      document.getElementById('cta-content').innerHTML = html;
+    })
+    .catch(function(){ showError('cta', 'Erro de conexão'); });
+}
+
+// ── Prever performance ────────────────────────────────────────────
+function predictPerformance() {
+  showLoading('predict');
+  var body = {
+    type: document.getElementById('pred-type').value,
+    hour: parseInt(document.getElementById('pred-hour').value),
+    has_caption: document.getElementById('pred-caption').value === 'true',
+    has_hashtags: document.getElementById('pred-hashtags').value === 'true',
+  };
+  fetch('/api/ai/predict', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('predict', d.error); return; }
+
+      var conf = d.confidence || 5;
+      var confColor = conf >= 8 ? '#4ade80' : conf >= 5 ? '#fbbf24' : '#f87171';
+
+      var metrics = [
+        {label:'Alcance esperado', val: d.expected_reach || 0, icon:'📡'},
+        {label:'Curtidas esperadas', val: d.expected_likes || 0, icon:'❤️'},
+        {label:'Comentários', val: d.expected_comments || 0, icon:'💬'},
+        {label:'Salvamentos', val: d.expected_saves || 0, icon:'💾'},
+      ];
+      var html = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:0.8rem; margin-bottom:1rem;">';
+      metrics.forEach(function(m) {
+        html += '<div style="background:#0f0f1a; border-radius:8px; padding:0.8rem; text-align:center;">'
+              + '<div style="font-size:1.4rem; font-weight:700; color:#fff;">' + m.icon + ' ' + m.val + '</div>'
+              + '<div style="font-size:0.7rem; color:#888; margin-top:0.2rem;">' + m.label + '</div></div>';
+      });
+      html += '</div>';
+
+      if (d.score_prediction) {
+        var sc = d.score_prediction;
+        html += '<div style="margin-bottom:1rem; padding:0.8rem; background:#0f0f1a; border-radius:8px;">'
+              + '<div style="color:#888; font-size:0.75rem;">Score de engajamento previsto</div>'
+              + '<div style="font-size:1.6rem; font-weight:700; color:' + scoreColor(sc) + ';">' + sc + '</div></div>';
+      }
+
+      html += '<div style="color:' + confColor + '; font-size:0.82rem; margin-bottom:0.8rem;">Confiança da previsão: ' + conf + '/10</div>';
+
+      if (d.tips && d.tips.length) {
+        html += '<div style="color:#888; font-size:0.78rem; margin-bottom:0.4rem;">💡 Dicas para melhorar</div>';
+        d.tips.forEach(function(t) {
+          html += '<div style="font-size:0.83rem; color:#ccc; margin-bottom:0.3rem; padding-left:0.8rem;">• ' + t + '</div>';
+        });
+      }
+      document.getElementById('predict-content').innerHTML = html;
+    })
+    .catch(function(){ showError('predict', 'Erro de conexão'); });
+}
+</script>
+{% endblock %}

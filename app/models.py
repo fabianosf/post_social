@@ -236,6 +236,20 @@ class CaptionTemplate(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class AIInsight(db.Model):
+    """Cache de resultados de IA — evita re-chamar a API para mesmos dados."""
+    __tablename__ = "ai_insights"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey("post_queue.id"), nullable=True)
+    insight_type = db.Column(db.String(50), nullable=False)  # account_insights, virality, caption, etc.
+    content = db.Column(db.Text, nullable=False)             # JSON
+    tokens_used = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+
 class WhiteLabelConfig(db.Model):
     __tablename__ = "whitelabel_config"
 

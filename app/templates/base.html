@@ -154,6 +154,7 @@
             <a href="{{ url_for('dashboard.stats_page') }}">Stats</a>
             <a href="{{ url_for('analytics.index') }}">Analytics</a>
             <a href="{{ url_for('recommendations.index') }}">Recomendações</a>
+            <a href="{{ url_for('ai.index') }}" style="color:#a78bfa;">🤖 IA</a>
             {% if current_user.is_admin %}
                 <a href="{{ url_for('admin.index') }}">Admin</a>
             {% endif %}
