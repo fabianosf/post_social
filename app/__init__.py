@@ -68,6 +68,7 @@ def create_app():
     from .routes_analytics import analytics_bp
     from .routes_recommendations import recommendations_bp
     from .routes_ai import ai_bp
+    from .routes_automations import automations_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -78,6 +79,7 @@ def create_app():
     app.register_blueprint(analytics_bp)
     app.register_blueprint(recommendations_bp)
     app.register_blueprint(ai_bp)
+    app.register_blueprint(automations_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:

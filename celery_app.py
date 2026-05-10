@@ -21,6 +21,7 @@ celery = Celery(
         "tasks.analytics_tasks",
         "tasks.recommendations_tasks",
         "tasks.ai_tasks",
+        "tasks.automation_tasks",
     ],
 )
 
@@ -87,6 +88,11 @@ celery.conf.update(
         "weekly-ai-insights": {
             "task": "tasks.ai_tasks.generate_weekly_ai_insights",
             "schedule": 604800.0,      # Uma vez por semana
+            "options": {"queue": "postay.maintenance"},
+        },
+        "daily-automation-check": {
+            "task": "tasks.automation_tasks.run_daily_automation_check",
+            "schedule": 86400.0,       # Uma vez por dia (9h BRT via TZ do worker)
             "options": {"queue": "postay.maintenance"},
         },
     },

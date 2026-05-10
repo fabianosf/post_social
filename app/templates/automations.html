@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Automações{% endblock %}
+{% block content %}
+<style>
+  .alert-card { display:flex; gap:0.8rem; align-items:flex-start; padding:0.9rem 1rem;
+                border-radius:10px; margin-bottom:0.6rem; }
+  .alert-error   { background:#3a1a1a; border-left:4px solid #f87171; }
+  .alert-warning { background:#3a3a1a; border-left:4px solid #fbbf24; }
+  .alert-success { background:#1a3a2a; border-left:4px solid #4ade80; }
+  .alert-info    { background:#1a2a3a; border-left:4px solid #60a5fa; }
+  .alert-icon { font-size:1.3rem; flex-shrink:0; padding-top:0.1rem; }
+  .alert-body { flex:1; }
+  .alert-title { font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:0.2rem; }
+  .alert-msg   { font-size:0.8rem; color:#aaa; line-height:1.4; }
+  .alert-actions { display:flex; gap:0.5rem; margin-top:0.5rem; align-items:center; flex-wrap:wrap; }
+
+  .goal-card { background:#0f0f1a; border-radius:10px; padding:1rem 1.2rem; margin-bottom:0.6rem; }
+  .goal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.3rem; }
+  .goal-label { font-size:0.88rem; font-weight:600; color:#fff; }
+  .goal-pct { font-size:1rem; font-weight:700; }
+  .progress-bar { height:8px; background:#1a1a2e; border-radius:4px; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:4px; transition:width 0.6s; }
+  .goal-meta { font-size:0.72rem; color:#888; margin-top:0.4rem; display:flex; gap:1rem; flex-wrap:wrap; }
+
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:0.4rem; }
+  .cal-day { background:#0f0f1a; border-radius:8px; padding:0.6rem 0.4rem; text-align:center; border:1px solid #1a1a2e; }
+  .cal-day.optimal { background:#7c5cff22; border-color:#7c5cff55; }
+  .cal-day-name { font-size:0.6rem; color:#666; margin-bottom:0.2rem; }
+  .cal-date { font-size:0.7rem; color:#888; }
+  .cal-time { font-size:0.85rem; font-weight:700; color:#7c5cff; margin-top:0.3rem; }
+  .cal-optimal .cal-time { color:#4ade80; }
+  .cal-badge { font-size:0.55rem; padding:0.1rem 0.4rem; border-radius:10px;
+               margin-top:0.3rem; display:inline-block; }
+  .badge-alta   { background:#1a3a2a; color:#4ade80; }
+  .badge-normal { background:#1a1a2e; color:#888; }
+
+  .sug-card { background:#0f0f1a; border-radius:10px; padding:1rem 1.2rem; }
+  .sug-type { display:inline-block; padding:0.2rem 0.7rem; border-radius:20px;
+              background:#7c5cff22; color:#7c5cff; font-size:0.78rem; font-weight:600; margin-bottom:0.5rem; }
+  .idea-item { font-size:0.82rem; color:#ccc; padding:0.4rem 0; border-bottom:1px solid #1a1a2e; }
+  .idea-item:last-child { border-bottom:none; }
+
+  .freq-ring { width:70px; height:70px; border-radius:50%; border:3px solid #7c5cff;
+               display:flex; align-items:center; justify-content:center; flex-direction:column;
+               flex-shrink:0; }
+  .freq-val { font-size:1rem; font-weight:700; color:#7c5cff; line-height:1; }
+  .freq-unit { font-size:0.55rem; color:#888; }
+
+  .add-goal-form { background:#0f0f1a; border-radius:10px; padding:1rem 1.2rem;
+                   border:1px dashed #2a2a4a; margin-top:0.8rem; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; }
+  @media(max-width:600px){ .row2{grid-template-columns:1fr;} .cal-grid{grid-template-columns:repeat(4,1fr);} }
+
+  .empty-state { color:#555; font-size:0.85rem; font-style:italic; padding:1rem 0; text-align:center; }
+  .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; flex-wrap:wrap; gap:0.4rem; }
+  .section-header h2 { margin:0; font-size:1rem; color:#fff; }
+</style>
+
+<!-- Page header -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="color:#fff; font-size:1.2rem; margin:0;">⚡ Automações Inteligentes</h1>
+    <p style="color:#888; font-size:0.82rem; margin:0.2rem 0 0;">
+      Baseado em {{ posts_count }} posts publicados nos últimos 30 dias.
+      {% if alert_count > 0 %}
+        <span style="color:#fbbf24; font-weight:600;">{{ alert_count }} alerta(s) pendente(s).</span>
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:0.5rem;">
+    <a href="{{ url_for('analytics.index') }}" class="btn btn-outline btn-sm">Analytics</a>
+    <a href="{{ url_for('ai.index') }}" class="btn btn-outline btn-sm">🤖 IA</a>
+  </div>
+</div>
+
+<!-- ── Alertas ─────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="section-header">
+    <h2>🔔 Alertas Automáticos</h2>
+    {% if alerts %}
+    <button class="btn btn-outline btn-sm" onclick="dismissAll()">Dispensar todos</button>
+    {% endif %}
+  </div>
+
+  {% if alerts %}
+    {% set severity_icons = {'error': '🔴', 'warning': '🟡', 'success': '🟢', 'info': '🔵'} %}
+    {% for alert in alerts %}
+    <div class="alert-card alert-{{ alert.severity }}" id="alert-{{ alert.id }}">
+      <div class="alert-icon">{{ severity_icons.get(alert.severity, '💡') }}</div>
+      <div class="alert-body">
+        <div class="alert-title">{{ alert.title }}</div>
+        <div class="alert-msg">{{ alert.message }}</div>
+        <div class="alert-actions">
+          {% if alert.action and alert.action_url %}
+          <a href="{{ alert.action_url }}" class="btn btn-sm btn-outline" style="font-size:0.75rem; padding:0.3rem 0.7rem;">
+            {{ alert.action }} →
+          </a>
+          {% endif %}
+          <button class="btn-outline btn-sm" style="padding:0.2rem 0.6rem; border-radius:6px; font-size:0.72rem;
+                  background:transparent; border:1px solid #3a3a5a; color:#888; cursor:pointer;"
+                  onclick="dismissAlert({{ alert.id }})">Dispensar</button>
+          <span style="font-size:0.65rem; color:#444;">{{ alert.created_at | tobrt }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">✅ Nenhum alerta pendente. Sua conta está em boa forma!</div>
+  {% endif %}
+</div>
+
+<!-- ── Metas de crescimento ───────────────────────────────────────── -->
+<div class="card">
+  <div class="section-header">
+    <h2>🎯 Metas de Crescimento</h2>
+    <button class="btn btn-sm btn-outline" onclick="toggleGoalForm()" id="btn-add-goal">+ Nova meta</button>
+  </div>
+
+  {% if goal_progress %}
+    {% for gp in goal_progress %}
+    {% set g = gp.goal %}
+    {% set pct = gp.progress_pct %}
+    {% set col = '#4ade80' if gp.is_achieved else ('#fbbf24' if gp.on_track else '#f87171') %}
+    <div class="goal-card">
+      <div class="goal-header">
+        <div class="goal-label">
+          {{ g.label }}
+          {% if gp.is_achieved %}
+            <span style="color:#4ade80; font-size:0.75rem; margin-left:0.4rem;">✅ Atingida!</span>
+          {% elif not gp.on_track %}
+            <span style="color:#f87171; font-size:0.75rem; margin-left:0.4rem;">⚠️ Em risco</span>
+          {% endif %}
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span class="goal-pct" style="color:{{ col }};">{{ pct }}%</span>
+          <button onclick="deleteGoal({{ g.id }})"
+                  style="background:transparent; border:none; color:#555; cursor:pointer; font-size:0.75rem; padding:0.2rem;">✕</button>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:{{ pct }}%; background:{{ col }};"></div>
+      </div>
+      <div class="goal-meta">
+        <span>Atual: <strong style="color:#ccc;">{{ gp.current_value | int }}</strong></span>
+        <span>Meta: <strong style="color:#ccc;">{{ g.target_value | int }}</strong></span>
+        <span>Tipo: {{ gp.type_label }}</span>
+        {% if gp.days_remaining is not none %}
+        <span>Prazo: <strong style="color:{{ '#f87171' if gp.days_remaining < 7 else '#ccc' }};">{{ gp.days_remaining }} dias</strong></span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="empty-state">Nenhuma meta definida. Crie uma meta para acompanhar seu progresso!</p>
+  {% endif %}
+
+  <!-- Formulário de nova meta -->
+  <div class="add-goal-form" id="goal-form" style="display:none;">
+    <h3 style="color:#ccc; font-size:0.9rem; margin-bottom:0.8rem;">Nova Meta</h3>
+    <div class="row2">
+      <div>
+        <label>Tipo de meta</label>
+        <select id="g-type">
+          {% for k, v in goal_type_labels.items() %}
+          <option value="{{ k }}">{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Valor alvo</label>
+        <input type="number" id="g-target" placeholder="ex: 10000" min="1">
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>Nome da meta (opcional)</label>
+        <input type="text" id="g-label" placeholder="ex: 10k de alcance em março">
+      </div>
+      <div>
+        <label>Prazo (opcional)</label>
+        <input type="date" id="g-deadline">
+      </div>
+    </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+      <button class="btn btn-sm" onclick="createGoal()">Criar meta</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleGoalForm()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Layout 2 colunas: Calendário + Sugestões ───────────────── -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:0;">
+
+  <!-- Calendário automático -->
+  <div class="card" style="margin-bottom:0;">
+    <div class="section-header">
+      <h2>📅 Calendário Sugerido — Próximos 7 dias</h2>
+    </div>
+    <div class="cal-grid">
+      {% for day in calendar %}
+      <div class="cal-day {% if day.is_optimal %}optimal{% endif %}">
+        <div class="cal-day-name">{{ day.day_name[:3] }}</div>
+        <div class="cal-date">{{ day.date[8:] }}/{{ day.date[5:7] }}</div>
+        <div class="cal-time">{{ day.time_str }}</div>
+        <div class="cal-badge {% if day.priority == 'alta' %}badge-alta{% else %}badge-normal{% endif %}">
+          {{ day.priority }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="color:#555; font-size:0.72rem; margin-top:0.8rem;">
+      Verde = dia com melhor histórico de engajamento. Horários baseados nos seus dados reais.
+    </p>
+  </div>
+
+  <!-- Sugestões -->
+  <div style="display:flex; flex-direction:column; gap:1rem;">
+
+    <!-- Frequência recomendada -->
+    <div class="card" style="margin-bottom:0;">
+      <h2 style="margin-bottom:0.8rem; font-size:1rem;">📊 Frequência Recomendada</h2>
+      <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+        <div class="freq-ring">
+          <span class="freq-val">{{ freq.recommended_freq }}</span>
+          <span class="freq-unit">posts/sem</span>
+        </div>
+        <div style="flex:1; min-width:120px;">
+          <div style="font-size:0.82rem; color:#ccc; line-height:1.5;">{{ freq.rationale }}</div>
+          <div style="font-size:0.72rem; color:#888; margin-top:0.4rem;">
+            Atual: <strong>{{ freq.current_freq }}x/semana</strong> —
+            Nível: <strong style="color:#7c5cff;">{{ freq.level }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Próximo conteúdo sugerido -->
+    <div class="card" style="margin-bottom:0; flex:1;">
+      <h2 style="margin-bottom:0.8rem; font-size:1rem;">🎬 Próximo Post Sugerido</h2>
+      <div class="sug-card" style="background:transparent; padding:0;">
+        <span class="sug-type">{{ content.type_label }}</span>
+        <div style="font-size:0.82rem; color:#aaa; margin-bottom:0.8rem; line-height:1.5;">{{ content.rationale }}</div>
+        {% for idea in content.content_ideas %}
+        <div class="idea-item">💡 {{ idea }}</div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Dispensar alerta ──────────────────────────────────────────────
+function dismissAlert(id) {
+  fetch('/api/automations/alerts/' + id + '/dismiss', {method:'POST'})
+    .then(function(){ document.getElementById('alert-' + id).style.display = 'none'; });
+}
+
+function dismissAll() {
+  document.querySelectorAll('[id^="alert-"]').forEach(function(el) {
+    var id = el.id.replace('alert-', '');
+    fetch('/api/automations/alerts/' + id + '/dismiss', {method:'POST'});
+    el.style.display = 'none';
+  });
+}
+
+// ── Metas ─────────────────────────────────────────────────────────
+function toggleGoalForm() {
+  var f = document.getElementById('goal-form');
+  var b = document.getElementById('btn-add-goal');
+  var open = f.style.display !== 'none';
+  f.style.display = open ? 'none' : 'block';
+  b.textContent = open ? '+ Nova meta' : '✕ Fechar';
+}
+
+function createGoal() {
+  var type   = document.getElementById('g-type').value;
+  var target = parseFloat(document.getElementById('g-target').value);
+  var label  = document.getElementById('g-label').value.trim();
+  var dl     = document.getElementById('g-deadline').value;
+
+  if (!target || target <= 0) { alert('Informe um valor alvo válido.'); return; }
+
+  fetch('/api/automations/goals', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({goal_type: type, target_value: target, label: label, deadline: dl || null})
+  }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.ok) { location.reload(); }
+      else { alert(d.error || 'Erro ao criar meta.'); }
+    });
+}
+
+function deleteGoal(id) {
+  if (!confirm('Remover esta meta?')) return;
+  fetch('/api/automations/goals/' + id, {method:'DELETE'})
+    .then(function(){ location.reload(); });
+}
+</script>
+{% endblock %}

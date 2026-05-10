@@ -250,6 +250,39 @@ class AIInsight(db.Model):
     expires_at = db.Column(db.DateTime, nullable=True)
 
 
+class AutomationAlert(db.Model):
+    """Alertas gerados automaticamente pela task diária ou por triggers."""
+    __tablename__ = "automation_alerts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    alert_type = db.Column(db.String(50), nullable=False)    # engagement_drop, frequency_low, viral_detected…
+    severity = db.Column(db.String(10), default="info")      # error | warning | success | info
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    action = db.Column(db.String(100))                       # label do botão de ação (opcional)
+    action_url = db.Column(db.String(500))                   # URL da ação (opcional)
+    is_dismissed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+
+class GrowthGoal(db.Model):
+    """Metas de crescimento definidas pelo cliente."""
+    __tablename__ = "growth_goals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    goal_type = db.Column(db.String(30), nullable=False)     # reach | likes | posts_week | score
+    label = db.Column(db.String(100))                        # nome amigável definido pelo usuário
+    target_value = db.Column(db.Float, nullable=False)
+    period = db.Column(db.String(20), default="monthly")    # weekly | monthly
+    deadline = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    achieved_at = db.Column(db.DateTime, nullable=True)
+
+
 class WhiteLabelConfig(db.Model):
     __tablename__ = "whitelabel_config"
 

@@ -155,6 +155,7 @@
             <a href="{{ url_for('analytics.index') }}">Analytics</a>
             <a href="{{ url_for('recommendations.index') }}">Recomendações</a>
             <a href="{{ url_for('ai.index') }}" style="color:#a78bfa;">🤖 IA</a>
+            <a href="{{ url_for('automations.index') }}" style="color:#fbbf24;">⚡ Automações</a>
             {% if current_user.is_admin %}
                 <a href="{{ url_for('admin.index') }}">Admin</a>
             {% endif %}
