@@ -38,8 +38,8 @@ export default function LandingPage() {
         <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <span className="text-xl font-bold text-primary">Postay</span>
           <div className="flex items-center gap-3">
-            <Link href="/login"><Button variant="ghost" size="sm">Entrar</Button></Link>
-            <Link href="/cadastro"><Button size="sm">Começar grátis</Button></Link>
+            <a href="/login"><Button variant="ghost" size="sm">Entrar</Button></a>
+            <a href="/cadastro"><Button size="sm">Começar grátis</Button></a>
           </div>
         </nav>
       </header>
@@ -59,11 +59,11 @@ export default function LandingPage() {
           Agende posts, gere legendas com IA, analise crescimento e automatize sua presença digital no Instagram, Facebook e TikTok.
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <Link href="/cadastro">
+          <a href="/cadastro">
             <Button size="lg" className="gap-2">
               Começar grátis — 3 dias Pro <ArrowRight size={16} />
             </Button>
-          </Link>
+          </a>
           <Link href="#planos">
             <Button size="lg" variant="outline">Ver planos</Button>
           </Link>
@@ -114,11 +114,11 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/cadastro" className="mt-8 block">
+              <a href="/cadastro" className="mt-8 block">
                 <Button className="w-full" variant={plan.highlight ? "default" : "outline"}>
                   {plan.cta}
                 </Button>
-              </Link>
+              </a>
             </div>
           ))}
         </div>
@@ -129,16 +129,16 @@ export default function LandingPage() {
         <div className="rounded-2xl border border-primary/20 bg-primary/5 px-8 py-16">
           <h2 className="text-3xl font-bold">Pronto para crescer no automático?</h2>
           <p className="mt-4 text-muted-foreground">Comece grátis hoje. Sem cartão de crédito.</p>
-          <Link href="/cadastro" className="mt-8 inline-block">
+          <a href="/cadastro" className="mt-8 inline-block">
             <Button size="lg" className="gap-2">Criar conta grátis <ArrowRight size={16} /></Button>
-          </Link>
+          </a>
         </div>
       </section>
 
       <footer className="border-t border-border py-8 text-center text-sm text-muted-foreground">
         © 2026 Postay ·
-        <Link href="/termos" className="ml-2 hover:text-foreground">Termos</Link> ·
-        <Link href="/privacidade" className="ml-2 hover:text-foreground">Privacidade</Link>
+        <a href="/termos" className="ml-2 hover:text-foreground">Termos</a> ·
+        <a href="/privacidade" className="ml-2 hover:text-foreground">Privacidade</a>
       </footer>
     </main>
   );

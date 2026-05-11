@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp } from "lucide-react";
-import Link from "next/link";
 import type { GrowthSummary } from "@/types/dashboard";
 
 const scoreColor = (s: number) =>
@@ -36,9 +35,9 @@ export function GrowthPulse({ data }: { data: GrowthSummary }) {
         </div>
       )}
 
-      <Link href="/crescimento" className="ml-auto text-xs text-primary hover:underline">
+      <a href="/growth" className="ml-auto text-xs text-primary hover:underline">
         Ver crescimento →
-      </Link>
+      </a>
     </Card>
   );
 }

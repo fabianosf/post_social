@@ -14,6 +14,7 @@ from . import dashboard_bp
 
 
 @dashboard_bp.route("/dashboard")
+@dashboard_bp.route("/painel")
 @login_required
 def index():
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()

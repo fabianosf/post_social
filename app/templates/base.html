@@ -167,6 +167,7 @@
             {% if current_user.is_admin %}
                 <a href="{{ url_for('admin.index') }}">Admin</a>
             {% endif %}
+            <a href="/settings/ai" style="color:#94a3b8;" title="Configurações de IA">⚙️ Config IA</a>
             <span class="user-info">{{ current_user.name }}</span>
             {% if current_user.plan == 'free' %}
             <a href="{{ url_for('payment.index') }}" style="color:#fbbf24; font-weight:600; font-size:0.8rem;">Upgrade Pro</a>

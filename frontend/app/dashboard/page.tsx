@@ -19,7 +19,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <a
-            href="/upload"
+            href="/painel"
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             + Novo post

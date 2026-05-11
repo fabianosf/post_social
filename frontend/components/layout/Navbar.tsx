@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BarChart2, Zap, Brain, TrendingUp, Settings } from "lucide-react";
+import { BarChart2, Zap, Brain, TrendingUp, KeyRound } from "lucide-react";
 
 const linkClass = (path: string, href: string) =>
   cn(
@@ -55,14 +55,15 @@ export function Navbar() {
               Automações
             </a>
           </li>
+          <li>
+            <Link href="/settings/ai" className={linkClass(path, "/settings/ai")}>
+              <KeyRound size={15} />
+              Config IA
+            </Link>
+          </li>
         </ul>
 
         <div className="flex items-center gap-2">
-          <Link href="/settings/ai">
-            <Button variant="ghost" size="icon" className="text-muted-foreground" title="Configurações IA">
-              <Settings size={18} />
-            </Button>
-          </Link>
           <a href="/logout">
             <Button variant="outline" size="sm">Sair</Button>
           </a>
