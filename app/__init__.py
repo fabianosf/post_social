@@ -128,6 +128,7 @@ def create_app():
     from .routes_automations import automations_bp
     from .routes_vision import vision_bp
     from .routes_growth import growth_bp
+    from .routes_ai_keys import ai_keys_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -141,6 +142,7 @@ def create_app():
     app.register_blueprint(automations_bp)
     app.register_blueprint(vision_bp)
     app.register_blueprint(growth_bp)
+    app.register_blueprint(ai_keys_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:
@@ -313,11 +315,14 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_account_id INTEGER REFERENCES instagram_accounts(id)",
         ]
 
+        # user_ai_keys: tabela criada pelo db.create_all() acima
+        # Apenas garantir o índice de busca
         # Indexes de performance (idempotentes — IF NOT EXISTS)
         _index_stmts = [
             "CREATE INDEX IF NOT EXISTS ix_post_queue_posted_at ON post_queue (client_id, posted_at DESC)",
             "CREATE INDEX IF NOT EXISTS ix_post_queue_client_created ON post_queue (client_id, created_at DESC)",
             "CREATE INDEX IF NOT EXISTS ix_ai_insights_client_type ON ai_insights (client_id, insight_type, expires_at)",
+            "CREATE INDEX IF NOT EXISTS ix_user_ai_keys_client ON user_ai_keys (client_id)",
         ]
 
         with db.engine.connect() as conn:

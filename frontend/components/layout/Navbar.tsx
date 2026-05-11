@@ -58,11 +58,11 @@ export function Navbar() {
         </ul>
 
         <div className="flex items-center gap-2">
-          <a href="/dashboard">
-            <Button variant="ghost" size="icon" className="text-muted-foreground">
+          <Link href="/settings/ai">
+            <Button variant="ghost" size="icon" className="text-muted-foreground" title="Configurações IA">
               <Settings size={18} />
             </Button>
-          </a>
+          </Link>
           <a href="/logout">
             <Button variant="outline" size="sm">Sair</Button>
           </a>

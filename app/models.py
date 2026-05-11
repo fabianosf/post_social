@@ -283,6 +283,21 @@ class GrowthGoal(db.Model):
     achieved_at = db.Column(db.DateTime, nullable=True)
 
 
+class UserAIKey(db.Model):
+    """API keys de IA por usuário — armazenadas criptografadas com Fernet."""
+    __tablename__ = "user_ai_keys"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    client_id  = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    provider   = db.Column(db.String(50), nullable=False)
+    enc_key    = db.Column(db.Text, nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (db.UniqueConstraint("client_id", "provider", name="uq_user_ai_provider"),)
+
+
 class WhiteLabelConfig(db.Model):
     __tablename__ = "whitelabel_config"
 
