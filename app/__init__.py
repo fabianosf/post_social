@@ -89,6 +89,15 @@ def create_app():
     def load_user(user_id):
         return db.session.get(Client, int(user_id))
 
+    # ── CORS (Next.js dev em localhost:3000) ──────────────────────
+    try:
+        from flask_cors import CORS
+        _nextjs_origin = os.environ.get("NEXTJS_ORIGIN", "http://localhost:3000")
+        CORS(app, origins=[_nextjs_origin], supports_credentials=True,
+             allow_headers=["Content-Type", "X-CSRFToken"])
+    except ImportError:
+        pass
+
     # ── CSRF protection ───────────────────────────────────────────
     try:
         from flask_wtf.csrf import CSRFProtect
