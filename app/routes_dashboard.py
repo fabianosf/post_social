@@ -1209,6 +1209,31 @@ def update_watermark():
 
 # ── API ──────────────────────────────────────────
 
+@dashboard_bp.route("/api/dashboard/stats")
+@login_required
+def api_dashboard_stats():
+    from sqlalchemy import func as _f
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    rows = (db.session.query(PostQueue.status, _f.count().label("n"))
+            .filter(PostQueue.client_id == current_user.id)
+            .group_by(PostQueue.status).all())
+    sc = {r.status: r.n for r in rows}
+    scheduled = (PostQueue.query
+                 .filter(PostQueue.client_id == current_user.id,
+                         PostQueue.status == "pending",
+                         PostQueue.scheduled_at.isnot(None),
+                         PostQueue.scheduled_at > now_utc)
+                 .count())
+    return jsonify({
+        "total":      sum(sc.values()),
+        "posted":     sc.get("posted", 0),
+        "queued":     sc.get("pending", 0) - scheduled,
+        "scheduled":  scheduled,
+        "failed":     sc.get("failed", 0),
+        "processing": sc.get("processing", 0),
+    })
+
+
 @dashboard_bp.route("/api/status")
 @login_required
 def api_status():
