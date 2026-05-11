@@ -143,6 +143,9 @@ def create_app():
     app.register_blueprint(vision_bp)
     app.register_blueprint(growth_bp)
     app.register_blueprint(ai_keys_bp)
+    # Endpoints JSON não usam formulários HTML — isentos de CSRF
+    if "csrf" in app.extensions:
+        app.extensions["csrf"].exempt(ai_keys_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:
