@@ -9,7 +9,7 @@ const links = [
   { href: "/dashboard",   label: "Stats",         icon: BarChart2 },
   { href: "/analytics",   label: "Analytics",     icon: TrendingUp },
   { href: "/ai",          label: "IA",            icon: Brain },
-  { href: "/crescimento", label: "Crescimento",   icon: TrendingUp },
+  { href: "/growth",      label: "Crescimento",   icon: TrendingUp },
   { href: "/automacoes",  label: "Automações",    icon: Zap },
 ];
 

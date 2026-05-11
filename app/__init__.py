@@ -56,10 +56,20 @@ def create_app():
     app = Flask(__name__)
     _configure_logging(app)
 
+    # ProxyFix: confia em 1 nível de proxy (nginx)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     secret_key = os.environ.get("SECRET_KEY", "")
     if not secret_key or secret_key == "troque-por-uma-chave-segura":
         secret_key = secrets.token_hex(32)
     app.config["SECRET_KEY"] = secret_key
+    # Cookies seguros em produção (HTTPS obrigatório)
+    _is_prod = bool(os.environ.get("DATABASE_URL", ""))  # prod tem postgres
+    app.config["SESSION_COOKIE_SECURE"]   = _is_prod
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["REMEMBER_COOKIE_SECURE"]  = _is_prod
     _database_url = os.environ.get("DATABASE_URL", "")
     if _database_url:
         # Heroku-style postgres:// → postgresql://
