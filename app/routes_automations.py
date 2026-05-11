@@ -61,6 +61,7 @@ def _persist_alerts(alerts: list[dict]):
 
 # ── Página principal ──────────────────────────────────────────────
 
+@automations_bp.route("/automacoes")
 @automations_bp.route("/automations")
 @login_required
 def index():

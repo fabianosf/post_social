@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarChart2, Zap, Brain, TrendingUp, Settings } from "lucide-react";
 
-const links = [
-  { href: "/dashboard",   label: "Stats",         icon: BarChart2 },
-  { href: "/analytics",   label: "Analytics",     icon: TrendingUp },
-  { href: "/ai",          label: "IA",            icon: Brain },
-  { href: "/growth",      label: "Crescimento",   icon: TrendingUp },
-  { href: "/automacoes",  label: "Automações",    icon: Zap },
-];
+const linkClass = (path: string, href: string) =>
+  cn(
+    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+    path === href || path.startsWith(href + "/")
+      ? "bg-primary/10 text-primary font-medium"
+      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+  );
 
 export function Navbar() {
   const path = usePathname();
@@ -23,33 +23,49 @@ export function Navbar() {
         </Link>
 
         <ul className="hidden md:flex items-center gap-1">
-          {links.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-                  path.startsWith(href)
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                )}
-              >
-                <Icon size={15} />
-                {label}
-              </Link>
-            </li>
-          ))}
+          {/* /dashboard é rota Next.js — usa Link */}
+          <li>
+            <Link href="/dashboard" className={linkClass(path, "/dashboard")}>
+              <BarChart2 size={15} />
+              Stats
+            </Link>
+          </li>
+          {/* Rotas Flask — usa <a> para forçar navegação completa */}
+          <li>
+            <a href="/analytics" className={linkClass(path, "/analytics")}>
+              <TrendingUp size={15} />
+              Analytics
+            </a>
+          </li>
+          <li>
+            <a href="/ai" className={linkClass(path, "/ai")}>
+              <Brain size={15} />
+              IA
+            </a>
+          </li>
+          <li>
+            <a href="/growth" className={linkClass(path, "/growth")}>
+              <TrendingUp size={15} />
+              Crescimento
+            </a>
+          </li>
+          <li>
+            <a href="/automacoes" className={linkClass(path, "/automacoes")}>
+              <Zap size={15} />
+              Automações
+            </a>
+          </li>
         </ul>
 
         <div className="flex items-center gap-2">
-          <Link href="/configuracoes">
+          <a href="/dashboard">
             <Button variant="ghost" size="icon" className="text-muted-foreground">
               <Settings size={18} />
             </Button>
-          </Link>
-          <Link href="/logout">
+          </a>
+          <a href="/logout">
             <Button variant="outline" size="sm">Sair</Button>
-          </Link>
+          </a>
         </div>
       </nav>
     </header>
