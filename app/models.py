@@ -291,9 +291,10 @@ class UserAIKey(db.Model):
     client_id  = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
     provider   = db.Column(db.String(50), nullable=False)
     enc_key    = db.Column(db.Text, nullable=False)
-    is_active  = db.Column(db.Boolean, default=True)
-    is_default = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    is_active         = db.Column(db.Boolean, default=True)
+    is_default        = db.Column(db.Boolean, default=False)
+    last_validated_at = db.Column(db.DateTime, nullable=True)
+    created_at        = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (db.UniqueConstraint("client_id", "provider", name="uq_user_ai_provider"),)
 

@@ -66,12 +66,13 @@ def list_keys():
         row = saved.get(prov)
         masked = _mask(_decrypt(row.enc_key)) if row else None
         result.append({
-            "provider":    prov,
-            "label":       label,
-            "has_key":     row is not None,
-            "masked_key":  masked,
-            "is_active":   row.is_active if row else False,
-            "is_default":  row.is_default if row else False,
+            "provider":          prov,
+            "label":             label,
+            "has_key":           row is not None,
+            "masked_key":        masked,
+            "is_active":         row.is_active if row else False,
+            "is_default":        row.is_default if row else False,
+            "last_validated_at": row.last_validated_at.isoformat() if row and row.last_validated_at else None,
         })
     return jsonify(result)
 
@@ -168,9 +169,13 @@ def test_key(provider):
     headers = headers_fn(api_key)
 
     try:
+        from datetime import datetime, timezone
         resp = _req.get(url, headers=headers, timeout=10)
         if resp.status_code < 400:
-            return jsonify({"ok": True, "message": "Conexão bem-sucedida ✓"})
+            row.last_validated_at = datetime.now(timezone.utc)
+            db.session.commit()
+            return jsonify({"ok": True, "message": "Conexão bem-sucedida ✓",
+                            "last_validated_at": row.last_validated_at.isoformat()})
         return jsonify({"ok": False, "error": f"HTTP {resp.status_code}: {resp.text[:120]}"}), 400
     except _req.exceptions.Timeout:
         return jsonify({"ok": False, "error": "Timeout — verifique sua conexão"}), 408

@@ -278,6 +278,7 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN insights_updated_at TIMESTAMP",
             # clients — conta padrão
             "ALTER TABLE clients ADD COLUMN default_account_id INTEGER REFERENCES instagram_accounts(id)",
+            "ALTER TABLE user_ai_keys ADD COLUMN last_validated_at TIMESTAMP",
         ]
 
         # PostgreSQL: usa IF NOT EXISTS (suportado desde PG 9.6)
@@ -316,6 +317,7 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_reach INTEGER DEFAULT 0",
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS insights_updated_at TIMESTAMP",
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_account_id INTEGER REFERENCES instagram_accounts(id)",
+            "ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_validated_at TIMESTAMP",
         ]
 
         # user_ai_keys: tabela criada pelo db.create_all() acima
