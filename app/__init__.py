@@ -2,9 +2,11 @@
 PostSocial - Aplicação Flask
 """
 
+import logging
+import logging.handlers
 import os
 import secrets
-from flask import Flask, request as flask_request
+from flask import Flask, jsonify, render_template, request as flask_request
 from flask_login import LoginManager
 from dotenv import load_dotenv
 
@@ -15,8 +17,44 @@ load_dotenv()
 login_manager = LoginManager()
 
 
+def _configure_logging(app: Flask) -> None:
+    """Configura logging estruturado com rotação de arquivo."""
+    log_level = logging.DEBUG if app.debug else logging.INFO
+    fmt = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    # Console handler (sempre)
+    ch = logging.StreamHandler()
+    ch.setLevel(log_level)
+    ch.setFormatter(fmt)
+
+    # File handler com rotação (só se o diretório existir)
+    log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    fh = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, "postay.log"),
+        maxBytes=5 * 1024 * 1024,  # 5 MB
+        backupCount=3,
+        encoding="utf-8",
+    )
+    fh.setLevel(logging.WARNING)
+    fh.setFormatter(fmt)
+
+    root = logging.getLogger()
+    if not root.handlers:
+        root.setLevel(log_level)
+        root.addHandler(ch)
+        root.addHandler(fh)
+
+    # Silencia loggers muito verbosos
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+
 def create_app():
     app = Flask(__name__)
+    _configure_logging(app)
 
     secret_key = os.environ.get("SECRET_KEY", "")
     if not secret_key or secret_key == "troque-por-uma-chave-segura":
@@ -69,6 +107,8 @@ def create_app():
     from .routes_recommendations import recommendations_bp
     from .routes_ai import ai_bp
     from .routes_automations import automations_bp
+    from .routes_vision import vision_bp
+    from .routes_growth import growth_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -80,6 +120,8 @@ def create_app():
     app.register_blueprint(recommendations_bp)
     app.register_blueprint(ai_bp)
     app.register_blueprint(automations_bp)
+    app.register_blueprint(vision_bp)
+    app.register_blueprint(growth_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:
@@ -109,6 +151,37 @@ def create_app():
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=__import__("datetime").timezone.utc)
         return dt.astimezone(_BRT).strftime(fmt)
+
+    # ── Error handlers ────────────────────────────────────────────
+    _HTML_404 = (
+        '<html><head><meta charset="UTF-8"><title>404 — Postay</title>'
+        '<style>body{background:#0f0f0f;color:#e0e0e0;font-family:sans-serif;'
+        'display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}'
+        'h1{font-size:4rem;color:#7c5cff;margin:0;}a{color:#7c5cff;}</style></head>'
+        '<body><div style="text-align:center"><h1>404</h1>'
+        '<p>Página não encontrada.</p><a href="/">← Voltar ao início</a></div></body></html>'
+    )
+    _HTML_500 = (
+        '<html><head><meta charset="UTF-8"><title>Erro — Postay</title>'
+        '<style>body{background:#0f0f0f;color:#e0e0e0;font-family:sans-serif;'
+        'display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}'
+        'h1{font-size:4rem;color:#f87171;margin:0;}a{color:#7c5cff;}</style></head>'
+        '<body><div style="text-align:center"><h1>500</h1>'
+        '<p>Erro interno. Nossa equipe foi notificada.</p><a href="/">← Voltar ao início</a></div></body></html>'
+    )
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if flask_request.path.startswith("/api/"):
+            return jsonify({"error": "Not found"}), 404
+        return _HTML_404, 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        logging.getLogger(__name__).error("500 em %s: %s", flask_request.path, e)
+        if flask_request.path.startswith("/api/"):
+            return jsonify({"error": "Erro interno"}), 500
+        return _HTML_500, 500
 
     # ── Security headers ───────────────────────────────────────────
     @app.after_request
@@ -221,6 +294,13 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_account_id INTEGER REFERENCES instagram_accounts(id)",
         ]
 
+        # Indexes de performance (idempotentes — IF NOT EXISTS)
+        _index_stmts = [
+            "CREATE INDEX IF NOT EXISTS ix_post_queue_posted_at ON post_queue (client_id, posted_at DESC)",
+            "CREATE INDEX IF NOT EXISTS ix_post_queue_client_created ON post_queue (client_id, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS ix_ai_insights_client_type ON ai_insights (client_id, insight_type, expires_at)",
+        ]
+
         with db.engine.connect() as conn:
             if _is_sqlite:
                 conn.execute(text("PRAGMA journal_mode=WAL"))
@@ -233,8 +313,20 @@ def create_app():
                         conn.commit()
                     except Exception:
                         pass  # Coluna já existe
+                for stmt in _index_stmts:
+                    try:
+                        conn.execute(text(stmt))
+                        conn.commit()
+                    except Exception:
+                        pass
             else:
                 for stmt in pg_migrations:
+                    try:
+                        conn.execute(text(stmt))
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+                for stmt in _index_stmts:
                     try:
                         conn.execute(text(stmt))
                         conn.commit()

@@ -10,7 +10,7 @@ from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 
 from .models import db, PostQueue, AIInsight
-from . import ai_service
+from . import ai_service, vision_service
 
 ai_bp = Blueprint("ai", __name__)
 
@@ -65,6 +65,7 @@ def index():
         "ai_assistant.html",
         ai_available=ai_service.is_available(),
         ai_provider=ai_service._AI_PROVIDER,
+        vision_available=vision_service.is_vision_available(),
     )
 
 

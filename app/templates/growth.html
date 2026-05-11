@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block title %}Dashboard de Crescimento{% endblock %}
+{% block content %}
+<style>
+  .gr-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.8rem; margin-bottom:1.5rem; }
+  .gr-kpi { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:10px; padding:1rem; text-align:center; }
+  .gr-kpi .val { font-size:1.6rem; font-weight:700; color:#fff; }
+  .gr-kpi .lbl { font-size:0.72rem; color:#888; margin-top:0.2rem; }
+  .gr-kpi .delta { font-size:0.78rem; margin-top:0.2rem; }
+  .delta-up   { color:#4ade80; }
+  .delta-down { color:#f87171; }
+  .delta-flat { color:#888; }
+
+  .score-ring-lg { display:inline-flex; align-items:center; justify-content:center;
+                   width:90px; height:90px; border-radius:50%; font-size:1.8rem; font-weight:700;
+                   border:4px solid; flex-shrink:0; }
+
+  .trend-item { display:flex; align-items:center; gap:1rem; padding:0.7rem 1rem;
+                background:#0f0f1a; border-radius:8px; margin-bottom:0.4rem; }
+  .trend-icon { font-size:1.1rem; width:24px; text-align:center; flex-shrink:0; }
+  .trend-info { flex:1; min-width:0; }
+  .trend-label { color:#ccc; font-size:0.85rem; font-weight:600; }
+  .trend-insight { color:#888; font-size:0.78rem; margin-top:0.1rem; }
+  .trend-arrow { font-size:1rem; font-weight:700; flex-shrink:0; }
+
+  .bm-bar-wrap { margin-bottom:0.8rem; }
+  .bm-bar-label { display:flex; justify-content:space-between; font-size:0.8rem; color:#888; margin-bottom:0.3rem; }
+  .bm-bar-track { height:8px; background:#1a1a2e; border-radius:4px; overflow:hidden; }
+  .bm-bar-fill  { height:100%; border-radius:4px; transition:width 0.6s ease; }
+
+  .forecast-week { display:flex; align-items:flex-end; gap:4px; height:60px; }
+  .forecast-col  { flex:1; display:flex; flex-direction:column; align-items:center; }
+  .forecast-fill { width:100%; background:#7c5cff; border-radius:3px 3px 0 0; min-height:2px; }
+  .forecast-lbl  { font-size:0.6rem; color:#888; margin-top:0.2rem; }
+
+  .action-item { display:flex; gap:0.8rem; padding:0.7rem 1rem; border-radius:8px;
+                 margin-bottom:0.4rem; background:#0f0f1a; align-items:flex-start; }
+  .priority-alta  { border-left:3px solid #f87171; }
+  .priority-media { border-left:3px solid #fbbf24; }
+  .priority-baixa { border-left:3px solid #60a5fa; }
+
+  .gr-section { margin-bottom:1.5rem; }
+  .gr-section h3 { color:#fff; font-size:1rem; margin-bottom:0.8rem; }
+
+  .ai-badge { display:inline-block; background:#7c5cff22; color:#a78bfa; border:1px solid #7c5cff44;
+              border-radius:6px; padding:0.15rem 0.5rem; font-size:0.72rem; }
+
+  #growth-loading { color:#888; font-size:0.9rem; padding:2rem; text-align:center; }
+  #growth-main { display:none; }
+</style>
+
+<!-- Header -->
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="color:#fff; font-size:1.3rem; margin:0;">📈 Dashboard de Crescimento</h1>
+    <p style="color:#888; font-size:0.82rem; margin:0.2rem 0 0;">Análise estratégica dos últimos 30 dias vs período anterior</p>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <a href="{{ url_for('analytics.index') }}" class="btn btn-outline btn-sm">Analytics</a>
+    <button class="btn btn-outline btn-sm" onclick="refreshData()">↻ Atualizar</button>
+  </div>
+</div>
+
+<div id="growth-loading">⏳ Carregando dados de crescimento...</div>
+<div id="growth-main">
+
+  <!-- Score + KPIs -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div style="display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; margin-bottom:1rem;">
+      <div style="text-align:center;">
+        <div class="score-ring-lg" id="gr-score-ring" style="border-color:#7c5cff; color:#7c5cff;">—</div>
+        <div style="font-size:0.72rem; color:#888; margin-top:0.3rem;">Score de crescimento</div>
+        <div id="gr-score-label" style="font-size:0.78rem; color:#aaa; margin-top:0.1rem;"></div>
+      </div>
+      <div style="flex:1; min-width:200px;">
+        <div style="font-size:0.75rem; color:#555; margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:1px;">Componentes do score</div>
+        <div id="gr-components"></div>
+      </div>
+    </div>
+    <div class="gr-kpi-grid" id="gr-kpis"></div>
+  </div>
+
+  <!-- Tendências + Benchmark lado a lado -->
+  <div class="row2" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+
+    <div class="card">
+      <div class="gr-section">
+        <h3>📊 Tendências</h3>
+        <div id="gr-trends"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="gr-section">
+        <h3>🏆 Benchmark vs Plataforma</h3>
+        <div id="gr-benchmark"></div>
+        <div id="gr-overall-level" style="margin-top:0.8rem; font-size:0.82rem; color:#888;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Previsão de crescimento -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="gr-section">
+      <h3>🔮 Previsão dos próximos 30 dias</h3>
+      <div style="display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex:1; min-width:180px;">
+          <div id="gr-pred-stats"></div>
+        </div>
+        <div style="flex:2; min-width:200px;">
+          <div style="font-size:0.75rem; color:#555; margin-bottom:0.4rem;">Projeção semanal de alcance</div>
+          <div class="forecast-week" id="gr-forecast-chart"></div>
+        </div>
+      </div>
+      <div id="gr-pred-msg" style="margin-top:0.8rem; font-size:0.82rem; color:#aaa;"></div>
+    </div>
+  </div>
+
+  <!-- Insights IA -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.8rem; flex-wrap:wrap; gap:0.5rem;">
+      <h3 style="color:#fff; font-size:1rem; margin:0;">🤖 Insights Estratégicos IA</h3>
+      {% if ai_available %}
+        <button class="btn btn-sm" onclick="loadGrowthInsights()">Gerar insights com IA</button>
+      {% else %}
+        <span style="color:#f87171; font-size:0.82rem;">IA não configurada</span>
+      {% endif %}
+    </div>
+    <div id="gr-insights-area">
+      <p style="color:#888; font-size:0.82rem;">Clique em "Gerar insights" para obter recomendações estratégicas personalizadas.</p>
+    </div>
+  </div>
+
+</div><!-- #growth-main -->
+
+<script>
+var _growthData = null;
+
+function refreshData() {
+  document.getElementById('growth-loading').style.display = 'block';
+  document.getElementById('growth-main').style.display = 'none';
+  loadGrowthSummary();
+}
+
+function deltaClass(pct) {
+  return pct > 0 ? 'delta-up' : pct < 0 ? 'delta-down' : 'delta-flat';
+}
+function deltaIcon(pct) {
+  return pct > 0 ? '▲' : pct < 0 ? '▼' : '─';
+}
+function fmtK(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000)    return (n/1000).toFixed(1) + 'k';
+  return String(n);
+}
+function scoreColor(s) {
+  return s >= 75 ? '#4ade80' : s >= 55 ? '#60a5fa' : s >= 35 ? '#fbbf24' : '#f87171';
+}
+function dirColor(dir) {
+  return dir === 'up' ? '#4ade80' : dir === 'down' ? '#f87171' : '#888';
+}
+function pctColor(p) {
+  return parseInt(p) >= 65 ? '#4ade80' : parseInt(p) >= 40 ? '#60a5fa' : '#f87171';
+}
+
+function renderScore(gs) {
+  var s = gs.score || 0;
+  var c = gs.color || scoreColor(s);
+  var ring = document.getElementById('gr-score-ring');
+  ring.textContent = s;
+  ring.style.borderColor = c;
+  ring.style.color = c;
+  document.getElementById('gr-score-label').textContent = gs.label || '';
+
+  var comps = gs.components || {};
+  var labels = {
+    reach_growth: 'Crescimento de alcance',
+    engagement: 'Engajamento',
+    consistency: 'Consistência',
+    trend: 'Tendência recente',
+    post_quality: 'Qualidade dos posts',
+  };
+  var maxPts = {reach_growth:30, engagement:25, consistency:20, trend:15, post_quality:10};
+  var html = '';
+  Object.keys(labels).forEach(function(k) {
+    var val = comps[k] || 0;
+    var max = maxPts[k] || 10;
+    var pct = Math.round(val / max * 100);
+    var col = pct >= 70 ? '#4ade80' : pct >= 40 ? '#fbbf24' : '#f87171';
+    html += '<div style="margin-bottom:0.4rem;">'
+          + '<div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#888; margin-bottom:0.15rem;">'
+          + '<span>' + labels[k] + '</span>'
+          + '<span style="color:' + col + ';">' + val + '/' + max + '</span></div>'
+          + '<div style="height:5px; background:#1a1a2e; border-radius:3px; overflow:hidden;">'
+          + '<div style="height:100%; width:' + pct + '%; background:' + col + '; border-radius:3px;"></div></div>'
+          + '</div>';
+  });
+  document.getElementById('gr-components').innerHTML = html;
+}
+
+function renderKPIs(kpis) {
+  var items = [
+    {label:'Posts', val: kpis.posts_published || 0, fmt: String, delta: null},
+    {label:'Alcance total', val: kpis.total_reach || 0, fmt: fmtK, delta: kpis.reach_delta_pct},
+    {label:'Curtidas', val: kpis.total_likes || 0, fmt: fmtK, delta: kpis.likes_delta_pct},
+    {label:'Salvamentos', val: kpis.total_saves || 0, fmt: fmtK, delta: kpis.saves_delta_pct},
+    {label:'Score médio', val: kpis.avg_post_score || 0, fmt: function(v){return v.toFixed(1);}, delta: null},
+  ];
+  var html = '';
+  items.forEach(function(it) {
+    html += '<div class="gr-kpi">'
+          + '<div class="val">' + it.fmt(it.val) + '</div>'
+          + '<div class="lbl">' + it.label + '</div>';
+    if (it.delta !== null && it.delta !== undefined) {
+      var dc = deltaClass(it.delta);
+      html += '<div class="delta ' + dc + '">' + deltaIcon(it.delta) + ' ' + Math.abs(it.delta).toFixed(1) + '% vs anterior</div>';
+    }
+    html += '</div>';
+  });
+  document.getElementById('gr-kpis').innerHTML = html;
+}
+
+function renderTrends(trends) {
+  var html = '';
+  trends.forEach(function(t) {
+    var col = dirColor(t.direction);
+    var arrow = t.direction === 'up' ? '▲' : t.direction === 'down' ? '▼' : '─';
+    html += '<div class="trend-item">'
+          + '<div class="trend-icon">' + (t.icon||'') + '</div>'
+          + '<div class="trend-info">'
+          + '<div class="trend-label">' + t.label + '</div>'
+          + '<div class="trend-insight">' + t.insight + '</div></div>'
+          + '<div class="trend-arrow" style="color:' + col + ';">' + arrow + ' ' + Math.abs(t.change_pct||0).toFixed(0) + '%</div>'
+          + '</div>';
+  });
+  document.getElementById('gr-trends').innerHTML = html || '<p style="color:#888; font-size:0.82rem;">Sem dados de tendência ainda.</p>';
+}
+
+function renderBenchmark(bench) {
+  if (bench.error) {
+    document.getElementById('gr-benchmark').innerHTML = '<p style="color:#888; font-size:0.82rem;">Sem posts com métricas para comparação.</p>';
+    return;
+  }
+  var metrics = bench.metrics || {};
+  var labels = {
+    reach_per_post: 'Alcance/post', engagement_rate: 'Engajamento',
+    posts_per_week: 'Frequência', saves_ratio: 'Taxa de salvamento',
+  };
+  var units = { reach_per_post: '', engagement_rate: '%', posts_per_week: 'x/sem', saves_ratio: '%' };
+  var html = '';
+  Object.keys(labels).forEach(function(k) {
+    var m = metrics[k];
+    if (!m) return;
+    var pct = m.percentile || 0;
+    var col = pctColor(pct);
+    html += '<div class="bm-bar-wrap">'
+          + '<div class="bm-bar-label">'
+          + '<span>' + labels[k] + ' — <strong style="color:#fff;">' + m.value + (units[k]||'') + '</strong></span>'
+          + '<span style="color:' + col + ';">' + m.level + ' (' + pct + 'º pct)</span></div>'
+          + '<div class="bm-bar-track"><div class="bm-bar-fill" style="width:' + pct + '%; background:' + col + ';"></div></div>'
+          + '</div>';
+  });
+  document.getElementById('gr-benchmark').innerHTML = html;
+
+  var lvlColor = pctColor(bench.overall_percentile || 0);
+  document.getElementById('gr-overall-level').innerHTML =
+    'Posição geral: <strong style="color:' + lvlColor + ';">' + (bench.overall_level||'') + '</strong> ('+(bench.overall_percentile||0)+'º percentil)';
+}
+
+function renderPrediction(pred) {
+  var dir = pred.trend_direction || 'stable';
+  var dirCol = dirColor(dir);
+  var dirTxt = dir === 'up' ? '▲ Crescimento' : dir === 'down' ? '▼ Queda' : '─ Estável';
+  var conf = pred.confidence || 5;
+
+  var html = '<div style="margin-bottom:0.5rem;">'
+    + '<div style="font-size:0.75rem; color:#555; margin-bottom:0.15rem;">Tendência</div>'
+    + '<div style="font-size:1rem; font-weight:700; color:' + dirCol + ';">' + dirTxt + '</div></div>'
+    + '<div style="margin-bottom:0.5rem;">'
+    + '<div style="font-size:0.75rem; color:#555; margin-bottom:0.15rem;">Alcance previsto/post</div>'
+    + '<div style="font-size:1.2rem; font-weight:700; color:#fff;">' + fmtK(pred.predicted_avg_reach||0) + '</div></div>'
+    + '<div><div style="font-size:0.75rem; color:#555; margin-bottom:0.15rem;">Confiança</div>'
+    + '<div style="font-size:0.85rem; color:#aaa;">' + conf + '/9</div></div>';
+  document.getElementById('gr-pred-stats').innerHTML = html;
+
+  var forecast = pred.weekly_forecast || [];
+  if (!forecast.length) {
+    document.getElementById('gr-forecast-chart').innerHTML = '<span style="color:#555; font-size:0.78rem;">Dados insuficientes</span>';
+  } else {
+    var maxV = Math.max.apply(null, forecast.map(function(f){return f.projected_reach||0;})) || 1;
+    var chartHtml = '';
+    forecast.forEach(function(f) {
+      var h = Math.max(4, Math.round((f.projected_reach / maxV) * 56));
+      chartHtml += '<div class="forecast-col">'
+        + '<div style="font-size:0.62rem; color:#aaa; margin-bottom:1px;">' + fmtK(f.projected_reach) + '</div>'
+        + '<div class="forecast-fill" style="height:' + h + 'px;"></div>'
+        + '<div class="forecast-lbl">S' + f.week + '</div></div>';
+    });
+    document.getElementById('gr-forecast-chart').innerHTML = chartHtml;
+  }
+
+  document.getElementById('gr-pred-msg').textContent = pred.message || '';
+}
+
+function loadGrowthSummary() {
+  fetch('/api/growth/summary')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      _growthData = d;
+      document.getElementById('growth-loading').style.display = 'none';
+      document.getElementById('growth-main').style.display = 'block';
+      renderScore(d.growth_score || {});
+      renderKPIs(d.kpis || {});
+      renderTrends(d.trends || []);
+      renderBenchmark(d.benchmark || {});
+      renderPrediction(d.prediction || {});
+    })
+    .catch(function(e) {
+      document.getElementById('growth-loading').innerHTML =
+        '<p style="color:#f87171;">Erro ao carregar dados. <a href="#" onclick="refreshData()">Tentar novamente</a></p>';
+    });
+}
+
+function loadGrowthInsights() {
+  var area = document.getElementById('gr-insights-area');
+  area.innerHTML = '<p style="color:#7c5cff; font-size:0.85rem;">⏳ Gerando insights com IA...</p>';
+  fetch('/api/growth/insights')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.error) { area.innerHTML = '<p style="color:#f87171;">⚠️ ' + d.error + '</p>'; return; }
+      var html = '';
+
+      if (d.executive_summary) {
+        html += '<div style="background:#0f0f1a; border-radius:8px; padding:0.8rem 1rem; margin-bottom:0.8rem;">'
+              + '<div style="font-size:0.78rem; color:#7c5cff; margin-bottom:0.3rem;">📋 Resumo Executivo</div>'
+              + '<div style="font-size:0.88rem; color:#ccc;">' + d.executive_summary + '</div></div>';
+      }
+
+      if (d.forecast_text) {
+        html += '<div style="font-size:0.82rem; color:#a78bfa; margin-bottom:0.8rem;">🔮 ' + d.forecast_text + '</div>';
+      }
+
+      if (d.opportunities && d.opportunities.length) {
+        html += '<div style="margin-bottom:0.8rem;"><div style="color:#4ade80; font-size:0.75rem; margin-bottom:0.4rem;">✅ Oportunidades</div>';
+        d.opportunities.forEach(function(o){ html += '<div style="font-size:0.82rem; color:#ccc; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + o + '</div>'; });
+        html += '</div>';
+      }
+
+      if (d.risks && d.risks.length) {
+        html += '<div style="margin-bottom:0.8rem;"><div style="color:#f87171; font-size:0.75rem; margin-bottom:0.4rem;">⚠️ Riscos</div>';
+        d.risks.forEach(function(r){ html += '<div style="font-size:0.82rem; color:#ccc; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + r + '</div>'; });
+        html += '</div>';
+      }
+
+      if (d.action_plan && d.action_plan.length) {
+        html += '<div style="margin-bottom:0.8rem;"><div style="color:#fff; font-size:0.75rem; margin-bottom:0.4rem;">🎯 Plano de Ação</div>';
+        d.action_plan.forEach(function(a) {
+          var pc = a.priority === 'alta' ? '#f87171' : a.priority === 'media' ? '#fbbf24' : '#60a5fa';
+          html += '<div class="action-item priority-' + (a.priority||'baixa') + '">'
+                + '<div style="flex:1;">'
+                + '<div style="font-size:0.85rem; color:#ccc;">' + a.action + '</div>'
+                + '<div style="font-size:0.75rem; color:#888; margin-top:0.1rem;">' + (a.expected_impact||'') + '</div></div>'
+                + '<span class="ai-badge" style="border-color:' + pc + '; color:' + pc + ';">' + (a.priority||'') + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+      }
+
+      if (d.scale_suggestions && d.scale_suggestions.length) {
+        html += '<div><div style="color:#60a5fa; font-size:0.75rem; margin-bottom:0.4rem;">🚀 Sugestões para escalar</div>';
+        d.scale_suggestions.forEach(function(s){ html += '<div style="font-size:0.82rem; color:#ccc; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + s + '</div>'; });
+        html += '</div>';
+      }
+
+      if (d.cached) html += '<div style="font-size:0.7rem; color:#555; margin-top:0.8rem;">• Cache de 24h</div>';
+      area.innerHTML = html;
+    })
+    .catch(function(){ area.innerHTML = '<p style="color:#f87171;">Erro de conexão. Tente novamente.</p>'; });
+}
+
+document.addEventListener('DOMContentLoaded', loadGrowthSummary);
+</script>
+
+<style>
+@media (max-width:600px) {
+  .row2 { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}

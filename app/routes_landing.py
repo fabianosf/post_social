@@ -3,7 +3,7 @@ Landing page pública — página de vendas para atrair novos clientes SaaS.
 """
 
 from datetime import datetime, timezone
-from flask import Blueprint, render_template, redirect, url_for, Response
+from flask import Blueprint, jsonify, render_template, redirect, url_for, Response
 from flask_login import current_user
 
 landing_bp = Blueprint("landing", __name__)
@@ -41,6 +41,24 @@ def terms():
 @landing_bp.route("/privacidade")
 def privacy():
     return render_template("privacy.html")
+
+
+@landing_bp.route("/health")
+def health():
+    """Health check para Docker, load balancer e uptime monitoring."""
+    from sqlalchemy import text
+    from .models import db
+    try:
+        db.session.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status = 200 if db_ok else 503
+    return jsonify({
+        "status": "ok" if db_ok else "degraded",
+        "db": db_ok,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }), status
 
 
 @landing_bp.route("/robots.txt")

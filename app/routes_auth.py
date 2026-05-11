@@ -2,13 +2,60 @@
 Rotas de autenticação: cadastro e login do cliente.
 """
 
+import logging
+import os
+import smtplib
+import threading
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
+from email.mime.text import MIMEText
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required
 
 from .models import db, Client, InstagramAccount
+
+logger = logging.getLogger(__name__)
+
+
+def _send_welcome_email_async(name: str, email: str) -> None:
+    """Envia e-mail de boas-vindas em thread separada para não bloquear o response."""
+    def _send():
+        try:
+            host = os.environ.get("SMTP_HOST", "")
+            user = os.environ.get("SMTP_USER", "")
+            pwd  = os.environ.get("SMTP_PASS", "")
+            port = int(os.environ.get("SMTP_PORT", 587))
+            if not (host and user and pwd):
+                return
+            body = f"""Olá, {name}!
+
+Bem-vindo ao Postay 🎉
+
+Você tem 3 dias de plano Pro gratuito para explorar todas as funcionalidades:
+• Agendamento automático de posts
+• Analytics de engajamento
+• IA para criar e melhorar legendas
+• Automações inteligentes
+
+Acesse: https://postay.com.br/dashboard
+
+Qualquer dúvida, responda este e-mail.
+
+Equipe Postay
+"""
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["Subject"] = f"Bem-vindo ao Postay, {name}! 🚀"
+            msg["From"]    = user
+            msg["To"]      = email
+            with smtplib.SMTP(host, port, timeout=10) as s:
+                s.starttls()
+                s.login(user, pwd)
+                s.sendmail(user, [email], msg.as_string())
+        except Exception as exc:
+            logger.warning("Welcome email falhou para %s: %s", email, exc)
+
+    threading.Thread(target=_send, daemon=True).start()
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -46,7 +93,8 @@ def register():
         db.session.commit()
 
         login_user(client)
-        flash(f"Bem-vindo, {name}!", "success")
+        _send_welcome_email_async(name, email)
+        flash(f"Bem-vindo, {name}! Você tem 3 dias de teste Pro grátis.", "success")
         return redirect(url_for("dashboard.index"))
 
     return render_template("register.html")

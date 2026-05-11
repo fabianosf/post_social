@@ -88,6 +88,7 @@
   <div class="ai-tab" data-tab="hashtags" onclick="switchTab('hashtags')">🏷️ Gerar Hashtags</div>
   <div class="ai-tab" data-tab="cta" onclick="switchTab('cta')">💬 Gerar CTA</div>
   <div class="ai-tab" data-tab="predict" onclick="switchTab('predict')">🎯 Prever Performance</div>
+  <div class="ai-tab" data-tab="visual" onclick="switchTab('visual')">👁️ Visual IA</div>
 </div>
 <div style="margin-bottom:0.3rem; font-size:0.7rem; color:#7c5cff; text-transform:uppercase; letter-spacing:1px;">✨ Criação com IA</div>
 <div class="ai-tabs">
@@ -428,6 +429,51 @@
   <textarea id="vz-caption" rows="5" placeholder="Cole sua legenda para análise de viralização..."></textarea>
   <button class="btn btn-sm" onclick="viralizeContent()">Analisar com IA</button>
   <div class="ai-result" id="result-viralize"><div id="viralize-content"></div></div>
+</div>
+
+<!-- ── Painel: Visual IA ─────────────────────────────────────── -->
+<div class="ai-panel card" id="panel-visual">
+  <h2 style="margin-bottom:0.5rem;">👁️ Análise Visual IA</h2>
+  <p style="color:#888; font-size:0.82rem; margin-bottom:1rem;">
+    Analise thumbnails, imagens e vídeos para maximizar CTR e retenção visual.
+    {% if vision_available %}
+      <span style="color:#4ade80;">● Vision IA ativa (OpenAI)</span>
+    {% else %}
+      <span style="color:#fbbf24;">● Vision IA inativa — análise básica via Pillow disponível</span>
+    {% endif %}
+  </p>
+
+  <div class="row2" style="margin-bottom:1rem;">
+    <div>
+      <label>Nicho do conteúdo</label>
+      <select id="vis-niche">
+        <option value="geral">Geral</option>
+        <option value="fitness">Fitness & Saúde</option>
+        <option value="gastronomia">Gastronomia</option>
+        <option value="moda">Moda & Estilo</option>
+        <option value="negocios">Negócios</option>
+        <option value="educacao">Educação</option>
+        <option value="tecnologia">Tecnologia</option>
+        <option value="beleza">Beleza</option>
+        <option value="financas">Finanças</option>
+        <option value="viagem">Viagem</option>
+      </select>
+    </div>
+    <div>
+      <label>ID do post (opcional — analisa post existente)</label>
+      <input type="number" id="vis-post-id" placeholder="Ex: 42" min="1">
+      <button class="btn btn-sm btn-outline" onclick="analyzePostVisual()" style="width:100%;">Analisar post salvo</button>
+    </div>
+  </div>
+
+  <label>Ou faça upload de imagem/vídeo para análise rápida</label>
+  <div class="upload-area" onclick="document.getElementById('vis-file').click();" style="margin-bottom:0.8rem;">
+    <input type="file" id="vis-file" accept="image/*,video/mp4,video/mov,video/quicktime" onchange="onVisFileChange(this)">
+    <p id="vis-file-label" style="color:#888; font-size:0.88rem;">📁 Clique ou arraste uma imagem ou vídeo (JPG, PNG, MP4, MOV)</p>
+  </div>
+  <button class="btn btn-sm" onclick="analyzeUploadVisual()">Analisar com IA</button>
+
+  <div class="ai-result" id="result-visual"><div id="visual-content"></div></div>
 </div>
 
 <script>
@@ -951,6 +997,112 @@ function predictPerformance() {
       document.getElementById('predict-content').innerHTML = html;
     })
     .catch(function(){ showError('predict', 'Erro de conexão'); });
+}
+
+// ── Visual IA ─────────────────────────────────────────────────────
+function onVisFileChange(input) {
+  var label = document.getElementById('vis-file-label');
+  if (input.files && input.files[0]) {
+    label.textContent = '✅ ' + input.files[0].name;
+    label.style.color = '#4ade80';
+  }
+}
+
+function renderVisualResult(d) {
+  var score = d.overall_score || d.thumbnail_score || 5;
+  var scoreColor = score >= 8 ? '#4ade80' : score >= 6 ? '#fbbf24' : '#f87171';
+  var ctr = d.ctr_prediction || 'médio';
+  var ctrColor = ctr === 'alto' ? '#4ade80' : ctr === 'médio' ? '#fbbf24' : '#f87171';
+
+  var html = '<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap; margin-bottom:1rem;">';
+  html += '<div style="text-align:center;">'
+    + '<div class="score-ring" style="border-color:' + scoreColor + '; color:' + scoreColor + ';">' + score + '</div>'
+    + '<div style="font-size:0.7rem; color:#888; margin-top:0.3rem;">Score visual</div></div>';
+
+  html += '<div style="flex:1; min-width:160px;">';
+  if (d.face_detected) html += '<div style="font-size:0.82rem; color:#4ade80; margin-bottom:0.3rem;">👤 Rosto detectado</div>';
+  if (d.has_text) html += '<div style="font-size:0.82rem; color:#60a5fa; margin-bottom:0.3rem;">📝 Texto na imagem</div>';
+  if (d.emotion_detected) html += '<div style="font-size:0.82rem; color:#ccc; margin-bottom:0.3rem;">😊 Emoção: <strong>' + d.emotion_detected + '</strong></div>';
+  if (d.hook_visual) html += '<div style="font-size:0.82rem; color:#ccc; margin-bottom:0.3rem;">🪝 Hook: <em>' + d.hook_visual + '</em></div>';
+  if (d.retention_prediction != null) html += '<div style="font-size:0.82rem; color:#ccc; margin-bottom:0.3rem;">📊 Retenção estimada: <strong style="color:#a78bfa;">' + d.retention_prediction + '%</strong></div>';
+  html += '<div style="font-size:0.82rem; color:#ccc;">CTR previsto: <strong style="color:' + ctrColor + ';">' + ctr + '</strong></div>';
+  html += '</div>';
+  html += '</div>';
+
+  if (d.is_fallback) {
+    html += '<div style="background:#3a3a1a; border-radius:8px; padding:0.6rem 0.8rem; margin-bottom:0.8rem; font-size:0.78rem; color:#fbbf24;">⚡ Análise básica via Pillow — ative OpenAI Vision para resultados completos</div>';
+  }
+  if (d.ffmpeg_unavailable) {
+    html += '<div style="background:#3a3a1a; border-radius:8px; padding:0.6rem 0.8rem; margin-bottom:0.8rem; font-size:0.78rem; color:#fbbf24;">⚡ ffmpeg não encontrado — análise de frame de vídeo indisponível neste ambiente</div>';
+  }
+
+  if (d.visual_elements && d.visual_elements.length) {
+    html += '<div style="margin-bottom:0.8rem;"><div style="color:#888; font-size:0.75rem; margin-bottom:0.3rem;">🖼️ Elementos visuais</div>';
+    d.visual_elements.forEach(function(e) { html += '<span class="ai-tag">' + e + '</span>'; });
+    html += '</div>';
+  }
+
+  if (d.thumbnail_strengths && d.thumbnail_strengths.length) {
+    html += '<div style="margin-bottom:0.8rem;"><div style="color:#4ade80; font-size:0.75rem; margin-bottom:0.3rem;">✅ Pontos fortes da thumbnail</div>';
+    d.thumbnail_strengths.forEach(function(s) { html += '<div style="font-size:0.82rem; color:#ccc; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + s + '</div>'; });
+    html += '</div>';
+  }
+
+  if (d.recommendations && d.recommendations.length) {
+    html += '<div style="margin-bottom:0.8rem;"><div style="color:#60a5fa; font-size:0.75rem; margin-bottom:0.3rem;">💡 Recomendações para CTR</div>';
+    d.recommendations.forEach(function(r) { html += '<div style="font-size:0.82rem; color:#ccc; padding-left:0.8rem; margin-bottom:0.3rem;">• ' + r + '</div>'; });
+    html += '</div>';
+  }
+
+  if (d.improvements && d.improvements.length) {
+    html += '<div style="margin-bottom:0.5rem;"><div style="color:#fbbf24; font-size:0.75rem; margin-bottom:0.3rem;">🔧 Melhorias sugeridas</div>';
+    d.improvements.forEach(function(i) { html += '<div style="font-size:0.82rem; color:#aaa; padding-left:0.8rem; margin-bottom:0.2rem;">• ' + i + '</div>'; });
+    html += '</div>';
+  }
+
+  document.getElementById('visual-content').innerHTML = html;
+}
+
+function analyzePostVisual() {
+  var postId = (document.getElementById('vis-post-id').value || '').trim();
+  if (!postId) { alert('Informe o ID do post'); return; }
+  showLoading('visual');
+  var niche = document.getElementById('vis-niche').value;
+  fetch('/api/vision/post/' + postId, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({niche: niche})
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('visual', d.error); return; }
+      renderVisualResult(d);
+    })
+    .catch(function() { showError('visual', 'Erro de conexão'); });
+}
+
+function analyzeUploadVisual() {
+  var fileInput = document.getElementById('vis-file');
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert('Selecione uma imagem ou vídeo primeiro');
+    return;
+  }
+  showLoading('visual');
+  var niche = document.getElementById('vis-niche').value;
+  var formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('niche', niche);
+
+  var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  fetch('/api/vision/upload', {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken},
+    body: formData
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { showError('visual', d.error); return; }
+      renderVisualResult(d);
+    })
+    .catch(function() { showError('visual', 'Erro de conexão'); });
 }
 </script>
 {% endblock %}

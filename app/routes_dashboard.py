@@ -5,13 +5,17 @@ Dashboard do cliente — todas as funcionalidades.
 import csv
 import io
 import json
+import logging
 import os
 import random
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
 
@@ -250,6 +254,7 @@ def _apply_watermark(image_path: str, watermark_path: str, position: str, opacit
 @dashboard_bp.route("/dashboard")
 @login_required
 def index():
+    _t0 = time.monotonic()
     accounts = InstagramAccount.query.filter_by(client_id=current_user.id).all()
 
     status_filter = request.args.get("status", "all")
@@ -295,18 +300,34 @@ def index():
         history_by_day[day_key]["posts"].append(p)
     history_days = list(history_by_day.values())
 
-    all_posts = PostQueue.query.filter_by(client_id=current_user.id)
+    from sqlalchemy import func as _func
     _now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-    stats = {
-        "total": all_posts.count(),
-        "posted": all_posts.filter_by(status="posted").count(),
-        "queued": all_posts.filter(
+    # 1 query GROUP BY em vez de 6 .count() separados
+    _status_rows = (
+        db.session.query(PostQueue.status, _func.count().label("n"))
+        .filter(PostQueue.client_id == current_user.id)
+        .group_by(PostQueue.status)
+        .all()
+    )
+    _sc = {row.status: row.n for row in _status_rows}
+    # pending futuro (agendado) vs imediato (fila)
+    _sched_count = (
+        PostQueue.query
+        .filter(
+            PostQueue.client_id == current_user.id,
             PostQueue.status == "pending",
-            db.or_(PostQueue.scheduled_at.is_(None), PostQueue.scheduled_at <= _now_utc)
-        ).count(),
-        "failed": all_posts.filter_by(status="failed").count(),
-        "draft": all_posts.filter_by(status="draft").count(),
-        "scheduled": all_posts.filter(PostQueue.scheduled_at > _now_utc, PostQueue.status == "pending").count(),
+            PostQueue.scheduled_at > _now_utc,
+        )
+        .count()
+    )
+    _pending_total = _sc.get("pending", 0)
+    stats = {
+        "total":     sum(_sc.values()),
+        "posted":    _sc.get("posted", 0),
+        "queued":    _pending_total - _sched_count,
+        "failed":    _sc.get("failed", 0),
+        "draft":     _sc.get("draft", 0),
+        "scheduled": _sched_count,
     }
 
     notifications = (
@@ -318,10 +339,24 @@ def index():
 
     templates = CaptionTemplate.query.filter_by(client_id=current_user.id).all()
 
-    # Dados para calendário (posts agendados + postados)
+    # Dados para calendário — 90 dias passados + todos os futuros
+    _cal_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=90)
     calendar_posts = (
-        PostQueue.query.filter_by(client_id=current_user.id)
-        .filter(PostQueue.status.in_(["pending", "posted", "draft"]))
+        PostQueue.query
+        .filter(
+            PostQueue.client_id == current_user.id,
+            PostQueue.status.in_(["pending", "posted", "draft"]),
+            db.or_(
+                PostQueue.posted_at >= _cal_cutoff,
+                PostQueue.scheduled_at >= _cal_cutoff,
+                PostQueue.created_at >= _cal_cutoff,
+            ),
+        )
+        .with_entities(
+            PostQueue.scheduled_at, PostQueue.posted_at,
+            PostQueue.created_at, PostQueue.image_filename, PostQueue.status,
+        )
+        .limit(500)
         .all()
     )
     calendar_data = []
@@ -453,7 +488,7 @@ def index():
         diff = (expires - datetime.now(timezone.utc)).days
         trial_days_left = max(0, diff)
 
-    return render_template(
+    _resp = render_template(
         "dashboard.html",
         accounts=accounts,
         posts=posts,
@@ -472,6 +507,10 @@ def index():
         active_account_id=active_account_id,
         trial_days_left=trial_days_left,
     )
+    _elapsed = (time.monotonic() - _t0) * 1000
+    if _elapsed > 800:
+        logger.warning("dashboard lento: %.0fms client_id=%s", _elapsed, current_user.id)
+    return _resp
 
 
 @dashboard_bp.route("/notifications/dismiss", methods=["POST"])

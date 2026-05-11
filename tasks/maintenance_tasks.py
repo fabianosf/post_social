@@ -49,8 +49,30 @@ def run_maintenance():
         _reset_stuck_processing()
         _cleanup_old_files()
         _check_plan_expirations()
+        _detect_inactive_users()
     logger.info("Manutenção concluída.")
     return {"ok": True}
+
+
+def _detect_inactive_users():
+    """Detecta clientes inativos (sem posts nos últimos 14 dias) e loga para retenção."""
+    from app.models import Client, PostQueue
+    cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+    clients = Client.query.filter_by(is_blocked=False).all()
+    inactive = []
+    for c in clients:
+        recent = PostQueue.query.filter(
+            PostQueue.client_id == c.id,
+            PostQueue.created_at >= cutoff,
+        ).count()
+        if recent == 0:
+            days_since = (datetime.now(timezone.utc) - (
+                c.created_at.replace(tzinfo=timezone.utc) if c.created_at.tzinfo is None else c.created_at
+            )).days
+            inactive.append({"id": c.id, "email": c.email, "days_since_creation": days_since})
+    if inactive:
+        logger.info("Usuários inativos (14d sem posts): %d — ids: %s",
+                    len(inactive), [u["id"] for u in inactive])
 
 
 _last_weekly_report = None

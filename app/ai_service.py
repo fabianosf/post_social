@@ -546,3 +546,45 @@ def generate_content_calendar(
         '"general_tips": ["dica estratégica 1", "dica estratégica 2"]}'
     )
     return _chat(system, user, max_tokens=2500)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FASE 9 — GROWTH ANALYTICS
+# ═══════════════════════════════════════════════════════════════════
+
+def generate_growth_insights(growth_data: dict) -> dict | None:
+    """
+    Insights executivos e plano de ação baseado no score de crescimento.
+    Retorna executive_summary, opportunities, risks, action_plan, scale_suggestions.
+    """
+    gs    = growth_data.get("growth_score", {})
+    kpis  = growth_data.get("kpis", {})
+    pred  = growth_data.get("prediction", {})
+    bench = growth_data.get("benchmark", {})
+
+    system = (
+        "Você é um consultor sênior de crescimento de Instagram para negócios brasileiros. "
+        "Analise os dados de performance e retorne recomendações estratégicas em JSON. "
+        "Seja direto, acionável e focado em crescimento sustentável. "
+        "Responda em português do Brasil."
+    )
+    user = (
+        f"Score de crescimento: {gs.get('score', 0)}/100 ({gs.get('label', '')})\n"
+        f"Componentes: {gs.get('components', {})}\n"
+        f"KPIs (30 dias): alcance={kpis.get('total_reach', 0)}, "
+        f"delta_alcance={kpis.get('reach_delta_pct', 0):.1f}%, "
+        f"posts={kpis.get('posts_published', 0)}, "
+        f"score_médio={kpis.get('avg_post_score', 0):.1f}\n"
+        f"Previsão: tendência={pred.get('trend_direction', 'stable')}, "
+        f"alcance_previsto={pred.get('predicted_avg_reach', 0)}/post\n"
+        f"Benchmark: {bench.get('overall_level', 'N/A')} "
+        f"({bench.get('overall_percentile', 0)}° percentil)\n\n"
+        'Retorne JSON: {'
+        '"executive_summary": "resumo executivo em 2 frases diretas", '
+        '"opportunities": ["oportunidade 1", "oportunidade 2", "oportunidade 3"], '
+        '"risks": ["risco 1", "risco 2"], '
+        '"action_plan": [{"action": "ação", "priority": "alta|media|baixa", "expected_impact": "impacto"}], '
+        '"scale_suggestions": ["sugestão de escala 1", "sugestão 2"], '
+        '"forecast_text": "previsão em 1 frase para próximos 30 dias"}'
+    )
+    return _chat(system, user, max_tokens=900)

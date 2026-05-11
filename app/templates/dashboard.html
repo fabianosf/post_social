@@ -211,6 +211,27 @@ function onbSkip() {
     </div>
 </div>
 
+<!-- Growth pulse — reusa /api/growth/summary, carrega async -->
+<div id="growth-pulse" style="display:none; background:#1a1a2e; border:1px solid #2a2a4a; border-radius:10px; padding:0.65rem 1rem; margin-bottom:1rem; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:0.8rem;">
+        <div style="text-align:center;">
+            <div id="gp-score" style="font-size:1.5rem; font-weight:700; color:#7c5cff; line-height:1;">—</div>
+            <div style="font-size:0.6rem; color:#666; margin-top:1px;">/ 100</div>
+        </div>
+        <div>
+            <div style="font-size:0.7rem; color:#555; text-transform:uppercase; letter-spacing:0.5px;">Score de crescimento</div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span id="gp-label" style="font-size:0.82rem; color:#ccc; font-weight:600;"></span>
+                <span id="gp-trend" style="font-size:0.75rem;"></span>
+            </div>
+        </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <span id="gp-format" style="font-size:0.78rem; color:#888;"></span>
+        <a href="{{ url_for('growth.index') }}" style="font-size:0.78rem; color:#4ade80; white-space:nowrap;">📈 Ver crescimento →</a>
+    </div>
+</div>
+
 {% if plan_info.plan == 'free' %}
 <div class="card" style="border-color:#7c5cff; background:linear-gradient(135deg, #1a1a3e, #2a1a4e); text-align:center; padding:1.5rem;">
     <h2 style="margin-bottom:0.5rem;">Desbloqueie o Plano Pro</h2>
@@ -751,6 +772,7 @@ loadSlotsConfig();
 
         <div style="display:flex; gap:0.5rem; margin-bottom:0.8rem; flex-wrap:wrap;">
             <button type="button" class="btn btn-outline btn-sm" id="ai-gen-btn" onclick="generateAICaption()">Gerar 3 opções com IA</button>
+            <button type="button" class="btn btn-outline btn-sm" id="ai-improve-btn" onclick="improveCaption()" title="Melhora a legenda já digitada usando IA">✨ Melhorar</button>
             {% if templates %}
             <select id="template-select" onchange="applyTemplate()" style="width:auto; margin:0; padding:0.4rem; font-size:0.8rem;">
                 <option value="">Usar template...</option>
@@ -773,6 +795,9 @@ loadSlotsConfig();
         </div>
         <input type="datetime-local" name="scheduled_at" id="scheduled-input" style="display:none;">
         <div id="when-label" style="font-size:0.8rem; color:#7c5cff; margin-bottom:0.3rem;"></div>
+        <div id="schedule-hint" style="display:none; font-size:0.75rem; color:#555; margin-bottom:0.5rem; padding:0.35rem 0.6rem; background:#0f0f1a; border-radius:6px; border-left:2px solid #3a3a5a;">
+            💡 Baseado nos seus posts: <span id="schedule-hint-text"></span>
+        </div>
         <script>
         function setWhen(v) {
             document.querySelectorAll('.when-btn').forEach(b => {
@@ -1180,9 +1205,19 @@ function saveTelegramConfig() {
         {% endif %}
         {% endfor %}
     {% else %}
+        {% if stats.total == 0 %}
+        <div style="text-align:center; padding:2rem 1rem;">
+            <div style="font-size:2.5rem; margin-bottom:0.8rem;">📸</div>
+            <div style="color:#fff; font-weight:600; margin-bottom:0.4rem;">Agende seu primeiro post</div>
+            <div style="color:#888; font-size:0.85rem; margin-bottom:1.2rem;">Faça upload de uma imagem ou vídeo e defina quando publicar.</div>
+            <a href="#upload-form" onclick="document.getElementById('photos').click(); return false;" class="btn btn-sm">Fazer upload agora</a>
+        </div>
+        {% else %}
         <p style="color:#888; text-align:center; padding:1.5rem 0;">
-            Fila vazia — nenhuma postagem agendada.
+            Fila vazia — todos os posts foram publicados.
+            <a href="#upload-form" style="color:#7c5cff; margin-left:0.4rem;">Agendar novo →</a>
         </p>
+        {% endif %}
     {% endif %}
 </div>
 
@@ -1707,6 +1742,70 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadWeekGrid);
 } else {
     loadWeekGrid();
+}
+
+// ── Growth pulse ─────────────────────────────────────────────────
+(function() {
+    fetch('/api/growth/summary')
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+            if (!d.growth_score) return;
+            var gs = d.growth_score;
+            var pred = d.prediction || {};
+            var el = document.getElementById('growth-pulse');
+            document.getElementById('gp-score').textContent = gs.score || '—';
+            document.getElementById('gp-score').style.color = gs.color || '#7c5cff';
+            document.getElementById('gp-label').textContent = gs.label || '';
+            var dir = pred.trend_direction || 'stable';
+            var arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '─';
+            var col = dir === 'up' ? '#4ade80' : dir === 'down' ? '#f87171' : '#888';
+            document.getElementById('gp-trend').innerHTML = '<span style="color:' + col + ';">' + arrow + '</span>';
+            if (d.best_format) document.getElementById('gp-format').textContent = '🏆 Melhor formato: ' + d.best_format;
+            el.style.display = 'flex';
+
+            // Schedule hint — melhor hora dos posts analisados
+            var metrics = (d.benchmark || {}).metrics || {};
+            var ppw = (metrics.posts_per_week || {}).value;
+            var hint = document.getElementById('schedule-hint');
+            if (hint) {
+                var txt = '';
+                if (ppw) txt += ppw + 'x/semana atual';
+                if (d.best_format) txt += (txt ? ' · ' : '') + 'priorize ' + d.best_format;
+                if (dir === 'up') txt += (txt ? ' · ' : '') + 'continue no ritmo ▲';
+                if (txt) {
+                    document.getElementById('schedule-hint-text').textContent = txt;
+                    hint.style.display = 'block';
+                }
+            }
+        })
+        .catch(function(){});
+})();
+
+// ── Caption improve (reescrita IA) ────────────────────────────────
+function improveCaption() {
+    var caption = (document.getElementById('caption-input').value || '').trim();
+    if (!caption) { alert('Escreva uma legenda primeiro para melhorá-la.'); return; }
+    var btn = document.getElementById('ai-improve-btn');
+    btn.textContent = '⏳ Melhorando...';
+    btn.disabled = true;
+    fetch('/api/ai/generate/rewrite', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({caption: caption, goal: 'engajamento', tone: 'informativo'})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+        btn.disabled = false;
+        if (d.error) { btn.textContent = '✨ Melhorar'; alert(d.error); return; }
+        if (d.rewritten) {
+            document.getElementById('caption-input').value = d.rewritten;
+            btn.textContent = '✅ Melhorado!';
+            setTimeout(function(){ btn.textContent = '✨ Melhorar'; }, 2500);
+        } else {
+            btn.textContent = '✨ Melhorar';
+        }
+    })
+    .catch(function(){ btn.textContent = '✨ Melhorar'; btn.disabled = false; });
 }
 </script>
 
