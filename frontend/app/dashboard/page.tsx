@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
@@ -10,27 +10,31 @@ import { getDashboardStats, getWeekSchedule, getGrowthSummary } from "@/lib/api"
 
 declare const fbq: (...args: unknown[]) => void;
 
-export default function DashboardPage() {
+function PixelTracker() {
   const params = useSearchParams();
-  const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, refetchInterval: 60_000 });
-  const week  = useQuery({ queryKey: ["week-schedule"],   queryFn: getWeekSchedule,   refetchInterval: 120_000 });
-  const growth= useQuery({ queryKey: ["growth-summary"],  queryFn: getGrowthSummary,  staleTime: 5 * 60_000 });
-
   useEffect(() => {
     const eid = params.get("_fe");
     if (!eid || typeof fbq === "undefined") return;
     fbq("track", "CompleteRegistration", {}, { eventID: eid });
-    // clean URL without reload
     const url = new URL(window.location.href);
     url.searchParams.delete("_fe");
     window.history.replaceState({}, "", url.toString());
   }, [params]);
+  return null;
+}
+
+export default function DashboardPage() {
+  const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, refetchInterval: 60_000 });
+  const week  = useQuery({ queryKey: ["week-schedule"],   queryFn: getWeekSchedule,   refetchInterval: 120_000 });
+  const growth= useQuery({ queryKey: ["growth-summary"],  queryFn: getGrowthSummary,  staleTime: 5 * 60_000 });
 
   return (
     <>
+      <Suspense fallback={null}>
+        <PixelTracker />
+      </Suspense>
       <Navbar />
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <a
@@ -41,7 +45,6 @@ export default function DashboardPage() {
           </a>
         </div>
 
-        {/* Stats */}
         {stats.isLoading ? (
           <StatsCardsSkeleton />
         ) : stats.error ? (
@@ -50,14 +53,12 @@ export default function DashboardPage() {
           <StatsCards data={stats.data} />
         )}
 
-        {/* Growth Pulse */}
         {growth.isLoading ? (
           <GrowthPulseSkeleton />
         ) : growth.data ? (
           <GrowthPulse data={growth.data} />
         ) : null}
 
-        {/* Week Queue */}
         {week.isLoading ? (
           <WeekQueueSkeleton />
         ) : week.error ? (
