@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BarChart2, Zap, Brain, TrendingUp, KeyRound } from "lucide-react";
+import { BarChart2, Zap, Brain, TrendingUp, KeyRound, Compass } from "lucide-react";
 
 const linkClass = (path: string, href: string) =>
   cn(
@@ -54,6 +54,12 @@ export function Navbar() {
               <Zap size={15} />
               Automações
             </a>
+          </li>
+          <li>
+            <Link href="/discover" className={linkClass(path, "/discover")}>
+              <Compass size={15} />
+              Discover
+            </Link>
           </li>
           <li>
             <Link href="/settings/ai" className={linkClass(path, "/settings/ai")}>

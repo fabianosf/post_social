@@ -309,3 +309,118 @@ class WhiteLabelConfig(db.Model):
     brand_logo_url = db.Column(db.String(500))
     custom_domain = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Community(db.Model):
+    __tablename__ = "communities"
+
+    id               = db.Column(db.Integer, primary_key=True)
+    platform         = db.Column(db.String(20), nullable=False)   # telegram, reddit, discord
+    name             = db.Column(db.String(200), nullable=False)
+    description      = db.Column(db.Text)
+    url              = db.Column(db.String(500))
+    niche            = db.Column(db.String(100), index=True)
+    category         = db.Column(db.String(100), index=True)      # categoria ampla: negocios, saude, etc.
+    city             = db.Column(db.String(100), index=True)
+    member_count     = db.Column(db.Integer, default=0)
+    tags             = db.Column(db.Text, default="[]")           # JSON array
+    engagement_score = db.Column(db.Float, default=0.0)           # 0-100, setado pelo admin
+    verified         = db.Column(db.Boolean, default=False)       # curado manualmente
+    tone             = db.Column(db.String(50), default="casual") # casual, formal, educativo, humoristico
+    rules            = db.Column(db.Text, default="[]")           # JSON array de regras da comunidade
+    is_active        = db.Column(db.Boolean, default=True)
+    is_spam          = db.Column(db.Boolean, default=False)
+    is_dead          = db.Column(db.Boolean, default=False)
+    last_activity_at = db.Column(db.DateTime, nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def tags_list(self) -> list:
+        import json
+        try:
+            return json.loads(self.tags or "[]")
+        except Exception:
+            return []
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "platform": self.platform,
+            "name": self.name,
+            "description": self.description,
+            "url": self.url,
+            "niche": self.niche,
+            "category": self.category,
+            "city": self.city,
+            "member_count": self.member_count,
+            "engagement_score": self.engagement_score,
+            "verified": self.verified,
+            "tone": self.tone,
+            "rules": self.rules_list(),
+            "is_dead": self.is_dead,
+            "is_spam": self.is_spam,
+            "tags": self.tags_list(),
+        }
+
+    def rules_list(self) -> list:
+        import json
+        try:
+            return json.loads(self.rules or "[]")
+        except Exception:
+            return []
+
+
+class UserNiche(db.Model):
+    __tablename__ = "user_niches"
+
+    user_id     = db.Column(db.Integer, db.ForeignKey("clients.id"), primary_key=True)
+    niche       = db.Column(db.String(100))
+    keywords    = db.Column(db.Text, default="[]")   # JSON array
+    confidence  = db.Column(db.Float, default=0.0)
+    detected_at = db.Column(db.DateTime)
+
+    def keywords_list(self) -> list:
+        import json
+        try:
+            return json.loads(self.keywords or "[]")
+        except Exception:
+            return []
+
+
+class Competitor(db.Model):
+    """Concorrentes cadastrados manualmente pelo usuário para benchmarking."""
+    __tablename__ = "competitors"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    client_id    = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    name         = db.Column(db.String(200), nullable=False)
+    niche        = db.Column(db.String(100))
+    ig_username  = db.Column(db.String(100))
+    website_url  = db.Column(db.String(500))
+    notes        = db.Column(db.Text)
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "niche": self.niche,
+            "ig_username": self.ig_username,
+            "website_url": self.website_url,
+            "notes": self.notes,
+        }
+
+
+class NicheTrend(db.Model):
+    """Cache de tendências por nicho geradas por IA. Atualizado periodicamente."""
+    __tablename__ = "niche_trends"
+
+    niche      = db.Column(db.String(100), primary_key=True)
+    trend_data = db.Column(db.Text, default="{}")   # JSON
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def data(self) -> dict:
+        import json
+        try:
+            return json.loads(self.trend_data or "{}")
+        except Exception:
+            return {}

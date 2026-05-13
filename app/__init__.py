@@ -129,6 +129,8 @@ def create_app():
     from .routes_vision import vision_bp
     from .routes_growth import growth_bp
     from .routes_ai_keys import ai_keys_bp
+    from .routes_communities import communities_bp
+    from .routes_growth_intel import growth_intel_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -143,9 +145,13 @@ def create_app():
     app.register_blueprint(vision_bp)
     app.register_blueprint(growth_bp)
     app.register_blueprint(ai_keys_bp)
+    app.register_blueprint(communities_bp)
+    app.register_blueprint(growth_intel_bp)
     # Endpoints JSON não usam formulários HTML — isentos de CSRF
     if "csrf" in app.extensions:
         app.extensions["csrf"].exempt(ai_keys_bp)
+        app.extensions["csrf"].exempt(communities_bp)
+        app.extensions["csrf"].exempt(growth_intel_bp)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:

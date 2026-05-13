@@ -1,4 +1,6 @@
 "use client";
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatsCards, StatsCardsSkeleton } from "@/components/dashboard/StatsCards";
@@ -6,10 +8,23 @@ import { GrowthPulse, GrowthPulseSkeleton } from "@/components/dashboard/GrowthP
 import { WeekQueue, WeekQueueSkeleton } from "@/components/dashboard/WeekQueue";
 import { getDashboardStats, getWeekSchedule, getGrowthSummary } from "@/lib/api";
 
+declare const fbq: (...args: unknown[]) => void;
+
 export default function DashboardPage() {
+  const params = useSearchParams();
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, refetchInterval: 60_000 });
   const week  = useQuery({ queryKey: ["week-schedule"],   queryFn: getWeekSchedule,   refetchInterval: 120_000 });
   const growth= useQuery({ queryKey: ["growth-summary"],  queryFn: getGrowthSummary,  staleTime: 5 * 60_000 });
+
+  useEffect(() => {
+    const eid = params.get("_fe");
+    if (!eid || typeof fbq === "undefined") return;
+    fbq("track", "CompleteRegistration", {}, { eventID: eid });
+    // clean URL without reload
+    const url = new URL(window.location.href);
+    url.searchParams.delete("_fe");
+    window.history.replaceState({}, "", url.toString());
+  }, [params]);
 
   return (
     <>

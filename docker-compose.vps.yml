@@ -68,6 +68,7 @@ services:
       - FLASK_URL=http://web:5000
       - NEXT_PUBLIC_APP_URL=https://postay.com.br
       - NODE_ENV=production
+      - NEXT_PUBLIC_META_PIXEL_ID=${META_PIXEL_ID}
     depends_on:
       - web
     healthcheck:

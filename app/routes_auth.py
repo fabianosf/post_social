@@ -94,8 +94,21 @@ def register():
 
         login_user(client)
         _send_welcome_email_async(name, email)
+
+        # Meta CAPI: CompleteRegistration + Lead + StartTrial
+        from .meta_capi import send_event as _meta
+        _ip = request.remote_addr or ""
+        _ua = request.headers.get("User-Agent", "")
+        _url = request.url
+        _fbc = request.cookies.get("_fbc", "")
+        _fbp = request.cookies.get("_fbp", "")
+        _eid = _meta("CompleteRegistration", email=email, ip=_ip, user_agent=_ua,
+                     event_source_url=_url, fbc=_fbc, fbp=_fbp)
+        _meta("Lead",       email=email, ip=_ip, user_agent=_ua, event_source_url=_url, fbc=_fbc, fbp=_fbp)
+        _meta("StartTrial", email=email, ip=_ip, user_agent=_ua, event_source_url=_url, fbc=_fbc, fbp=_fbp)
+
         flash(f"Bem-vindo, {name}! Você tem 3 dias de teste Pro grátis.", "success")
-        return redirect(url_for("dashboard.index"))
+        return redirect(url_for("dashboard.index") + f"?_fe={_eid}")
 
     return render_template("register.html")
 

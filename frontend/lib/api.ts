@@ -31,3 +31,24 @@ export const setDefaultAIKey  = (provider: string) =>
   api.post(`/ai-keys/${provider}/set-default`).then((r) => r.data);
 export const testAIKey        = (provider: string) =>
   api.post(`/ai-keys/${provider}/test`).then((r) => r.data);
+
+// Communities — Fase 1/2/3
+export const detectNiche            = () => api.post("/communities/detect-niche").then((r) => r.data);
+export const saveCommunityKeywords  = (keywords: string[]) => api.post("/communities/keywords", { keywords }).then((r) => r.data);
+export const getCommunityRecs       = (params?: { niche?: string; city?: string; platform?: string; category?: string; limit?: number }) =>
+  api.get("/communities/recommendations", { params }).then((r) => r.data);
+export const getCommunityNiches     = () => api.get("/communities/niches").then((r) => r.data);
+export const getCommunityNiche      = (id: number) => api.get(`/communities/${id}/rules`).then((r) => r.data);
+export const suggestContent         = (id: number) => api.get(`/communities/${id}/suggest-content`).then((r) => r.data);
+export const adaptCaption           = (id: number, caption: string) => api.post(`/communities/${id}/adapt-caption`, { caption }).then((r) => r.data);
+export const getGrowthTips          = (id: number, niche?: string) => api.get(`/communities/${id}/growth-tips`, { params: { niche } }).then((r) => r.data);
+
+// Growth Intelligence — Fase 4
+export const getCompetitors         = () => api.get("/growth-intel/competitors").then((r) => r.data);
+export const addCompetitor          = (data: { name: string; niche?: string; ig_username?: string; website_url?: string; notes?: string }) =>
+  api.post("/growth-intel/competitors", data).then((r) => r.data);
+export const deleteCompetitor       = (id: number) => api.delete(`/growth-intel/competitors/${id}`).then((r) => r.data);
+export const getNicheTrends         = (niche?: string) => api.get("/growth-intel/trends", { params: { niche } }).then((r) => r.data);
+export const getGrowthOpportunities = () => api.get("/growth-intel/opportunities").then((r) => r.data);
+export const getCompetitiveScore    = (niche?: string, city?: string) => api.get("/growth-intel/competitive-score", { params: { niche, city } }).then((r) => r.data);
+export const getCompetitiveAnalysis = () => api.get("/growth-intel/analysis").then((r) => r.data);
