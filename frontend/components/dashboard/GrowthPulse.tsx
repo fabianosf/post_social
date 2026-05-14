@@ -9,7 +9,7 @@ const scoreColor = (s: number) =>
 
 export function GrowthPulse({ data }: { data: GrowthSummary }) {
   const { score = 0, label = "—" } = data.growth_score ?? {};
-  const { total_reach, reach_delta_pct } = data.kpis;
+  const { total_reach = 0, reach_delta_pct = 0 } = data.kpis ?? {};
   const delta = reach_delta_pct ?? 0;
 
   return (

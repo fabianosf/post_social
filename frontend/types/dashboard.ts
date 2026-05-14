@@ -33,7 +33,7 @@ export interface WeekDay {
 
 export interface GrowthSummary {
   growth_score?: { score: number; label: string; components: Record<string, number> } | null;
-  kpis: {
+  kpis?: {
     posts_published: number;
     total_reach: number;
     total_likes: number;
@@ -42,7 +42,7 @@ export interface GrowthSummary {
     reach_delta_pct: number;
     likes_delta_pct: number;
     saves_delta_pct: number;
-  };
+  } | null;
   best_format: string;
   trends: Array<{ metric: string; direction: string; insight: string }>;
 }
