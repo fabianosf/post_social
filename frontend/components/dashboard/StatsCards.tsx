@@ -12,7 +12,20 @@ const CARDS = [
   { key: "failed",     label: "Falharam",     icon: AlertCircle,  color: "text-destructive" },
 ] as const;
 
-export function StatsCards({ data }: { data: DashboardStats }) {
+const EMPTY_STATS: DashboardStats = {
+  total: 0,
+  posted: 0,
+  queued: 0,
+  scheduled: 0,
+  failed: 0,
+  processing: 0,
+};
+
+export function StatsCards({ data }: { data?: Partial<DashboardStats> | null }) {
+  const safe =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? { ...EMPTY_STATS, ...data }
+      : EMPTY_STATS;
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {CARDS.map(({ key, label, icon: Icon, color }) => (
@@ -21,7 +34,7 @@ export function StatsCards({ data }: { data: DashboardStats }) {
             <span className="text-xs text-muted-foreground">{label}</span>
             <Icon size={15} className={color} />
           </div>
-          <span className="text-2xl font-bold">{data[key]}</span>
+          <span className="text-2xl font-bold">{safe[key]}</span>
         </Card>
       ))}
     </div>
