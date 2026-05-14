@@ -149,7 +149,7 @@
     </style>
 </head>
 <body>
-    {% if current_user.is_authenticated %}
+    {% if current_user.is_authenticated and request.endpoint not in ('auth.login', 'auth.register') %}
     {% set _brand_color = current_user.brand_color or '#7c5cff' %}
     {% set _brand_name = current_user.brand_name or 'Postay' %}
     {% if _brand_color != '#7c5cff' %}

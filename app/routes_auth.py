@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session
-from flask_login import login_user, logout_user, login_required
+from flask_login import login_user, logout_user, login_required, current_user
 
 from .models import db, Client, InstagramAccount
 
@@ -67,6 +67,8 @@ _LOCKOUT_MINUTES = 15
 
 @auth_bp.route("/cadastro", methods=["GET", "POST"])
 def register():
+    if request.method == "GET" and current_user.is_authenticated:
+        return redirect(url_for("dashboard.index"))
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
@@ -115,6 +117,8 @@ def register():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "GET" and current_user.is_authenticated:
+        return redirect(url_for("dashboard.index"))
     if request.method == "POST":
         ip = request.remote_addr or "unknown"
         record = _login_attempts[ip]
@@ -176,5 +180,6 @@ def login():
 @login_required
 def logout():
     logout_user()
+    session.pop("active_account_id", None)
     flash("Você saiu da conta.", "info")
     return redirect(url_for("auth.login"))
