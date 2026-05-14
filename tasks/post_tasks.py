@@ -81,10 +81,22 @@ def process_post(self, post_id: int):
     post.status = "processing"
     db.session.commit()
 
-    # Reutiliza get_ig_client do worker.py
-    from worker import get_ig_client, process_post as _process_post
+    from worker import get_ig_client, process_post as _process_post, process_post_graph_oauth, _ig_connection_type
 
     try:
+        if _ig_connection_type(account) == "graph_oauth":
+            if account.status == "login_error":
+                post.status = "pending"
+                db.session.commit()
+                delay = 60 * (2 ** self.request.retries)
+                raise self.retry(
+                    exc=Exception("Token Meta expirado — reconecte no painel"),
+                    countdown=delay,
+                )
+            success = process_post_graph_oauth(post, account)
+            logger.info(f"Post #{post_id} — {'OK' if success else 'FALHA'} (Graph)")
+            return {"ok": success, "post_id": post_id}
+
         cl = get_ig_client(account)
         if not cl:
             # Falha de login — retry com backoff

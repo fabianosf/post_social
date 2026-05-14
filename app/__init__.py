@@ -272,6 +272,9 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN telegram_chat_id VARCHAR(100)",
             # instagram_accounts — slots recorrentes
             "ALTER TABLE instagram_accounts ADD COLUMN weekday_slots TEXT DEFAULT '[\"09:00\",\"17:00\"]'",
+            "ALTER TABLE instagram_accounts ADD COLUMN ig_connection_type VARCHAR(20) DEFAULT 'password'",
+            "ALTER TABLE instagram_accounts ADD COLUMN ig_graph_user_id VARCHAR(64)",
+            "ALTER TABLE instagram_accounts ADD COLUMN ig_graph_page_id VARCHAR(64)",
             "ALTER TABLE instagram_accounts ADD COLUMN weekend_slots TEXT DEFAULT '[\"10:30\",\"16:00\"]'",
             # clients — bloqueio e Mercado Pago
             "ALTER TABLE clients ADD COLUMN is_blocked BOOLEAN DEFAULT 0",
@@ -314,6 +317,9 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(200)",
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100)",
             "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS weekday_slots TEXT DEFAULT '[\"09:00\",\"17:00\"]'",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS ig_connection_type VARCHAR(20) DEFAULT 'password'",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS ig_graph_user_id VARCHAR(64)",
+            "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS ig_graph_page_id VARCHAR(64)",
             "ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS weekend_slots TEXT DEFAULT '[\"10:30\",\"16:00\"]'",
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE",
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS mp_subscription_id VARCHAR(200)",

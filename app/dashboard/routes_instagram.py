@@ -3,7 +3,9 @@ Rotas de contas Instagram: conectar, desconectar, configurar slots.
 """
 
 import json
+import os
 import re
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +14,113 @@ from flask_login import login_required, current_user
 
 from ..models import db, InstagramAccount
 from . import dashboard_bp
+
+
+@dashboard_bp.route("/instagram/oauth/start")
+@login_required
+def instagram_oauth_start():
+    """Redireciona para login Meta (Facebook) — Instagram Profissional vinculado à Página."""
+    app_id = os.environ.get("META_APP_ID", "").strip()
+    secret = os.environ.get("META_APP_SECRET", "").strip()
+    if not app_id or not secret:
+        flash(
+            "Conexão oficial Meta não está configurada no servidor (META_APP_ID / META_APP_SECRET).",
+            "error",
+        )
+        return redirect(url_for("dashboard.index"))
+
+    state = secrets.token_urlsafe(32)
+    session["instagram_oauth_state"] = state
+
+    from modules.instagram_graph import oauth_authorize_url
+
+    return redirect(oauth_authorize_url(state))
+
+
+@dashboard_bp.route("/instagram/oauth/callback")
+@login_required
+def instagram_oauth_callback():
+    from modules import instagram_graph as ig_graph
+
+    err = request.args.get("error")
+    if err:
+        desc = request.args.get("error_description") or err
+        flash(f"Meta: {desc[:300]}", "error")
+        return redirect(url_for("dashboard.index"))
+
+    if request.args.get("state") != session.get("instagram_oauth_state"):
+        flash("Sessão de autorização inválida ou expirada. Tente conectar novamente.", "error")
+        return redirect(url_for("dashboard.index"))
+    session.pop("instagram_oauth_state", None)
+
+    code = request.args.get("code", "").strip()
+    if not code:
+        flash("Resposta Meta sem código de autorização.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    try:
+        short = ig_graph.exchange_code_for_short_user_token(code)
+        long_user = ig_graph.exchange_for_long_lived_user_token(short)
+        pages = ig_graph.list_pages_with_instagram(long_user)
+    except Exception as e:
+        flash(f"Não foi possível completar a conexão com Meta: {str(e)[:280]}", "error")
+        return redirect(url_for("dashboard.index"))
+
+    if not pages:
+        flash(
+            "Nenhuma Página do Facebook com Instagram profissional encontrada. "
+            "Use um perfil Instagram Creator ou Business vinculado a uma Página.",
+            "error",
+        )
+        return redirect(url_for("dashboard.index"))
+
+    p0 = pages[0]
+    ig_username = p0["ig_username"]
+    share_fb = True
+
+    existing_count = InstagramAccount.query.filter_by(client_id=current_user.id).count()
+    existing = InstagramAccount.query.filter_by(
+        client_id=current_user.id, ig_username=ig_username
+    ).first()
+    if existing_count >= current_user.max_accounts() and not existing:
+        flash("Limite de contas do seu plano atingido.", "error")
+        return redirect(url_for("dashboard.index"))
+
+    if existing:
+        acc = existing
+    else:
+        acc = InstagramAccount(
+            client_id=current_user.id,
+            ig_username=ig_username,
+            share_to_facebook=share_fb,
+            label=ig_username,
+        )
+        db.session.add(acc)
+        db.session.flush()
+
+    acc.set_ig_password(p0["page_access_token"])
+    acc.ig_graph_user_id = p0["ig_user_id"]
+    acc.ig_graph_page_id = p0["page_id"]
+    acc.ig_connection_type = "graph_oauth"
+    acc.share_to_facebook = share_fb
+    acc.status = "active"
+    acc.status_message = None
+    acc.last_login_at = datetime.now(timezone.utc)
+
+    old_sess = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"account_{acc.id}.json"
+    old_sess.unlink(missing_ok=True)
+
+    db.session.commit()
+
+    if len(pages) > 1:
+        flash(
+            f"@{ig_username} conectado via Meta. "
+            f"(Várias páginas encontradas — usamos: {p0.get('page_name') or p0['page_id']})",
+            "success",
+        )
+    else:
+        flash(f"@{ig_username} conectado com sucesso via Meta (login oficial).", "success")
+    return redirect(url_for("dashboard.index"))
 
 
 @dashboard_bp.route("/selecionar-conta", methods=["GET", "POST"])
@@ -97,7 +206,10 @@ def connect_instagram():
         elif "challenge" in err.lower():
             flash("Instagram pediu verificação. Confirme no app do celular e tente novamente.", "error")
         elif "two_factor" in err.lower() or "2fa" in err.lower():
-            flash("2FA ativo. Desative o 2FA no Instagram ou use um Session ID.", "error")
+            flash(
+                "2FA ativo no Instagram. Use «Conectar com Meta» (recomendado) ou o método Session ID (avançado).",
+                "error",
+            )
         elif "not found" in err.lower() or "can't find" in err.lower():
             flash(f"Usuário @{ig_username} não encontrado no Instagram. Verifique o nome de usuário.", "error")
         else:
@@ -111,6 +223,9 @@ def connect_instagram():
         existing.status = "active"
         existing.status_message = None
         existing.last_login_at = datetime.now(timezone.utc)
+        existing.ig_connection_type = "password"
+        existing.ig_graph_user_id = None
+        existing.ig_graph_page_id = None
         session_file = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"account_{existing.id}.json"
         _session_path.rename(session_file)
     else:
@@ -121,6 +236,7 @@ def connect_instagram():
             label=label,
             status="active",
             last_login_at=datetime.now(timezone.utc),
+            ig_connection_type="password",
         )
         account.set_ig_password(ig_password)
         db.session.add(account)
@@ -168,6 +284,9 @@ def connect_instagram_session():
         existing.share_to_facebook = share_fb
         existing.status = "active"
         existing.status_message = None
+        existing.ig_connection_type = "session"
+        existing.ig_graph_user_id = None
+        existing.ig_graph_page_id = None
         account = existing
     else:
         account = InstagramAccount(
@@ -175,6 +294,7 @@ def connect_instagram_session():
             ig_username=ig_username,
             share_to_facebook=share_fb,
             label=ig_username,
+            ig_connection_type="session",
         )
         account.set_ig_password(session_id)
         db.session.add(account)

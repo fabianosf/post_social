@@ -146,6 +146,11 @@ class InstagramAccount(db.Model):
     connected_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login_at = db.Column(db.DateTime)
 
+    # password | session | graph_oauth — graph_oauth usa token da Página (Meta API oficial)
+    ig_connection_type = db.Column(db.String(20), default="password")
+    ig_graph_user_id = db.Column(db.String(64), nullable=True)
+    ig_graph_page_id = db.Column(db.String(64), nullable=True)
+
     def set_ig_password(self, password: str):
         if _fernet:
             self.ig_password_encrypted = _fernet.encrypt(password.encode()).decode()

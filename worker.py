@@ -37,6 +37,14 @@ BASE_DIR = Path(__file__).parent
 SESSION_DIR = BASE_DIR / "sessions"
 SESSION_DIR.mkdir(exist_ok=True)
 
+_PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://postay.com.br").rstrip("/")
+
+
+def _ig_connection_type(account: InstagramAccount) -> str:
+    t = getattr(account, "ig_connection_type", None) or "password"
+    return str(t).strip() or "password"
+
+
 app = create_app()
 logger = setup_global_logger(str(BASE_DIR))
 
@@ -46,6 +54,9 @@ _NOT_FOUND_COOLDOWN_MINUTES   = 1440  # Usuário não encontrado: retry após 24
 
 
 def get_ig_client(account: InstagramAccount) -> IGClient | None:
+    if _ig_connection_type(account) == "graph_oauth":
+        return None
+
     cl = IGClient()
     cl.delay_range = [2, 5]
 
@@ -165,6 +176,119 @@ def generate_caption(post: PostQueue) -> str:
         caption += f"\n\n{post.hashtags}"
 
     return caption
+
+
+def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool:
+    """Publica foto no feed via Instagram Graph API (conta conectada por OAuth Meta)."""
+    from urllib.parse import quote
+
+    from flask import current_app
+
+    from modules import instagram_graph as ig_graph
+
+    paths = post.image_path.split("|")
+    if not all(os.path.exists(p) for p in paths):
+        post.status = "failed"
+        post.error_message = "Arquivo(s) não encontrado(s)"
+        db.session.commit()
+        return False
+
+    if post.post_type != "photo":
+        post.status = "failed"
+        post.error_message = (
+            "Conta conectada via Meta: por enquanto só fotos no feed. "
+            "Para Reels/Carrossel/Stories use o método clássico ou reconecte."
+        )
+        db.session.commit()
+        return False
+
+    ig_uid = (account.ig_graph_user_id or "").strip()
+    if not ig_uid:
+        post.status = "failed"
+        post.error_message = "Conta Meta sem ID do Instagram — reconecte pelo painel."
+        db.session.commit()
+        return False
+
+    caption = generate_caption(post)
+    post.caption = caption
+    logger.info(f"Post #{post.id} [graph photo] — {caption[:60]}...")
+
+    uf = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    first = Path(paths[0]).resolve()
+    try:
+        rel = str(first.relative_to(uf))
+    except ValueError:
+        post.status = "failed"
+        post.error_message = "Mídia precisa estar em /uploads para URL pública (Meta)."
+        db.session.commit()
+        return False
+
+    image_url = f"{_PUBLIC_BASE}/uploads/{quote(rel, safe='/')}"
+    token = account.get_ig_password()
+
+    mid, err = ig_graph.publish_single_image(ig_uid, token, image_url, caption)
+    if mid:
+        post.instagram_media_id = mid
+        post.status = "posted"
+        post.posted_at = datetime.now(timezone.utc)
+        post.error_message = None
+
+        client = db.session.get(Client, post.client_id)
+        if client:
+            client.increment_post_count()
+            send_email_notification(client, post, success=True)
+            notify_post_success(client, post, account)
+
+        if post.post_to_facebook and account.share_to_facebook and account.ig_graph_page_id:
+            try:
+                from modules.facebook_poster import FacebookPoster
+
+                fb = FacebookPoster(
+                    str(account.ig_graph_page_id),
+                    token,
+                    str(account.client_id),
+                    logger,
+                )
+                fb.post_photo(paths[0], caption)
+            except Exception as fb_e:
+                logger.warning(f"Post #{post.id} — Facebook espelho falhou: {fb_e}")
+
+        db.session.commit()
+        logger.info(f"Post #{post.id} — POSTADO Instagram (Meta Graph)! ID: {mid}")
+
+        if getattr(post, "post_to_tiktok", False):
+            _try_post_tiktok(post, client)
+
+        return True
+
+    err_s = (err or "Falha desconhecida na API Meta")[:500]
+    el = err_s.lower()
+    if "expired" in el or "190" in err_s or "invalid oauth" in el or "session has been invalidated" in el:
+        account.status = "login_error"
+        account.status_message = "Acesso Meta expirado. Use «Conectar com Meta» no painel para reconectar."
+        account.last_login_at = datetime.now(timezone.utc)
+
+    post.retry_count = (post.retry_count or 0) + 1
+    MAX_RETRIES = 3
+    retry_delays = [15, 30, 60]
+    if post.retry_count <= MAX_RETRIES:
+        delay = retry_delays[min(post.retry_count - 1, len(retry_delays) - 1)]
+        post.status = "pending"
+        post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)
+        post.error_message = f"Tentativa {post.retry_count}/{MAX_RETRIES} (Meta): {err_s}"
+        db.session.commit()
+        logger.warning(f"Post #{post.id} — retry Meta em {delay}min")
+    else:
+        post.status = "failed"
+        post.error_message = err_s
+        client = db.session.get(Client, post.client_id)
+        if client:
+            send_email_notification(client, post, success=False)
+            notify_post_failed(client, post, account, err_s)
+        db.session.commit()
+        logger.error(f"Post #{post.id} — falha final Meta: {err_s}")
+
+    return False
 
 
 def post_photo(cl: IGClient, post: PostQueue, caption: str) -> str | None:
@@ -563,6 +687,44 @@ def process_queue():
 
             if not account or account.status not in ("active", "login_error", "challenge_required"):
                 logger.warning(f"Conta #{acc_id} não ativa, pulando")
+                continue
+
+            if _ig_connection_type(account) == "graph_oauth":
+                if account.status == "login_error":
+                    for post in posts:
+                        sched = post.scheduled_at or post.created_at
+                        if sched and (now - sched).total_seconds() > 7200:
+                            post.status = "failed"
+                            post.error_message = account.status_message or "Reconecte o Instagram com Meta."
+                            db.session.commit()
+                    continue
+                MAX_PER_DAY = 2
+                today_start = datetime.now(_BRT).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+                posted_today = PostQueue.query.filter(
+                    PostQueue.account_id == acc_id,
+                    PostQueue.post_type != "story",
+                    PostQueue.status == "posted",
+                    PostQueue.post_to_instagram == True,
+                    PostQueue.posted_at >= today_start,
+                ).count()
+                remaining = MAX_PER_DAY - posted_today
+                if remaining <= 0:
+                    logger.info(f"[Graph @{account.ig_username}] limite diário atingido.")
+                    continue
+                for i, post in enumerate(posts):
+                    if i >= remaining:
+                        break
+                    post.status = "processing"
+                    db.session.commit()
+                    process_post_graph_oauth(post, account)
+                    if i < min(len(posts), remaining) - 1:
+                        delay = random.randint(90, 300)
+                        logger.info(f"Aguardando {delay}s (anti-bloqueio)...")
+                        time.sleep(delay)
+                if acc_id != account_ids[-1]:
+                    delay = random.randint(120, 300)
+                    logger.info(f"Aguardando {delay}s entre contas...")
+                    time.sleep(delay)
                 continue
 
             cl = get_ig_client(account)

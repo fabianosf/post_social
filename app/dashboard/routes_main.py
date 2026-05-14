@@ -195,6 +195,9 @@ def index():
         }
 
     tiktok_configured = bool(os.environ.get("TIKTOK_CLIENT_KEY", "").strip())
+    meta_instagram_oauth_configured = bool(
+        os.environ.get("META_APP_ID", "").strip() and os.environ.get("META_APP_SECRET", "").strip()
+    )
     active_account_id = session.get("active_account_id") or current_user.default_account_id
 
     trial_days_left = None
@@ -221,6 +224,7 @@ def index():
         safe_limits=SAFE_LIMITS,
         history_days=history_days,
         tiktok_configured=tiktok_configured,
+        meta_instagram_oauth_configured=meta_instagram_oauth_configured,
         active_account_id=active_account_id,
         trial_days_left=trial_days_left,
     )

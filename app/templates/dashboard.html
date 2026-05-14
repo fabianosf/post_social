@@ -39,17 +39,27 @@
                 <div style="font-size:2.5rem; margin-bottom:0.5rem;">📸</div>
                 <h2 style="color:#fff; margin:0 0 0.5rem;">Conectar Instagram</h2>
                 <p style="color:#888; font-size:0.88rem; line-height:1.6;">
-                    Informe usuário e senha do Instagram para conectar. Suas credenciais são criptografadas e armazenadas com segurança.
+                    O jeito mais simples é com o login oficial da Meta (funciona bem no celular).
                 </p>
             </div>
-            <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
-                <input type="text" name="ig_username" placeholder="@usuario" required style="margin-bottom:0.5rem;">
-                <input type="password" name="ig_password" placeholder="Senha do Instagram" required style="margin-bottom:1rem;">
-                <button type="submit" class="btn btn-meta" style="width:100%; padding:0.85rem;">
-                    Conectar Instagram
-                </button>
-            </form>
+            {% if meta_instagram_oauth_configured %}
+            <a href="{{ url_for('dashboard.instagram_oauth_start') }}" class="btn" style="display:block;width:100%;text-align:center;padding:0.85rem;background:#1877f2;color:#fff;font-weight:600;border-radius:10px;margin-bottom:0.75rem;">
+                Continuar com Meta
+            </a>
+            {% else %}
+            <p style="color:#fbbf24;font-size:0.82rem;margin-bottom:0.6rem;">Configure META_APP_ID no servidor para usar o login Meta aqui.</p>
+            {% endif %}
+            <details style="margin-bottom:0.75rem;" {{ 'open' if not meta_instagram_oauth_configured else '' }}>
+                <summary style="color:#888;font-size:0.82rem;cursor:pointer;">Usuário e senha</summary>
+                <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}" style="margin-top:0.6rem;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+                    <input type="text" name="ig_username" placeholder="@usuario" autocomplete="username" style="margin-bottom:0.5rem;">
+                    <input type="password" name="ig_password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:1rem;">
+                    <button type="submit" class="btn btn-meta" style="width:100%; padding:0.85rem;">
+                        Conectar
+                    </button>
+                </form>
+            </details>
             <p style="text-align:center; margin-top:0.8rem;">
                 <a href="#" onclick="onbNext(2); return false;" style="color:#555; font-size:0.8rem;">Pular esta etapa</a>
             </p>
@@ -263,7 +273,7 @@ function onbSkip() {
         {% endfor %}
         </ul>
         <p style="margin:0.5rem 0 0; color:#aaa; font-size:0.78rem;">
-            Os posts agendados para esta(s) conta(s) <strong>não serão publicados</strong> até que seja reconectada com usuário e senha corretos.
+            Os posts agendados para esta(s) conta(s) <strong>não serão publicados</strong> até que seja reconectada (Meta ou usuário/senha).
         </p>
     </div>
 </div>
@@ -277,6 +287,7 @@ function onbSkip() {
         <div class="account-info">
             <span class="badge badge-ig">IG</span>
             <span>@{{ acc.ig_username }}</span>
+            {% if acc.ig_connection_type == 'graph_oauth' %}<span class="badge" style="font-size:0.55rem;background:#1877f2;">Meta</span>{% endif %}
             {% if acc.label and acc.label != acc.ig_username %}<small style="color:#888;">({{ acc.label }})</small>{% endif %}
             {% if acc.share_to_facebook %}<span class="badge badge-fb" style="font-size:0.6rem;">+FB</span>{% endif %}
             <span class="badge badge-{{ 'posted' if acc.status == 'active' else 'failed' }}" style="font-size:0.6rem;">{{ acc.status }}</span>
@@ -326,23 +337,46 @@ function onbSkip() {
         {% else %}
         <!-- Conectar via Session ID -->
         <div style="margin-top:0.8rem;">
-            <div style="background:#0f1a2e; border:1px solid #2a3a5a; border-radius:8px; padding:0.8rem; margin-bottom:0.8rem; font-size:0.82rem; color:#aaa; line-height:1.7;">
-                <strong style="color:#7c5cff;">Como pegar o Session ID:</strong><br>
-                1. Abra <strong style="color:#eee;">instagram.com</strong> no navegador e faça login<br>
-                2. Pressione <strong style="color:#eee;">F12</strong> → aba <strong style="color:#eee;">Application</strong> (Chrome) ou <strong style="color:#eee;">Storage</strong> (Firefox)<br>
-                3. Clique em <strong style="color:#eee;">Cookies → https://www.instagram.com</strong><br>
-                4. Copie o valor de <strong style="color:#4ade80;">sessionid</strong>
-            </div>
-            <form method="POST" action="{{ url_for('dashboard.connect_instagram_session') }}">
-                <label>Session ID</label>
-                <input type="text" name="session_id" required placeholder="Cole aqui o valor do sessionid..."
-                       style="font-size:0.8rem; font-family:monospace;">
-                <div class="checkbox-row">
-                    <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
-                </div>
-                <button type="submit" class="btn btn-sm" style="width:100%;">Conectar Instagram</button>
-            </form>
+            {% if meta_instagram_oauth_configured %}
+            <a href="{{ url_for('dashboard.instagram_oauth_start') }}" class="btn" style="display:block;width:100%;text-align:center;padding:0.9rem 1rem;background:#1877f2;color:#fff;font-weight:600;border-radius:10px;margin-bottom:0.75rem;">
+                Conectar com Meta (recomendado)
+            </a>
+            <p style="color:#888;font-size:0.78rem;line-height:1.45;margin:0 0 0.9rem;">
+                Abre o login oficial Facebook/Instagram. Exige perfil <strong>Instagram Profissional</strong> vinculado a uma <strong>Página do Facebook</strong> que você administra.
+            </p>
+            {% else %}
+            <p style="color:#f59e0b;font-size:0.8rem;margin:0 0 0.75rem;">Conexão Meta (OAuth) ainda não configurada no servidor — use usuário e senha abaixo ou avançado.</p>
+            {% endif %}
+            <details>
+                <summary style="cursor:pointer;color:#aaa;font-size:0.85rem;">Usuário e senha do Instagram (método clássico)</summary>
+                <form method="POST" action="{{ url_for('dashboard.connect_instagram') }}" style="margin-top:0.75rem;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+                    <label>@usuário</label>
+                    <input type="text" name="ig_username" placeholder="usuario" autocomplete="username" inputmode="text" style="margin-bottom:0.5rem;">
+                    <label>Senha</label>
+                    <input type="password" name="ig_password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:0.5rem;">
+                    <div class="checkbox-row">
+                        <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+                    </div>
+                    <button type="submit" class="btn btn-sm" style="width:100%;margin-top:0.5rem;">Conectar</button>
+                </form>
+            </details>
         </div>
+        <details style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;color:#777;font-size:0.8rem;">Avançado: Session ID (cookies)</summary>
+            <div style="margin-top:0.8rem;">
+                <p style="font-size:0.78rem;color:#888;line-height:1.5;">Só use se 2FA ou bloqueio impedir os métodos acima. No celular é difícil — prefira Meta ou senha.</p>
+                <form method="POST" action="{{ url_for('dashboard.connect_instagram_session') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+                    <label>Session ID</label>
+                    <input type="text" name="session_id" placeholder="sessionid…" style="font-size:0.8rem;font-family:monospace;">
+                    <div class="checkbox-row">
+                        <label><input type="checkbox" name="share_facebook" checked> Compartilhar no Facebook</label>
+                    </div>
+                    <button type="submit" class="btn btn-sm" style="width:100%;">Conectar via Session ID</button>
+                </form>
+            </div>
+        </details>
         {% endif %}
     </details>
 </div>
