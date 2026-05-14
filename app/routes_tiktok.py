@@ -6,7 +6,9 @@ Docs: https://developers.tiktok.com/doc/content-posting-api-get-started
 import hashlib
 import hmac
 import json
+import logging
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone, timedelta
@@ -18,11 +20,16 @@ from .models import db, TikTokAccount
 
 tiktok_bp = Blueprint("tiktok", __name__, url_prefix="/tiktok")
 
-TIKTOK_CLIENT_KEY    = os.environ.get("TIKTOK_CLIENT_KEY", "")
-TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "")
-TIKTOK_REDIRECT_URI  = os.environ.get("TIKTOK_REDIRECT_URI", "https://postay.com.br/tiktok/callback")
+TIKTOK_CLIENT_KEY    = os.environ.get("TIKTOK_CLIENT_KEY", "").strip()
+TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "").strip()
+TIKTOK_REDIRECT_URI  = os.environ.get("TIKTOK_REDIRECT_URI", "https://postay.com.br/tiktok/callback").strip()
 
-SCOPES = "user.info.basic,video.publish,video.upload"
+# Escopos não concedidos no portal TikTok quebram a página de login (erro genérico «client_key»).
+# Padrão: só user.info.basic. Para postar vídeo/foto, habilite os produtos no app e defina ex.:
+# TIKTOK_OAUTH_SCOPES=user.info.basic,video.publish,video.upload
+SCOPES = (os.environ.get("TIKTOK_OAUTH_SCOPES", "user.info.basic") or "user.info.basic").strip()
+
+logger = logging.getLogger(__name__)
 
 AUTH_URL    = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL   = "https://open.tiktokapis.com/v2/oauth/token/"
@@ -58,8 +65,17 @@ def _exchange_code(code: str) -> dict:
     req = urllib.request.Request(TOKEN_URL, data=data,
                                   headers={"Content-Type": "application/x-www-form-urlencoded"},
                                   method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            raise RuntimeError(raw[:400] or f"HTTP {e.code}") from e
+        msg = data.get("error_description") or data.get("error") or raw[:400]
+        raise RuntimeError(str(msg)[:400]) from e
 
 
 def _refresh_token(refresh_tok: str) -> dict:
@@ -72,8 +88,17 @@ def _refresh_token(refresh_tok: str) -> dict:
     req = urllib.request.Request(TOKEN_URL, data=data,
                                   headers={"Content-Type": "application/x-www-form-urlencoded"},
                                   method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            raise RuntimeError(raw[:400] or f"HTTP {e.code}") from e
+        msg = data.get("error_description") or data.get("error") or raw[:400]
+        raise RuntimeError(str(msg)[:400]) from e
 
 
 def get_valid_token(account: TikTokAccount) -> str | None:
@@ -103,8 +128,8 @@ def get_valid_token(account: TikTokAccount) -> str | None:
 @tiktok_bp.route("/connect")
 @login_required
 def connect():
-    if not TIKTOK_CLIENT_KEY:
-        flash("Configure TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET no arquivo .env", "error")
+    if not TIKTOK_CLIENT_KEY or not TIKTOK_CLIENT_SECRET:
+        flash("Configure TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET no .env (ambos obrigatórios).", "error")
         return redirect(url_for("dashboard.index"))
 
     state = hashlib.sha256(os.urandom(16)).hexdigest()
@@ -125,7 +150,8 @@ def connect():
 def callback():
     error = request.args.get("error")
     if error:
-        flash(f"TikTok recusou a autorização: {error}", "error")
+        err_desc = (request.args.get("error_description") or "").strip()
+        flash(f"TikTok: {error}" + (f" — {err_desc[:220]}" if err_desc else ""), "error")
         return redirect(url_for("dashboard.index"))
 
     state = request.args.get("state")
@@ -142,7 +168,8 @@ def callback():
         tok = _exchange_code(code)
         err = tok.get("error") or tok.get("message")
         if err and err not in ("", "ok", None):
-            flash(f"TikTok retornou erro: {err}", "error")
+            desc = tok.get("error_description") or ""
+            flash(f"TikTok: {err}" + (f" — {desc[:200]}" if desc else ""), "error")
             return redirect(url_for("dashboard.index"))
 
         access_token  = tok.get("access_token") or tok.get("data", {}).get("access_token", "")
@@ -177,7 +204,8 @@ def callback():
         name = account.username or account.display_name or open_id
         flash(f"TikTok @{name} conectado com sucesso!", "success")
     except Exception as e:
-        flash(f"Erro ao conectar TikTok. Tente novamente.", "error")
+        logger.warning("TikTok OAuth callback: %s", e, exc_info=True)
+        flash(f"Erro ao conectar TikTok: {str(e)[:280]}", "error")
 
     return redirect(url_for("dashboard.index"))
 

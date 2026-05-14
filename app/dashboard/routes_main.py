@@ -194,7 +194,10 @@ def index():
             "blocked": ig_remaining <= 0,
         }
 
-    tiktok_configured = bool(os.environ.get("TIKTOK_CLIENT_KEY", "").strip())
+    tiktok_configured = bool(
+        os.environ.get("TIKTOK_CLIENT_KEY", "").strip()
+        and os.environ.get("TIKTOK_CLIENT_SECRET", "").strip()
+    )
     meta_instagram_oauth_configured = bool(
         os.environ.get("META_APP_ID", "").strip() and os.environ.get("META_APP_SECRET", "").strip()
     )

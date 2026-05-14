@@ -475,7 +475,10 @@ def index():
         }
 
     import os as _os
-    tiktok_configured = bool(_os.environ.get("TIKTOK_CLIENT_KEY", "").strip())
+    tiktok_configured = bool(
+        _os.environ.get("TIKTOK_CLIENT_KEY", "").strip()
+        and _os.environ.get("TIKTOK_CLIENT_SECRET", "").strip()
+    )
 
     active_account_id = session.get("active_account_id") or current_user.default_account_id
 
