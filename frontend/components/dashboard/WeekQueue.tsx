@@ -41,6 +41,7 @@ function PostItem({ post }: { post: QueuePost }) {
 }
 
 function DayColumn({ day }: { day: WeekDay }) {
+  const posts = Array.isArray(day.posts) ? day.posts : [];
   return (
     <div className={cn("flex flex-col gap-2 rounded-xl border p-3 min-w-[140px]",
       day.is_today ? "border-primary bg-primary/5" : "border-border bg-card"
@@ -52,16 +53,16 @@ function DayColumn({ day }: { day: WeekDay }) {
           </p>
           <p className="text-[11px] text-muted-foreground">{day.day_short}</p>
         </div>
-        {day.posts.length > 0 && (
-          <Badge variant="outline" className="text-[10px] px-1.5">{day.posts.length}</Badge>
+        {posts.length > 0 && (
+          <Badge variant="outline" className="text-[10px] px-1.5">{posts.length}</Badge>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {day.posts.length === 0 ? (
+        {posts.length === 0 ? (
           <p className="py-2 text-center text-[11px] text-muted-foreground/60">sem posts</p>
         ) : (
-          day.posts.map((p) => <PostItem key={p.id} post={p} />)
+          posts.map((p) => <PostItem key={p.id} post={p} />)
         )}
       </div>
     </div>
@@ -69,7 +70,11 @@ function DayColumn({ day }: { day: WeekDay }) {
 }
 
 export function WeekQueue({ data }: { data: WeekDay[] }) {
-  const totalWeek = data.reduce((s, d) => s + d.posts.length, 0);
+  const days = Array.isArray(data) ? data : [];
+  const totalWeek = days.reduce(
+    (s, d) => s + (Array.isArray(d?.posts) ? d.posts.length : 0),
+    0
+  );
 
   return (
     <div className="space-y-3">
@@ -86,7 +91,7 @@ export function WeekQueue({ data }: { data: WeekDay[] }) {
         </Card>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-2">
-          {data.map((day) => <DayColumn key={day.date} day={day} />)}
+          {days.map((day) => <DayColumn key={day.date} day={day} />)}
         </div>
       )}
     </div>
