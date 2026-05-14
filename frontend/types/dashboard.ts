@@ -32,7 +32,7 @@ export interface WeekDay {
 }
 
 export interface GrowthSummary {
-  growth_score: { score: number; label: string; components: Record<string, number> };
+  growth_score?: { score: number; label: string; components: Record<string, number> } | null;
   kpis: {
     posts_published: number;
     total_reach: number;
