@@ -72,11 +72,11 @@ export function CompetitorPanel() {
         <h3 className="mb-3 text-sm font-medium">Seus concorrentes</h3>
         {comps.isLoading ? (
           <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-        ) : comps.data?.length === 0 ? (
+        ) : Array.isArray(comps.data) && comps.data.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum concorrente cadastrado.</p>
         ) : (
           <ul className="space-y-2">
-            {comps.data?.map((c: Competitor) => (
+            {(Array.isArray(comps.data) ? comps.data : []).map((c: Competitor) => (
               <li key={c.id} className="flex items-center justify-between rounded-md bg-secondary px-3 py-2">
                 <div>
                   <p className="text-sm font-medium">{c.name}</p>

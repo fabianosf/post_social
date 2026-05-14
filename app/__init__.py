@@ -97,7 +97,10 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        return db.session.get(Client, int(user_id))
+        try:
+            return db.session.get(Client, int(user_id))
+        except (TypeError, ValueError):
+            return None
 
     # ── CORS (Next.js dev em localhost:3000) ──────────────────────
     try:

@@ -76,9 +76,10 @@ export function CommunityCard({ c }: { c: Community }) {
         ) : null}
         {c.city && <span>{c.city}</span>}
         {c.niche && <span className="rounded bg-secondary px-1.5 py-0.5">{c.niche}</span>}
-        {c.tags?.map((t) => (
-          <span key={t} className="rounded bg-secondary px-1.5 py-0.5">{t}</span>
-        ))}
+        {Array.isArray(c.tags) &&
+          c.tags.map((t) => (
+            <span key={t} className="rounded bg-secondary px-1.5 py-0.5">{t}</span>
+          ))}
       </div>
 
       <div className="flex gap-2">

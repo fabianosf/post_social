@@ -8,6 +8,7 @@ const scoreColor = (s: number) =>
   s >= 70 ? "text-accent" : s >= 40 ? "text-yellow-400" : "text-destructive";
 
 export function GrowthPulse({ data }: { data: GrowthSummary }) {
+  if (!data || typeof data !== "object") return null;
   const { score = 0, label = "—" } = data.growth_score ?? {};
   const { total_reach = 0, reach_delta_pct = 0 } = data.kpis ?? {};
   const delta = reach_delta_pct ?? 0;

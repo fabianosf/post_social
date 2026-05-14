@@ -16,6 +16,7 @@ export function TrendsPanel({ niche }: { niche?: string }) {
   const trends = useQuery({ queryKey: ["niche-trends", niche], queryFn: () => getNicheTrends(niche), staleTime: 3_600_000 });
   const opps   = useQuery({ queryKey: ["growth-opps"],          queryFn: getGrowthOpportunities,    staleTime: 1_800_000 });
   const score  = useQuery({ queryKey: ["competitive-score", niche], queryFn: () => getCompetitiveScore(niche), staleTime: 1_800_000 });
+  const adjacentNiches = opps.data && Array.isArray(opps.data.adjacent_niches) ? opps.data.adjacent_niches : [];
 
   return (
     <div className="space-y-4">
@@ -64,7 +65,7 @@ export function TrendsPanel({ niche }: { niche?: string }) {
           </div>
         ) : trends.data ? (
           <div className="space-y-4">
-            {trends.data.trends?.length > 0 && (
+            {Array.isArray(trends.data.trends) && trends.data.trends.length > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Em alta</p>
                 <div className="flex flex-wrap gap-2">
@@ -74,7 +75,7 @@ export function TrendsPanel({ niche }: { niche?: string }) {
                 </div>
               </div>
             )}
-            {trends.data.rising_topics?.length > 0 && (
+            {Array.isArray(trends.data.rising_topics) && trends.data.rising_topics.length > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Emergentes</p>
                 <div className="flex flex-wrap gap-2">
@@ -84,7 +85,7 @@ export function TrendsPanel({ niche }: { niche?: string }) {
                 </div>
               </div>
             )}
-            {trends.data.content_opportunities?.length > 0 && (
+            {Array.isArray(trends.data.content_opportunities) && trends.data.content_opportunities.length > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Oportunidades de conteúdo</p>
                 <ul className="space-y-1">
@@ -105,14 +106,14 @@ export function TrendsPanel({ niche }: { niche?: string }) {
       </Card>
 
       {/* Oportunidades */}
-      {opps.data?.adjacent_niches?.length > 0 && (
+      {adjacentNiches.length > 0 && (
         <Card className="p-4">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
             <AlertTriangle size={15} className="text-yellow-400" />
             Nichos adjacentes com menor concorrência
           </h3>
           <div className="flex flex-wrap gap-2">
-            {opps.data.adjacent_niches.map((n: { niche: string; community_count: number }) => (
+            {adjacentNiches.map((n: { niche: string; community_count: number }) => (
               <div key={n.niche} className="rounded-lg bg-secondary px-3 py-2 text-center">
                 <p className="text-sm font-medium">{n.niche}</p>
                 <p className="text-xs text-muted-foreground">{n.community_count} comunidades</p>

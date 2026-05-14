@@ -44,8 +44,8 @@ export default function DiscoverPage() {
     },
   });
 
-  const communities = (recs.data ?? []).filter((c: { name: string }) =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase())
+  const communities = (Array.isArray(recs.data) ? recs.data : []).filter((c: { name?: string }) =>
+    !search || (c.name ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -101,7 +101,7 @@ export default function DiscoverPage() {
                 onChange={(e) => setNiche(e.target.value)}
               >
                 <option value="">Todos os nichos</option>
-                {niches.data?.map((n: { niche: string }) => (
+                {(Array.isArray(niches.data) ? niches.data : []).map((n: { niche: string }) => (
                   <option key={n.niche} value={n.niche}>{n.niche}</option>
                 ))}
               </select>

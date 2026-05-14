@@ -39,7 +39,8 @@ export default function AISettingsPage() {
   const [testMsg, setTestMsg]    = useState<{ ok: boolean; text: string } | null>(null);
 
   const qc = useQueryClient();
-  const { data: keys = [], isLoading } = useQuery<AIKey[]>({ queryKey: ["ai-keys"], queryFn: getAIKeys });
+  const { data: rawKeys, isLoading } = useQuery<AIKey[]>({ queryKey: ["ai-keys"], queryFn: getAIKeys });
+  const keys = Array.isArray(rawKeys) ? rawKeys : [];
 
   const current = keys.find((k) => k.provider === selected);
   const providerMeta = PROVIDERS.find((p) => p.id === selected)!;

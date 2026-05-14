@@ -100,7 +100,8 @@ def api_week_schedule():
                     fb_count += 1
 
                 thumb_url = ""
-                first_path = p.image_path.split("|")[0]
+                raw_path = p.image_path or ""
+                first_path = raw_path.split("|")[0] if raw_path else ""
                 if first_path.startswith(upload_folder):
                     rel = first_path[len(upload_folder):].lstrip("/")
                     thumb_url = url_for("dashboard.uploaded_file", filename=rel)
@@ -115,7 +116,7 @@ def api_week_schedule():
 
                 posts_out.append({
                     "id": p.id,
-                    "filename": p.image_filename[:25],
+                    "filename": (p.image_filename or "")[:25],
                     "time": sched_time,
                     "status": p.status,
                     "ig": bool(p.post_to_instagram),
@@ -146,8 +147,9 @@ def api_generate_caption():
     from modules.caption_generator import CaptionGenerator
     from modules.logger import setup_global_logger
 
-    filename = request.json.get("filename", "foto.jpg")
-    multiple = request.json.get("multiple", True)
+    body = request.get_json(silent=True) or {}
+    filename = body.get("filename", "foto.jpg")
+    multiple = body.get("multiple", True)
     logger = setup_global_logger(".")
     gen = CaptionGenerator(logger, provider="groq")
 
