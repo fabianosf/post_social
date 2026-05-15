@@ -22,12 +22,19 @@ tiktok_bp = Blueprint("tiktok", __name__, url_prefix="/tiktok")
 
 TIKTOK_CLIENT_KEY    = os.environ.get("TIKTOK_CLIENT_KEY", "").strip()
 TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "").strip()
-TIKTOK_REDIRECT_URI  = os.environ.get("TIKTOK_REDIRECT_URI", "https://postay.com.br/tiktok/callback").strip()
+_APP_BASE            = os.environ.get("APP_BASE_URL", "https://postay.com.br").strip().rstrip("/")
+_DEFAULT_REDIRECT    = f"{_APP_BASE}/tiktok/callback"
 
 # Escopos não concedidos no portal TikTok quebram a página de login (erro genérico «client_key»).
-# Padrão: só user.info.basic. Para postar vídeo/foto, habilite os produtos no app e defina ex.:
-# TIKTOK_OAUTH_SCOPES=user.info.basic,video.publish,video.upload
-SCOPES = (os.environ.get("TIKTOK_OAUTH_SCOPES", "user.info.basic") or "user.info.basic").strip()
+# Padrão: só user.info.basic. Para postar: habilite produtos no app e TIKTOK_OAUTH_SCOPES=user.info.basic,video.publish,video.upload
+_raw_scopes = (os.environ.get("TIKTOK_OAUTH_SCOPES", "user.info.basic") or "user.info.basic")
+SCOPES = ",".join(s.strip() for s in _raw_scopes.split(",") if s.strip())
+
+
+def _redirect_uri() -> str:
+    """Deve coincidir EXATAMENTE com o URI cadastrado no TikTok Developer Portal."""
+    uri = (os.environ.get("TIKTOK_REDIRECT_URI") or _DEFAULT_REDIRECT).strip()
+    return uri.rstrip("/")
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +67,7 @@ def _exchange_code(code: str) -> dict:
         "client_secret": TIKTOK_CLIENT_SECRET,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": TIKTOK_REDIRECT_URI,
+        "redirect_uri": _redirect_uri(),
     }).encode()
     req = urllib.request.Request(TOKEN_URL, data=data,
                                   headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -134,15 +141,26 @@ def connect():
 
     state = hashlib.sha256(os.urandom(16)).hexdigest()
     session["tiktok_state"] = state
+    redirect_uri = _redirect_uri()
 
     params = urllib.parse.urlencode({
         "client_key": TIKTOK_CLIENT_KEY,
         "response_type": "code",
         "scope": SCOPES,
-        "redirect_uri": TIKTOK_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "state": state,
+        "disable_auto_auth": "1",
     })
-    return redirect(f"{AUTH_URL}?{params}")
+    resp = redirect(f"{AUTH_URL}?{params}")
+    resp.set_cookie(
+        "tiktok_oauth_state",
+        state,
+        max_age=600,
+        httponly=True,
+        samesite="Lax",
+        secure=bool(os.environ.get("DATABASE_URL")),
+    )
+    return resp
 
 
 @tiktok_bp.route("/callback")
@@ -154,10 +172,13 @@ def callback():
         flash(f"TikTok: {error}" + (f" — {err_desc[:220]}" if err_desc else ""), "error")
         return redirect(url_for("dashboard.index"))
 
-    state = request.args.get("state")
-    if state != session.pop("tiktok_state", None):
+    state = request.args.get("state", "")
+    expected = session.pop("tiktok_state", None) or request.cookies.get("tiktok_oauth_state")
+    if not state or state != expected:
         flash("Estado inválido. Tente novamente.", "error")
-        return redirect(url_for("dashboard.index"))
+        resp = redirect(url_for("dashboard.index"))
+        resp.delete_cookie("tiktok_oauth_state")
+        return resp
 
     code = request.args.get("code")
     if not code:
@@ -207,7 +228,9 @@ def callback():
         logger.warning("TikTok OAuth callback: %s", e, exc_info=True)
         flash(f"Erro ao conectar TikTok: {str(e)[:280]}", "error")
 
-    return redirect(url_for("dashboard.index"))
+    resp = redirect(url_for("dashboard.index"))
+    resp.delete_cookie("tiktok_oauth_state")
+    return resp
 
 
 @tiktok_bp.route("/disconnect/<int:account_id>", methods=["POST"])
