@@ -150,6 +150,7 @@ def approve_pro(client_id):
     client = db.session.get(Client, client_id)
     if client:
         client.plan = "pro"
+        client.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         db.session.commit()
         flash(f"{client.name} — Plano PRO ativado!", "success")
     return redirect(url_for("admin.index"))

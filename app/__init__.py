@@ -123,7 +123,7 @@ def create_app():
     from .dashboard import dashboard_bp
     from .routes_admin import admin_bp
     from .routes_landing import landing_bp
-    from .routes_payment import payment_bp
+    from .routes_payment import payment_bp, mp_webhook
     from .routes_tiktok import tiktok_bp
     from .routes_analytics import analytics_bp
     from .routes_recommendations import recommendations_bp
@@ -155,6 +155,7 @@ def create_app():
         app.extensions["csrf"].exempt(ai_keys_bp)
         app.extensions["csrf"].exempt(communities_bp)
         app.extensions["csrf"].exempt(growth_intel_bp)
+        app.extensions["csrf"].exempt(mp_webhook)
 
     # ── Rate limiting ──────────────────────────────────────────────
     try:

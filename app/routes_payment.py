@@ -4,6 +4,7 @@ Rotas de pagamento — Mercado Pago (checkout) + PIX manual como fallback.
 
 import hashlib
 import hmac
+import logging
 import os
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -16,15 +17,38 @@ from flask_login import login_required, current_user
 from .models import db, Client
 
 payment_bp = Blueprint("payment", __name__, url_prefix="/pagamento")
+logger = logging.getLogger(__name__)
 
 # Configurações via .env
-MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "")
-MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "")
-PIX_KEY = os.environ.get("PIX_KEY", "")
-PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "Postay")
-PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo")
-PRO_PRICE = float(os.environ.get("PRO_PRICE", "99.90"))
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000")
+MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "").strip()
+MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "").strip()
+PIX_KEY = os.environ.get("PIX_KEY", "").strip()
+PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "Postay").strip() or "Postay"
+PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo").strip() or "SaoPaulo"
+PRO_PRICE = float(os.environ.get("PRO_PRICE", "49.90"))
+APP_BASE_URL = (
+    os.environ.get("APP_BASE_URL", "").strip()
+    or os.environ.get("PUBLIC_BASE_URL", "https://postay.com.br").strip()
+).rstrip("/")
+
+
+def _activate_pro(client: Client, payment_id: str, days: int = 30) -> bool:
+    """Ativa ou renova Pro. Retorna True se alterou o banco."""
+    now = datetime.now(timezone.utc)
+    pid = str(payment_id)
+    if client.mp_payment_id == pid and client.plan == "pro":
+        return False
+    client.plan = "pro"
+    client.mp_payment_id = pid
+    base = client.plan_expires_at
+    if base and base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    if base and base > now:
+        client.plan_expires_at = base + timedelta(days=days)
+    else:
+        client.plan_expires_at = now + timedelta(days=days)
+    db.session.commit()
+    return True
 
 
 # ── Mercado Pago SDK helper ───────────────────────
@@ -86,8 +110,9 @@ def index():
                 }
                 result = sdk.preference().create(pref_data)
                 pref = result.get("response", {})
-                mp_checkout_url = pref.get("init_point")
-            except Exception:
+                mp_checkout_url = pref.get("init_point") or pref.get("sandbox_init_point")
+            except Exception as exc:
+                logger.warning("MP preference create failed: %s", exc)
                 mp_available = False
 
     # PIX fallback
@@ -133,50 +158,52 @@ def index():
 
 # ── Webhook Mercado Pago ──────────────────────────
 
-@payment_bp.route("/webhook", methods=["POST"])
+@payment_bp.route("/webhook", methods=["GET", "POST"])
 def mp_webhook():
     """Recebe notificações do Mercado Pago e ativa plano Pro automaticamente."""
-    # Verificar assinatura (se configurado) — formato oficial Mercado Pago v2
-    if MP_WEBHOOK_SECRET:
+    if request.method == "GET":
+        return jsonify({"status": "ok"}), 200
+
+    body = request.get_json(silent=True) or {}
+    resource_id = str((body.get("data") or {}).get("id") or request.args.get("id") or "").strip()
+    topic = (body.get("type") or body.get("action") or request.args.get("topic") or "").lower()
+
+    if MP_WEBHOOK_SECRET and resource_id:
         x_signature = request.headers.get("x-signature", "")
         x_request_id = request.headers.get("x-request-id", "")
-        # Extrair ts e v1 do header x-signature (formato: "ts=...,v1=...")
         sig_parts = dict(p.split("=", 1) for p in x_signature.split(",") if "=" in p)
         ts = sig_parts.get("ts", "")
         v1 = sig_parts.get("v1", "")
-        data_id = (request.get_json(silent=True) or {}).get("data", {}).get("id") or request.args.get("id", "")
-        manifest = f"id:{data_id};request-id:{x_request_id};ts:{ts};"
+        manifest = f"id:{resource_id};request-id:{x_request_id};ts:{ts};"
         expected = hmac.new(
             MP_WEBHOOK_SECRET.encode(),
             manifest.encode(),
             hashlib.sha256,
         ).hexdigest()
         if not v1 or not hmac.compare_digest(v1, expected):
+            logger.warning("MP webhook: assinatura inválida id=%s", resource_id)
             return jsonify({"error": "invalid signature"}), 401
 
-    data = request.get_json(silent=True) or {}
-    topic = data.get("type") or request.args.get("topic", "")
-    resource_id = (data.get("data", {}) or {}).get("id") or request.args.get("id")
+    if "payment" not in topic or not resource_id:
+        return jsonify({"status": "ok"}), 200
 
-    if topic == "payment" and resource_id:
-        sdk = _mp_sdk()
-        if sdk:
-            try:
-                result = sdk.payment().get(resource_id)
-                payment = result.get("response", {})
-                status = payment.get("status")
-                ext_ref = payment.get("external_reference", "")
-                client_id = int(ext_ref) if ext_ref and ext_ref.isdigit() else None
+    sdk = _mp_sdk()
+    if not sdk:
+        return jsonify({"status": "ok"}), 200
 
-                if status == "approved" and client_id:
-                    client = db.session.get(Client, client_id)
-                    if client and client.mp_payment_id != str(resource_id):
-                        client.plan = "pro"
-                        client.mp_payment_id = str(resource_id)
-                        client.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-                        db.session.commit()
-            except Exception:
-                pass
+    try:
+        result = sdk.payment().get(resource_id)
+        payment = result.get("response", {})
+        status = payment.get("status")
+        ext_ref = str(payment.get("external_reference", "") or "")
+        client_id = int(ext_ref) if ext_ref.isdigit() else None
+
+        if status == "approved" and client_id:
+            client = db.session.get(Client, client_id)
+            if client:
+                _activate_pro(client, resource_id)
+    except Exception as exc:
+        logger.error("MP webhook payment %s: %s", resource_id, exc)
 
     return jsonify({"status": "ok"}), 200
 
@@ -186,33 +213,29 @@ def mp_webhook():
 @payment_bp.route("/sucesso")
 @login_required
 def success():
-    payment_id = request.args.get("payment_id")
-    status = request.args.get("status")
+    payment_id = request.args.get("payment_id") or request.args.get("collection_id")
+    status = (request.args.get("status") or request.args.get("collection_status") or "").lower()
 
     if status == "approved" and payment_id:
-        # Verify payment with Mercado Pago API — never trust URL params alone
         sdk = _mp_sdk()
         if sdk:
             try:
                 result = sdk.payment().get(payment_id)
                 payment = result.get("response", {})
                 mp_status = payment.get("status")
-                ext_ref = str(payment.get("external_reference", ""))
+                ext_ref = str(payment.get("external_reference", "") or "")
 
-                if (mp_status == "approved"
-                        and ext_ref == str(current_user.id)
-                        and not current_user.is_pro()):
-                    current_user.plan = "pro"
-                    current_user.mp_payment_id = str(payment_id)
-                    current_user.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-                    db.session.commit()
-                    flash("Pagamento aprovado! Plano Pro ativado com sucesso.", "success")
+                if mp_status == "approved" and ext_ref == str(current_user.id):
+                    if _activate_pro(current_user, str(payment_id)):
+                        flash("Pagamento aprovado! Plano Pro ativado com sucesso.", "success")
+                    else:
+                        flash("Plano Pro já está ativo.", "info")
                 else:
                     flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
-            except Exception:
+            except Exception as exc:
+                logger.warning("MP success callback verify failed: %s", exc)
                 flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
         else:
-            # MP SDK not configured — rely entirely on webhook
             flash("Pagamento recebido. Seu plano será ativado após confirmação.", "info")
     else:
         flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
@@ -252,6 +275,8 @@ def confirm_payment():
 @payment_bp.route("/qrcode.png")
 @login_required
 def qrcode_image():
+    if not PIX_KEY:
+        return Response("PIX não configurado", status=503)
     from modules.pix import generate_pix_qrcode_bytes
     txid = f"PS{current_user.id}{datetime.now(_BRT).strftime('%m%y')}"
     img_bytes = generate_pix_qrcode_bytes(
