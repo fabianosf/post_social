@@ -1,0 +1,6 @@
+# Postay — reload nginx após deploy (fabianosf)
+# Instalar: sudo bash scripts/install-nginx-sudoers.sh
+Defaults:fabianosf !requiretty
+fabianosf ALL=(root) NOPASSWD: /usr/bin/install -m 644 -o root -g root /home/fabianosf/post_social/nginx.conf /etc/nginx/sites-available/postay.com.br
+fabianosf ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+fabianosf ALL=(root) NOPASSWD: /bin/systemctl reload nginx

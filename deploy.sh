@@ -39,12 +39,24 @@ ssh -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
 "
 
 echo ""
-echo "==> [4/4] Rebuilding containers no VPS..."
+echo "==> [4/5] Rebuilding containers no VPS..."
 ssh -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
     cd $VPS_DIR
     docker compose -f $COMPOSE up -d --build
     sleep 5
     docker compose -f $COMPOSE ps
+"
+
+echo ""
+echo "==> [5/5] Nginx (site Postay)..."
+ssh -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
+    set -e
+    cd $VPS_DIR
+    if sudo -n /usr/sbin/nginx -t >/dev/null 2>&1; then
+        bash scripts/reload-nginx.sh
+    else
+        echo '    ⚠ Pulado: rode no VPS uma vez: sudo bash scripts/install-nginx-sudoers.sh'
+    fi
 "
 
 echo ""
