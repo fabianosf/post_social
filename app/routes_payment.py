@@ -94,6 +94,9 @@ def index():
     if current_user.plan == target and not current_user.is_admin:
         flash(f"Você já tem o plano {target.upper()}!", "info")
         return redirect(url_for("dashboard.index"))
+    if current_user.plan == "agency" and target == "pro" and not current_user.is_admin:
+        flash("Você já está no plano Agency.", "info")
+        return redirect(url_for("dashboard.index"))
 
     price = AGENCY_PRICE if target == "agency" else PRO_PRICE
     plan_label = "Agency" if target == "agency" else "Pro"

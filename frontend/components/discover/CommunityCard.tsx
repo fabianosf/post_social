@@ -111,8 +111,8 @@ export function CommunityCard({ c }: { c: Community }) {
               <Skeleton className="h-3 w-1/2" />
             </div>
           )}
-          {tips && tips.map((t, i) => <p key={i} className="text-muted-foreground">• {t}</p>)}
-          {content && content.map((t, i) => <p key={i} className="text-muted-foreground">• {t}</p>)}
+          {Array.isArray(tips) && tips.map((t, i) => <p key={i} className="text-muted-foreground">• {t}</p>)}
+          {Array.isArray(content) && content.map((t, i) => <p key={i} className="text-muted-foreground">• {t}</p>)}
         </div>
       )}
     </Card>

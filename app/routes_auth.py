@@ -180,6 +180,6 @@ def login():
 @login_required
 def logout():
     logout_user()
-    session.pop("active_account_id", None)
+    session.clear()
     flash("Você saiu da conta.", "info")
     return redirect(url_for("auth.login"))

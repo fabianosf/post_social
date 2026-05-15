@@ -5,8 +5,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get("session");
   const path = request.nextUrl.pathname;
 
-  // Protect dashboard and settings — unauthenticated users redirect to login
-  if (path !== "/" && !session) {
+  if (!session?.value) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", path);
     return NextResponse.redirect(loginUrl);

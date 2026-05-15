@@ -245,10 +245,15 @@ function onbSkip() {
 {% if plan_info.plan == 'free' %}
 <div class="card" style="border-color:#7c5cff; background:linear-gradient(135deg, #1a1a3e, #2a1a4e); text-align:center; padding:1.5rem;">
     <h2 style="margin-bottom:0.5rem;">Desbloqueie o Plano Pro</h2>
-    <p style="color:#aaa; margin-bottom:1rem; font-size:0.9rem;">Posts ilimitados, Stories, CSV, White Label e muito mais!</p>
-    <a href="{{ url_for('payment.index') }}" class="btn" style="padding:0.8rem 2rem; font-size:1rem;">
-        Fazer Upgrade — R$ 99,90/mês
+    <p style="color:#aaa; margin-bottom:1rem; font-size:0.9rem;">3 contas · posts ilimitados · IA · automações</p>
+    <a href="{{ url_for('payment.index', plan='pro') }}" class="btn" style="padding:0.8rem 2rem; font-size:1rem;">
+        Pro — R$ 99/mês
     </a>
+    </div>
+{% elif plan_info.plan == 'pro' %}
+<div class="card" style="border-color:#c084fc; background:linear-gradient(135deg, #1a1a2e, #2a1a3e); text-align:center; padding:1.2rem;">
+    <p style="color:#aaa; font-size:0.9rem; margin-bottom:0.8rem;">Gerencie até 10 contas com Agency</p>
+    <a href="{{ url_for('payment.index', plan='agency') }}" class="btn" style="padding:0.6rem 1.5rem;">Agency — R$ 249/mês</a>
 </div>
 {% elif plan_info.plan in ['pending_pro', 'pending_agency'] %}
 <div class="card" style="border-color:#fbbf24; background:#2a2a1a; text-align:center;">

@@ -22,7 +22,7 @@ export function Navbar() {
           Postay
         </Link>
 
-        <ul className="hidden md:flex items-center gap-1">
+        <ul className="flex flex-1 items-center gap-1 overflow-x-auto max-md:max-w-[55vw] md:flex-initial md:overflow-visible">
           {/* /dashboard é rota Next.js — usa Link */}
           <li>
             <Link href="/dashboard" className={linkClass(path, "/dashboard")}>

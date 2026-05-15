@@ -78,7 +78,8 @@
         .badge-fb { background: #1877f222; color: #1877f2; }
         .badge-free { background: #3a3a1a; color: #fbbf24; }
         .badge-pro { background: #1a2a3a; color: #60a5fa; }
-        .badge-pending_pro { background: #3a3a1a; color: #fbbf24; }
+        .badge-agency { background: #2a1a3a; color: #c084fc; }
+        .badge-pending_pro, .badge-pending_agency { background: #3a3a1a; color: #fbbf24; }
         .badge-story { background: #e1306c22; color: #e1306c; }
 
         .account-card { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1rem; background: #0f0f1a; border-radius: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
@@ -178,7 +179,9 @@
             <a href="/settings/ai" style="color:#94a3b8;" title="Configurações de IA">⚙️ Config IA</a>
             <span class="user-info">{{ current_user.name }}</span>
             {% if current_user.plan == 'free' %}
-            <a href="{{ url_for('payment.index') }}" style="color:#fbbf24; font-weight:600; font-size:0.8rem;">Upgrade Pro</a>
+            <a href="{{ url_for('payment.index', plan='pro') }}" style="color:#fbbf24; font-weight:600; font-size:0.8rem;">Upgrade Pro</a>
+            {% elif current_user.plan == 'pro' %}
+            <a href="{{ url_for('payment.index', plan='agency') }}" style="color:#c084fc; font-weight:600; font-size:0.8rem;">Upgrade Agency</a>
             {% endif %}
             <span class="badge badge-{{ current_user.plan }}">{{ current_user.plan }}</span>
             <a href="{{ url_for('auth.logout') }}">Sair</a>
