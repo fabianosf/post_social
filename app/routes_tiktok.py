@@ -22,7 +22,10 @@ tiktok_bp = Blueprint("tiktok", __name__, url_prefix="/tiktok")
 
 TIKTOK_CLIENT_KEY    = os.environ.get("TIKTOK_CLIENT_KEY", "").strip()
 TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "").strip()
-_APP_BASE            = os.environ.get("APP_BASE_URL", "https://postay.com.br").strip().rstrip("/")
+_APP_BASE            = (
+    os.environ.get("APP_BASE_URL", "").strip()
+    or os.environ.get("PUBLIC_BASE_URL", "https://postay.com.br").strip()
+).rstrip("/") or "https://postay.com.br"
 _DEFAULT_REDIRECT    = f"{_APP_BASE}/tiktok/callback"
 
 # Escopos não concedidos no portal TikTok quebram a página de login (erro genérico «client_key»).
@@ -62,6 +65,9 @@ def _get_json(url: str, token: str) -> dict:
 
 
 def _exchange_code(code: str) -> dict:
+    code = urllib.parse.unquote((code or "").strip())
+    if not code:
+        raise RuntimeError("authorization code vazio")
     data = urllib.parse.urlencode({
         "client_key": TIKTOK_CLIENT_KEY,
         "client_secret": TIKTOK_CLIENT_SECRET,
@@ -166,24 +172,27 @@ def connect():
 @tiktok_bp.route("/callback")
 @login_required
 def callback():
+    def _cb_redirect():
+        r = redirect(url_for("dashboard.index"))
+        r.delete_cookie("tiktok_oauth_state")
+        return r
+
     error = request.args.get("error")
     if error:
         err_desc = (request.args.get("error_description") or "").strip()
         flash(f"TikTok: {error}" + (f" — {err_desc[:220]}" if err_desc else ""), "error")
-        return redirect(url_for("dashboard.index"))
+        return _cb_redirect()
 
     state = request.args.get("state", "")
     expected = session.pop("tiktok_state", None) or request.cookies.get("tiktok_oauth_state")
     if not state or state != expected:
         flash("Estado inválido. Tente novamente.", "error")
-        resp = redirect(url_for("dashboard.index"))
-        resp.delete_cookie("tiktok_oauth_state")
-        return resp
+        return _cb_redirect()
 
     code = request.args.get("code")
     if not code:
         flash("Código de autorização não recebido.", "error")
-        return redirect(url_for("dashboard.index"))
+        return _cb_redirect()
 
     try:
         tok = _exchange_code(code)
@@ -191,7 +200,7 @@ def callback():
         if err and err not in ("", "ok", None):
             desc = tok.get("error_description") or ""
             flash(f"TikTok: {err}" + (f" — {desc[:200]}" if desc else ""), "error")
-            return redirect(url_for("dashboard.index"))
+            return _cb_redirect()
 
         access_token  = tok.get("access_token") or tok.get("data", {}).get("access_token", "")
         refresh_token = tok.get("refresh_token") or tok.get("data", {}).get("refresh_token")
@@ -200,7 +209,7 @@ def callback():
 
         if not access_token or not open_id:
             flash("TikTok não retornou token válido. Tente novamente.", "error")
-            return redirect(url_for("dashboard.index"))
+            return _cb_redirect()
 
         # Buscar info do usuário
         try:
@@ -228,9 +237,7 @@ def callback():
         logger.warning("TikTok OAuth callback: %s", e, exc_info=True)
         flash(f"Erro ao conectar TikTok: {str(e)[:280]}", "error")
 
-    resp = redirect(url_for("dashboard.index"))
-    resp.delete_cookie("tiktok_oauth_state")
-    return resp
+    return _cb_redirect()
 
 
 @tiktok_bp.route("/disconnect/<int:account_id>", methods=["POST"])
