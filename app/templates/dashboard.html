@@ -2,6 +2,11 @@
 {% block title %}Painel{% endblock %}
 {% block content %}
 
+<style>
+#preview-container.preview-grid .preview-item { position: relative; }
+.rm-media-main { position: absolute; top: 2px; right: 2px; z-index: 3; width: 22px; height: 22px; border: none; border-radius: 50%; cursor: pointer; background: rgba(58,26,26,.92); color: #f87171; font-size: 0.85rem; line-height: 1; padding: 0; }
+</style>
+
 <!-- ── Onboarding Modal (aparece apenas para novos usuários) ── -->
 {% if not accounts %}
 <div id="onboarding-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; padding:1rem; display:none;">
@@ -681,8 +686,11 @@ loadSlotsConfig();
                 <p id="week-upload-label" style="margin:0; color:#888; font-size:0.85rem;">📁 Clique para selecionar foto ou vídeo</p>
                 <input type="file" id="week-photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none;">
             </div>
-            <div id="week-preview-wrap" style="display:none; margin-bottom:0.8rem; text-align:center;">
+            <div id="week-preview-wrap" style="display:none; margin-bottom:0.8rem; text-align:center; position:relative; max-width:280px; margin-left:auto; margin-right:auto;">
+                <button type="button" onclick="clearWeekMedia(event)" aria-label="Remover mídia"
+                    style="position:absolute; top:-6px; right:-6px; z-index:5; width:28px; height:28px; border-radius:50%; border:none; cursor:pointer; background:#3a1a1a; color:#f87171; font-size:1rem; line-height:1; box-shadow:0 2px 6px rgba(0,0,0,.4);">×</button>
                 <img id="week-preview-img" style="max-height:160px; max-width:100%; border-radius:8px; object-fit:cover; border:1px solid #3a3a5a;">
+                <video id="week-preview-vid" style="display:none; max-height:160px; max-width:100%; border-radius:8px; border:1px solid #3a3a5a;" controls muted playsinline></video>
             </div>
 
             <!-- Horário -->
@@ -1337,42 +1345,114 @@ function saveTelegramConfig() {
 
 <script>
 /* ── File Preview + Instagram Mockup ── */
-const photosInput = document.getElementById('photos');
-if (photosInput) {
-    photosInput.addEventListener('change', function(e) {
-        const container = document.getElementById('preview-container');
-        const label = document.getElementById('upload-label');
-        const igPreview = document.getElementById('ig-preview');
-        container.innerHTML = '';
+var photosInput = document.getElementById('photos');
+var _mainBlobUrls = [];
 
-        if (e.target.files.length > 0) {
-            const count = e.target.files.length;
-            const type = count > 1 ? 'Carrossel' : (e.target.files[0].name.match(/\.(mp4|mov)$/i) ? 'Reels' : 'Post');
-            label.innerHTML = '<strong>' + count + ' arquivo(s) — ' + type + '</strong>';
+function revokeMainBlobUrls() {
+    _mainBlobUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    _mainBlobUrls = [];
+}
 
-            Array.from(e.target.files).forEach((file, idx) => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(ev) {
-                        const div = document.createElement('div');
-                        div.className = 'preview-item';
-                        div.innerHTML = '<img src="' + ev.target.result + '"><span>' + file.name + '</span>';
-                        container.appendChild(div);
+function syncPhotosInput(filesArr) {
+    if (!photosInput) return;
+    var dt = new DataTransfer();
+    filesArr.forEach(function(f) { dt.items.add(f); });
+    photosInput.files = dt.files;
+}
 
-                        // Mostrar preview do Instagram com a primeira imagem
-                        if (idx === 0) {
-                            igPreview.style.display = 'block';
-                            document.getElementById('ig-preview-image').innerHTML =
-                                '<img src="' + ev.target.result + '" style="width:100%; height:100%; object-fit:cover;">';
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+function renderMainPostPreview() {
+    if (!photosInput) return;
+    revokeMainBlobUrls();
+    var container = document.getElementById('preview-container');
+    var label = document.getElementById('upload-label');
+    var igPreview = document.getElementById('ig-preview');
+    var igImgBox = document.getElementById('ig-preview-image');
+    if (!container) return;
+    container.innerHTML = '';
+
+    var files = photosInput.files;
+    if (!files.length) {
+        if (label) label.innerHTML = 'Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br><small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small>';
+        if (igPreview) igPreview.style.display = 'none';
+        return;
+    }
+
+    var count = files.length;
+    var isVid = /\.(mp4|mov)$/i.test(files[0].name || '') || (files[0].type || '').indexOf('video') === 0;
+    var type = count > 1 ? 'Carrossel' : (isVid ? 'Reels' : 'Post');
+    if (label) label.innerHTML = '<strong>' + count + ' arquivo(s) — ' + type + '</strong>';
+
+    function btnRm(idx) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'rm-media-main';
+        b.innerHTML = '×';
+        b.title = 'Remover esta mídia';
+        b.addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            var arr = Array.from(photosInput.files);
+            arr.splice(idx, 1);
+            syncPhotosInput(arr);
+            renderMainPostPreview();
+        });
+        return b;
+    }
+
+    Array.from(files).forEach(function(file, idx) {
+        var wrap = document.createElement('div');
+        wrap.className = 'preview-item';
+        wrap.appendChild(btnRm(idx));
+
+        var isImg = (file.type || '').indexOf('image') === 0;
+        var isVidFile = (file.type || '').indexOf('video') === 0 || /\.(mp4|mov)$/i.test(file.name);
+
+        if (isImg && !isVidFile) {
+            var u = URL.createObjectURL(file);
+            _mainBlobUrls.push(u);
+            var img = document.createElement('img');
+            img.src = u;
+            img.alt = '';
+            img.style.borderRadius = '8px';
+            wrap.appendChild(img);
+            var sp = document.createElement('span');
+            sp.textContent = file.name;
+            wrap.appendChild(sp);
+            if (idx === 0) {
+                igPreview.style.display = 'block';
+                igImgBox.innerHTML = '<img src="' + u + '" style="width:100%; height:100%; object-fit:cover;">';
+            }
+        } else if (isVidFile) {
+            var vu = URL.createObjectURL(file);
+            _mainBlobUrls.push(vu);
+            var v = document.createElement('video');
+            v.src = vu;
+            v.muted = true;
+            v.playsInline = true;
+            v.style.maxWidth = '80px';
+            v.style.maxHeight = '80px';
+            v.style.borderRadius = '8px';
+            wrap.appendChild(v);
+            var sp2 = document.createElement('span');
+            sp2.textContent = file.name;
+            wrap.appendChild(sp2);
+            if (idx === 0) {
+                igPreview.style.display = 'block';
+                igImgBox.innerHTML = '<video src="' + vu + '" muted playsinline style="width:100%;height:100%;object-fit:cover;"></video>';
+            }
         } else {
-            igPreview.style.display = 'none';
+            var d = document.createElement('span');
+            d.style.fontSize = '0.72rem';
+            d.style.color = '#888';
+            d.textContent = file.name;
+            wrap.appendChild(d);
         }
+
+        container.appendChild(wrap);
     });
+}
+
+if (photosInput) {
+    photosInput.addEventListener('change', renderMainPostPreview);
 }
 
 /* ── Drag & Drop ── */
@@ -1685,9 +1765,8 @@ function openWeekModal(date, dayName, igCount, fbCount) {
     updateSchedAt();
 
     /* Resetar form */
-    document.getElementById('week-photos').value = '';
+    try { clearWeekMedia(); } catch (_e) {}
     document.getElementById('week-upload-label').textContent = '📁 Clique para selecionar foto ou vídeo';
-    document.getElementById('week-preview-wrap').style.display = 'none';
     document.getElementById('week-caption').value = '';
 
     const modal = document.getElementById('modal-week-day');
@@ -1752,17 +1831,45 @@ function updateSchedAt() {
 }
 
 /* Preview de arquivo no modal */
+function clearWeekMedia(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    var inp = document.getElementById('week-photos');
+    if (inp) inp.value = '';
+    var label = document.getElementById('week-upload-label');
+    if (label) label.textContent = '📁 Clique para selecionar foto ou vídeo';
+    var wrap = document.getElementById('week-preview-wrap');
+    var img = document.getElementById('week-preview-img');
+    var vid = document.getElementById('week-preview-vid');
+    if (wrap) wrap.style.display = 'none';
+    if (img) { img.src = ''; img.style.display = 'none'; }
+    if (vid) { try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch (err) {} vid.style.display = 'none'; }
+}
+
 document.getElementById('week-photos')?.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    document.getElementById('week-upload-label').textContent = '✅ ' + file.name;
-    if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = ev => {
-            document.getElementById('week-preview-img').src = ev.target.result;
-            document.getElementById('week-preview-wrap').style.display = 'block';
+    var pic = document.getElementById('week-preview-img');
+    var vid = document.getElementById('week-preview-vid');
+    var file = e.target.files && e.target.files[0];
+    document.getElementById('week-upload-label').textContent = file ? ('✅ ' + file.name + (e.target.files.length > 1 ? ' (+' + (e.target.files.length - 1) + ' mais)' : ''))
+        : '📁 Clique para selecionar foto ou vídeo';
+    if (!file) {
+        clearWeekMedia();
+        return;
+    }
+    document.getElementById('week-preview-wrap').style.display = 'block';
+    if (file.type.indexOf('image') === 0) {
+        if (pic) pic.style.display = 'block';
+        if (vid) { vid.style.display = 'none'; try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch (_e) {} }
+        var reader = new FileReader();
+        reader.onload = function(ev2) {
+            pic.src = ev2.target.result;
         };
         reader.readAsDataURL(file);
+    } else if (file.type.indexOf('video') === 0 || /\.(mp4|mov)$/i.test(file.name)) {
+        if (pic) pic.style.display = 'none';
+        if (vid) {
+            vid.style.display = 'block';
+            vid.src = URL.createObjectURL(file);
+        }
     }
 });
 
