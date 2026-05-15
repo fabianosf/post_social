@@ -1,17 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Upgrade Pro{% endblock %}
+{% block title %}Upgrade {{ plan_label }}{% endblock %}
 {% block content %}
 
 <div style="max-width:520px; margin:0 auto;">
 
     <div style="text-align:center; margin-bottom:1.5rem;">
-        <h1 style="font-size:1.6rem; margin-bottom:0.3rem;">Upgrade para <span style="color:{{ brand.color }};">PRO</span></h1>
-        <p style="color:#888;">Desbloqueie todos os recursos do Postay</p>
+        <h1 style="font-size:1.6rem; margin-bottom:0.3rem;">Plano <span style="color:{{ brand.color }};">{{ plan_label|upper }}</span></h1>
+        <p style="color:#888;">R$ {{ "%.2f"|format(price) }}/mês</p>
+        <p style="margin-top:0.6rem;">
+            <a href="{{ url_for('payment.index', plan='pro') }}" style="font-size:0.85rem;{{ ' font-weight:700;' if target_plan == 'pro' else '' }}">Pro R$ 99</a>
+            &nbsp;·&nbsp;
+            <a href="{{ url_for('payment.index', plan='agency') }}" style="font-size:0.85rem;{{ ' font-weight:700;' if target_plan == 'agency' else '' }}">Agency R$ 249</a>
+        </p>
     </div>
 
     <!-- Benefícios -->
     <div class="card" style="border-color:{{ brand.color }}; margin-bottom:1.5rem;">
-        <h2 style="text-align:center; color:{{ brand.color }}; margin-bottom:1rem;">Plano Pro — R$ {{ "%.2f"|format(price) }}/mês</h2>
+        <h2 style="text-align:center; color:{{ brand.color }}; margin-bottom:1rem;">Plano {{ plan_label }} — R$ {{ "%.2f"|format(price) }}/mês</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.3rem;">
             <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Posts ilimitados</div>
             <div style="padding:0.3rem 0; color:#ccc; font-size:0.88rem;">✔ Instagram + Facebook + TikTok</div>
@@ -77,8 +82,9 @@
         <form method="POST" action="{{ url_for('payment.confirm_payment') }}"
               onsubmit="return confirm('Confirma que já realizou o pagamento PIX de R$ {{ '%.2f'|format(price) }}?');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="target_plan" value="{{ target_plan }}">
             <button type="submit" class="btn btn-success" style="width:100%; padding:1rem; font-size:1rem;">
-                ✔ Já paguei — Ativar meu Pro
+                ✔ Já paguei — Ativar {{ plan_label }}
             </button>
         </form>
         <p style="color:#555; font-size:0.75rem; margin-top:0.8rem;">

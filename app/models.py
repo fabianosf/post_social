@@ -73,8 +73,8 @@ class Client(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def _check_plan_expiry(self):
-        """Rebaixa para Free se o plano Pro expirou."""
-        if self.plan == "pro" and not self.is_admin and self.plan_expires_at:
+        """Rebaixa para Free se plano pago expirou."""
+        if self.plan in ("pro", "agency") and not self.is_admin and self.plan_expires_at:
             expires = self.plan_expires_at
             if expires.tzinfo is None:
                 expires = expires.replace(tzinfo=timezone.utc)
@@ -87,8 +87,14 @@ class Client(UserMixin, db.Model):
                 except Exception:
                     db.session.rollback()
 
+    def is_paid(self) -> bool:
+        if self.is_admin:
+            return True
+        self._check_plan_expiry()
+        return self.plan in ("pro", "agency")
+
     def get_monthly_limit(self) -> int:
-        if self.is_admin or self.plan == "pro":
+        if self.is_admin or self.is_paid():
             return 999999
         return 30  # free = 30 posts/mês
 
@@ -114,13 +120,23 @@ class Client(UserMixin, db.Model):
         self.posts_this_month += 1
 
     def is_pro(self) -> bool:
+        """Recursos pagos (Pro ou Agency)."""
+        return self.is_paid()
+
+    def is_agency(self) -> bool:
         if self.is_admin:
-            return True
+            return False
         self._check_plan_expiry()
-        return self.plan == "pro"
+        return self.plan == "agency"
 
     def max_accounts(self) -> int:
-        return 999 if self.is_pro() else 1
+        if self.is_admin:
+            return 999
+        if self.plan == "agency":
+            return 10
+        if self.plan == "pro":
+            return 3
+        return 1
 
 
 class InstagramAccount(db.Model):

@@ -25,20 +25,34 @@ MP_WEBHOOK_SECRET = os.environ.get("MP_WEBHOOK_SECRET", "").strip()
 PIX_KEY = os.environ.get("PIX_KEY", "").strip()
 PIX_MERCHANT_NAME = os.environ.get("PIX_MERCHANT_NAME", "Postay").strip() or "Postay"
 PIX_MERCHANT_CITY = os.environ.get("PIX_MERCHANT_CITY", "SaoPaulo").strip() or "SaoPaulo"
-PRO_PRICE = float(os.environ.get("PRO_PRICE", "49.90"))
+PRO_PRICE = float(os.environ.get("PRO_PRICE", "99.90"))
+AGENCY_PRICE = float(os.environ.get("AGENCY_PRICE", "249.00"))
 APP_BASE_URL = (
     os.environ.get("APP_BASE_URL", "").strip()
     or os.environ.get("PUBLIC_BASE_URL", "https://postay.com.br").strip()
 ).rstrip("/")
 
 
-def _activate_pro(client: Client, payment_id: str, days: int = 30) -> bool:
-    """Ativa ou renova Pro. Retorna True se alterou o banco."""
+def _parse_external_reference(ext_ref: str) -> tuple[int | None, str]:
+    """Formato: '42:pro', '42:agency' ou legado '42' → pro."""
+    ref = (ext_ref or "").strip()
+    if ":" in ref:
+        cid, plan = ref.split(":", 1)
+        if cid.isdigit() and plan in ("pro", "agency"):
+            return int(cid), plan
+    if ref.isdigit():
+        return int(ref), "pro"
+    return None, "pro"
+
+
+def _activate_plan(client: Client, plan: str, payment_id: str, days: int = 30) -> bool:
+    """Ativa ou renova plano pago. Retorna True se alterou o banco."""
+    plan = plan if plan in ("pro", "agency") else "pro"
     now = datetime.now(timezone.utc)
     pid = str(payment_id)
-    if client.mp_payment_id == pid and client.plan == "pro":
+    if client.mp_payment_id == pid and client.plan == plan:
         return False
-    client.plan = "pro"
+    client.plan = plan
     client.mp_payment_id = pid
     base = client.plan_expires_at
     if base and base.tzinfo is None:
@@ -49,6 +63,10 @@ def _activate_pro(client: Client, payment_id: str, days: int = 30) -> bool:
         client.plan_expires_at = now + timedelta(days=days)
     db.session.commit()
     return True
+
+
+def _activate_pro(client: Client, payment_id: str, days: int = 30) -> bool:
+    return _activate_plan(client, "pro", payment_id, days)
 
 
 # ── Mercado Pago SDK helper ───────────────────────
@@ -70,9 +88,15 @@ def _mp_sdk():
 @payment_bp.route("/")
 @login_required
 def index():
-    if current_user.is_pro() and not current_user.is_admin:
-        flash("Você já tem o plano Pro!", "info")
+    target = (request.args.get("plan") or "pro").lower()
+    if target not in ("pro", "agency"):
+        target = "pro"
+    if current_user.plan == target and not current_user.is_admin:
+        flash(f"Você já tem o plano {target.upper()}!", "info")
         return redirect(url_for("dashboard.index"))
+
+    price = AGENCY_PRICE if target == "agency" else PRO_PRICE
+    plan_label = "Agency" if target == "agency" else "Pro"
 
     mp_available = bool(MP_ACCESS_TOKEN)
     pix_available = bool(PIX_KEY)
@@ -91,9 +115,9 @@ def index():
                 pref_data = {
                     "items": [
                         {
-                            "title": "Postay Pro — Assinatura Mensal",
+                            "title": f"Postay {plan_label} — Assinatura Mensal",
                             "quantity": 1,
-                            "unit_price": PRO_PRICE,
+                            "unit_price": price,
                             "currency_id": "BRL",
                         }
                     ],
@@ -104,7 +128,7 @@ def index():
                         "pending": f"{APP_BASE_URL}/pagamento/pendente",
                     },
                     "auto_return": "approved",
-                    "external_reference": str(current_user.id),
+                    "external_reference": f"{current_user.id}:{target}",
                     "notification_url": f"{APP_BASE_URL}/pagamento/webhook",
                     "statement_descriptor": "POSTSOCIAL",
                 }
@@ -122,22 +146,22 @@ def index():
     if pix_available:
         try:
             from modules.pix import generate_pix_qrcode_base64, generate_pix_payload
-            txid = f"PS{current_user.id}{datetime.now(_BRT).strftime('%m%y')}"
+            txid = f"PS{current_user.id}{target[0].upper()}{datetime.now(_BRT).strftime('%m%y')}"
             qr_base64 = generate_pix_qrcode_base64(
                 pix_key=PIX_KEY,
                 merchant_name=PIX_MERCHANT_NAME,
                 merchant_city=PIX_MERCHANT_CITY,
-                amount=PRO_PRICE,
+                amount=price,
                 txid=txid,
-                description="Postay Pro",
+                description=f"Postay {plan_label}",
             )
             pix_code = generate_pix_payload(
                 pix_key=PIX_KEY,
                 merchant_name=PIX_MERCHANT_NAME,
                 merchant_city=PIX_MERCHANT_CITY,
-                amount=PRO_PRICE,
+                amount=price,
                 txid=txid,
-                description="Postay Pro",
+                description=f"Postay {plan_label}",
             )
         except Exception:
             pix_available = False
@@ -150,7 +174,9 @@ def index():
         qr_base64=qr_base64,
         pix_code=pix_code,
         pix_key=PIX_KEY,
-        price=PRO_PRICE,
+        price=price,
+        target_plan=target,
+        plan_label=plan_label,
         txid=txid,
         brand=brand,
     )
@@ -196,12 +222,12 @@ def mp_webhook():
         payment = result.get("response", {})
         status = payment.get("status")
         ext_ref = str(payment.get("external_reference", "") or "")
-        client_id = int(ext_ref) if ext_ref.isdigit() else None
+        client_id, plan = _parse_external_reference(ext_ref)
 
         if status == "approved" and client_id:
             client = db.session.get(Client, client_id)
             if client:
-                _activate_pro(client, resource_id)
+                _activate_plan(client, plan, resource_id)
     except Exception as exc:
         logger.error("MP webhook payment %s: %s", resource_id, exc)
 
@@ -224,12 +250,13 @@ def success():
                 payment = result.get("response", {})
                 mp_status = payment.get("status")
                 ext_ref = str(payment.get("external_reference", "") or "")
+                client_id, plan = _parse_external_reference(ext_ref)
 
-                if mp_status == "approved" and ext_ref == str(current_user.id):
-                    if _activate_pro(current_user, str(payment_id)):
-                        flash("Pagamento aprovado! Plano Pro ativado com sucesso.", "success")
+                if mp_status == "approved" and client_id == current_user.id:
+                    if _activate_plan(current_user, plan, str(payment_id)):
+                        flash(f"Pagamento aprovado! Plano {plan.upper()} ativado.", "success")
                     else:
-                        flash("Plano Pro já está ativo.", "info")
+                        flash(f"Plano {plan.upper()} já está ativo.", "info")
                 else:
                     flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
             except Exception as exc:
@@ -262,11 +289,14 @@ def failure():
 @payment_bp.route("/confirmar", methods=["POST"])
 @login_required
 def confirm_payment():
-    if current_user.is_pro():
-        flash("Você já é Pro!", "info")
+    target = (request.form.get("target_plan") or "pro").lower()
+    if target not in ("pro", "agency"):
+        target = "pro"
+    if current_user.plan == target:
+        flash(f"Você já tem o plano {target.upper()}!", "info")
         return redirect(url_for("dashboard.index"))
 
-    current_user.plan = "pending_pro"
+    current_user.plan = "pending_agency" if target == "agency" else "pending_pro"
     db.session.commit()
     flash("Pagamento informado! Seu plano será ativado assim que confirmarmos o PIX.", "success")
     return redirect(url_for("dashboard.index"))
@@ -278,13 +308,15 @@ def qrcode_image():
     if not PIX_KEY:
         return Response("PIX não configurado", status=503)
     from modules.pix import generate_pix_qrcode_bytes
-    txid = f"PS{current_user.id}{datetime.now(_BRT).strftime('%m%y')}"
+    target = (request.args.get("plan") or "pro").lower()
+    price = AGENCY_PRICE if target == "agency" else PRO_PRICE
+    txid = f"PS{current_user.id}{target[0].upper()}{datetime.now(_BRT).strftime('%m%y')}"
     img_bytes = generate_pix_qrcode_bytes(
         pix_key=PIX_KEY,
         merchant_name=PIX_MERCHANT_NAME,
         merchant_city=PIX_MERCHANT_CITY,
-        amount=PRO_PRICE,
+        amount=price,
         txid=txid,
-        description="Postay Pro",
+        description="Postay",
     )
     return Response(img_bytes, mimetype="image/png")

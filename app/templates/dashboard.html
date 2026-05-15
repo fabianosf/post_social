@@ -250,10 +250,10 @@ function onbSkip() {
         Fazer Upgrade — R$ 99,90/mês
     </a>
 </div>
-{% elif plan_info.plan == 'pending_pro' %}
+{% elif plan_info.plan in ['pending_pro', 'pending_agency'] %}
 <div class="card" style="border-color:#fbbf24; background:#2a2a1a; text-align:center;">
     <h2 style="color:#fbbf24;">Pagamento em análise</h2>
-    <p style="color:#aaa; font-size:0.9rem;">Seu PIX está sendo verificado. O plano Pro será ativado em breve!</p>
+    <p style="color:#aaa; font-size:0.9rem;">Seu PIX está sendo verificado. O plano será ativado em breve!</p>
 </div>
 {% endif %}
 

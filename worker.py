@@ -533,26 +533,25 @@ def _check_plan_expirations():
     """
     now_utc = datetime.now(timezone.utc)
     expired = Client.query.filter(
-        Client.plan == "pro",
+        Client.plan.in_(["pro", "agency"]),
         Client.is_admin == False,
         Client.plan_expires_at.isnot(None),
         Client.plan_expires_at <= now_utc,
     ).all()
 
     for client in expired:
-        logger.warning(f"Cliente #{client.id} ({client.email}) — plano Pro expirado. Rebaixando para Free.")
+        logger.warning(f"Cliente #{client.id} ({client.email}) — plano {client.plan} expirado.")
         client.plan = "free"
         client.mp_subscription_id = None
 
-        # Notificar via Telegram
         if client.telegram_bot_token and client.telegram_chat_id:
             from modules.telegram_notify import send_telegram
             send_telegram(
                 client.telegram_bot_token,
                 client.telegram_chat_id,
-                "⚠️ <b>Plano Pro expirado</b>\n\n"
-                "Seu plano Pro venceu e foi rebaixado para Free.\n"
-                "Renove em: <a href='https://captei.shop/pagamento'>captei.shop/pagamento</a>"
+                "⚠️ <b>Assinatura expirada</b>\n\n"
+                "Seu plano venceu e foi rebaixado para Free.\n"
+                "Renove em: <a href='https://postay.com.br/pagamento'>postay.com.br/pagamento</a>"
             )
 
     if expired:

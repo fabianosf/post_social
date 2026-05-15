@@ -102,7 +102,7 @@ td, th { vertical-align:middle; }
 </div>
 
 <!-- Pagamentos PIX Pendentes -->
-{% set pending_payments = clients|selectattr('plan', 'equalto', 'pending_pro')|list %}
+{% set pending_payments = clients|selectattr('plan', 'in', ['pending_pro', 'pending_agency'])|list %}
 {% if pending_payments %}
 <div class="card" style="border-color:#fbbf24; background:#1a1a0a;">
     <h2 style="color:#fbbf24;">&#9888; Pagamentos PIX Pendentes ({{ pending_payments|length }})</h2>
@@ -115,7 +115,8 @@ td, th { vertical-align:middle; }
             <td style="color:#666; font-size:0.8rem;">{{ c.created_at.strftime('%d/%m/%Y') if c.created_at }}</td>
             <td class="table-actions">
                 <form method="POST" action="{{ url_for('admin.approve_pro', client_id=c.id) }}" style="margin:0;">
-                    <button class="btn btn-success btn-sm">&#10003; Aprovar Pro</button>
+                    <input type="hidden" name="approve_plan" value="{{ 'agency' if c.plan == 'pending_agency' else 'pro' }}">
+                    <button class="btn btn-success btn-sm">&#10003; Aprovar {{ 'Agency' if c.plan == 'pending_agency' else 'Pro' }}</button>
                 </form>
                 <form method="POST" action="{{ url_for('admin.reject_pro', client_id=c.id) }}" style="margin:0;">
                     <button class="btn btn-outline btn-sm btn-delete">&#10005; Rejeitar</button>
@@ -140,6 +141,7 @@ td, th { vertical-align:middle; }
             <option value="all" {{ 'selected' if plan_filter == 'all' }}>Todos os planos</option>
             <option value="free" {{ 'selected' if plan_filter == 'free' }}>Free</option>
             <option value="pro" {{ 'selected' if plan_filter == 'pro' }}>Pro</option>
+            <option value="agency" {{ 'selected' if plan_filter == 'agency' }}>Agency</option>
             <option value="pending_pro" {{ 'selected' if plan_filter == 'pending_pro' }}>Aguardando PIX</option>
         </select>
         <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
@@ -302,6 +304,7 @@ td, th { vertical-align:middle; }
             <select name="plan">
                 <option value="free">Free</option>
                 <option value="pro">Pro</option>
+                <option value="agency">Agency</option>
             </select>
             <div class="checkbox-row" style="margin-top:0.5rem;">
                 <label><input type="checkbox" name="is_admin"> Conceder acesso admin</label>
@@ -323,8 +326,10 @@ td, th { vertical-align:middle; }
             <label>Plano</label>
             <select name="plan" id="modal-plan-select">
                 <option value="free">Free — 30 posts/mês</option>
-                <option value="pro">Pro — Ilimitado + todos os recursos</option>
-                <option value="pending_pro">Pendente PIX (aguardando pagamento)</option>
+                <option value="pro">Pro — 3 contas, posts ilimitados</option>
+                <option value="agency">Agency — 10 contas + suporte prioritário</option>
+                <option value="pending_pro">Pendente PIX Pro</option>
+                <option value="pending_agency">Pendente PIX Agency</option>
             </select>
             <div style="display:flex; gap:0.5rem; margin-top:1rem;">
                 <button type="submit" class="btn btn-success" style="flex:1;">Salvar</button>

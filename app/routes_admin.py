@@ -54,7 +54,9 @@ def index():
     total_clients = Client.query.count()
     pro_clients = Client.query.filter_by(plan="pro").count()
     free_clients = Client.query.filter_by(plan="free").count()
-    pending_pro_clients = Client.query.filter_by(plan="pending_pro").count()
+    pending_pro_clients = Client.query.filter(
+        Client.plan.in_(["pending_pro", "pending_agency"])
+    ).count()
 
     total_posts = PostQueue.query.count()
     posted = PostQueue.query.filter_by(status="posted").count()
@@ -126,7 +128,7 @@ def index():
 def set_plan(client_id):
     client = db.session.get(Client, client_id)
     plan = request.form.get("plan", "free")
-    if client and plan in ("free", "pro", "pending_pro"):
+    if client and plan in ("free", "pro", "agency", "pending_pro", "pending_agency"):
         client.plan = plan
         db.session.commit()
         flash(f"{client.name} → plano {plan.upper()} definido.", "success")
@@ -138,7 +140,7 @@ def set_plan(client_id):
 def toggle_plan(client_id):
     client = db.session.get(Client, client_id)
     if client:
-        client.plan = "pro" if client.plan in ("free", "pending_pro") else "free"
+        client.plan = "pro" if client.plan in ("free", "pending_pro", "pending_agency") else "free"
         db.session.commit()
         flash(f"{client.name} agora é {client.plan.upper()}.", "success")
     return redirect(url_for("admin.index") + _keep_filters())
@@ -149,10 +151,15 @@ def toggle_plan(client_id):
 def approve_pro(client_id):
     client = db.session.get(Client, client_id)
     if client:
-        client.plan = "pro"
+        plan = request.form.get("approve_plan") or (
+            "agency" if client.plan == "pending_agency" else "pro"
+        )
+        if plan not in ("pro", "agency"):
+            plan = "pro"
+        client.plan = plan
         client.plan_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         db.session.commit()
-        flash(f"{client.name} — Plano PRO ativado!", "success")
+        flash(f"{client.name} — Plano {plan.upper()} ativado!", "success")
     return redirect(url_for("admin.index"))
 
 
