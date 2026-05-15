@@ -119,15 +119,25 @@ class Client(UserMixin, db.Model):
             self.month_reset = now
         self.posts_this_month += 1
 
-    def is_pro(self) -> bool:
-        """Recursos pagos (Pro ou Agency)."""
+    def has_pro_features(self) -> bool:
+        """Pro + Agency: posts ilimitados, stories, CSV, IA visual, automações, growth."""
         return self.is_paid()
+
+    def is_pro(self) -> bool:
+        return self.has_pro_features()
 
     def is_agency(self) -> bool:
         if self.is_admin:
-            return False
+            return True
         self._check_plan_expiry()
         return self.plan == "agency"
+
+    def max_competitors(self) -> int:
+        if self.is_admin or self.is_agency():
+            return 15
+        if self.has_pro_features():
+            return 5
+        return 0
 
     def max_accounts(self) -> int:
         if self.is_admin:

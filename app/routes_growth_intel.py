@@ -17,6 +17,12 @@ from .growth_engine import (
 growth_intel_bp = Blueprint("growth_intel", __name__, url_prefix="/api/growth-intel")
 
 
+def _pro_json():
+    if current_user.has_pro_features():
+        return None
+    return jsonify({"error": "Recurso Pro ou Agency"}), 403
+
+
 # ---------------------------------------------------------------------------
 # Concorrentes
 # ---------------------------------------------------------------------------
@@ -32,12 +38,18 @@ def api_list_competitors():
 @growth_intel_bp.post("/competitors")
 @login_required
 def api_add_competitor():
+    denied = _pro_json()
+    if denied:
+        return denied
+    from .models import Competitor, db
+    n = Competitor.query.filter_by(client_id=current_user.id).count()
+    if n >= current_user.max_competitors():
+        return jsonify({"error": f"Limite de {current_user.max_competitors()} concorrentes no seu plano"}), 403
     body = request.get_json(silent=True) or {}
     name = str(body.get("name", "")).strip()
     if not name:
         return jsonify({"error": "name é obrigatório"}), 400
 
-    from .models import Competitor, db
     c = Competitor(
         client_id   = current_user.id,
         name        = name[:200],
@@ -70,6 +82,9 @@ def api_delete_competitor(competitor_id: int):
 @growth_intel_bp.get("/trends")
 @login_required
 def api_trends():
+    denied = _pro_json()
+    if denied:
+        return denied
     from .models import UserNiche
     un = UserNiche.query.get(current_user.id)
     niche = request.args.get("niche", un.niche if un else "geral")
@@ -83,6 +98,9 @@ def api_trends():
 @growth_intel_bp.get("/competitive-score")
 @login_required
 def api_competitive_score():
+    denied = _pro_json()
+    if denied:
+        return denied
     from .models import UserNiche
     un = UserNiche.query.get(current_user.id)
     niche = request.args.get("niche", un.niche if un else "geral")
@@ -107,4 +125,7 @@ def api_opportunities():
 @growth_intel_bp.get("/analysis")
 @login_required
 def api_analysis():
+    denied = _pro_json()
+    if denied:
+        return denied
     return jsonify(get_competitive_analysis(current_user.id))

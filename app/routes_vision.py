@@ -47,6 +47,8 @@ def api_status():
 @vision_bp.route("/api/vision/post/<int:post_id>", methods=["POST"])
 @login_required
 def api_analyze_post(post_id: int):
+    if not current_user.has_pro_features():
+        return jsonify({"error": "Análise visual IA — plano Pro ou Agency"}), 403
     post = PostQueue.query.filter_by(id=post_id, client_id=current_user.id).first_or_404()
 
     now = datetime.now(timezone.utc)

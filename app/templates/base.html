@@ -182,6 +182,8 @@
             <a href="{{ url_for('payment.index', plan='pro') }}" style="color:#fbbf24; font-weight:600; font-size:0.8rem;">Upgrade Pro</a>
             {% elif current_user.plan == 'pro' %}
             <a href="{{ url_for('payment.index', plan='agency') }}" style="color:#c084fc; font-weight:600; font-size:0.8rem;">Upgrade Agency</a>
+            {% elif current_user.is_agency() %}
+            <span style="color:#c084fc; font-size:0.75rem;">Suporte prioritário</span>
             {% endif %}
             <span class="badge badge-{{ current_user.plan }}">{{ current_user.plan }}</span>
             <a href="{{ url_for('auth.logout') }}">Sair</a>

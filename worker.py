@@ -611,7 +611,7 @@ def _send_weekly_reports():
                 client_id=client.id, status="active"
             ).count()
 
-            plano = "Pro ✨" if client.is_pro() else "Free"
+            plano = "Agency ✨" if client.plan == "agency" else ("Pro ✨" if client.has_pro_features() else "Free")
             msg = (
                 f"📊 <b>Relatório Semanal — PostSocial</b>\n\n"
                 f"📅 Semana: {week_ago.strftime('%d/%m')} a {now.strftime('%d/%m/%Y')}\n\n"

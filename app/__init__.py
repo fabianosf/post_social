@@ -86,6 +86,7 @@ def create_app():
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max (vídeos)
     app.config["WTF_CSRF_ENABLED"] = True
     app.config["WTF_CSRF_TIME_LIMIT"] = 3600  # 1 hora
+    app.config["META_PIXEL_ID"] = os.environ.get("META_PIXEL_ID", "").strip()
 
     db.init_app(app)
 

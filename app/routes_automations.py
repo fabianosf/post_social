@@ -65,6 +65,9 @@ def _persist_alerts(alerts: list[dict]):
 @automations_bp.route("/automations")
 @login_required
 def index():
+    if not current_user.has_pro_features():
+        flash("Automações disponíveis nos planos Pro e Agency.", "error")
+        return redirect(url_for("payment.index", plan="pro"))
     posts_30 = _posted(30)
     posts_60 = _posted(60)
     posts_prev = [p for p in posts_60 if p not in posts_30]
