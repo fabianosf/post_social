@@ -1591,13 +1591,19 @@ if (uploadForm) {
 /* ── Drag & Drop ── */
 const area = document.getElementById('main-upload-area');
 if (area) {
-    /* Lock evita que o click sintético pós-file-dialog re-abra o seletor */
-    var _pickLock = 0;
+    /* Lock evita que o click sintético pós-file-dialog re-abra o seletor.
+       Usa window.focus para liberar o lock apenas após o diálogo fechar,
+       independente de quanto tempo o usuário levou para selecionar o arquivo. */
+    var _pickLock = false;
     area.addEventListener('click', function() {
-        if (Date.now() < _pickLock) return;
-        _pickLock = Date.now() + 1500;
+        if (_pickLock) return;
+        _pickLock = true;
         photosInput.click();
     });
+    window.addEventListener('focus', function _mainFocus() {
+        setTimeout(function() { _pickLock = false; }, 300);
+    }, true);
+    photosInput.addEventListener('change', function() { _pickLock = false; });
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
     area.addEventListener('drop', (e) => {
@@ -1956,6 +1962,14 @@ function validateWeekForm() {
     const photos = document.getElementById('week-photos');
     const time = document.getElementById('week-time');
 
+    /* Tenta restaurar do backup caso o file input tenha sido esvaziado */
+    if ((!photos.files || photos.files.length === 0) && typeof _weekFilesBackup !== 'undefined' && _weekFilesBackup.length) {
+        try {
+            var dt = new DataTransfer();
+            _weekFilesBackup.forEach(function(f) { dt.items.add(f); });
+            photos.files = dt.files;
+        } catch (_e) {}
+    }
     if (!photos.files || photos.files.length === 0) {
         errEl.textContent = '⚠️ Selecione pelo menos uma foto ou vídeo antes de agendar.';
         errEl.style.display = 'block';
@@ -2050,16 +2064,20 @@ document.getElementById('week-photos')?.addEventListener('change', function(e) {
 });
 
 /* Lock evita click sintético pós-file-dialog no modal semanal */
-var _weekPickLock = 0;
+var _weekPickLock = false;
 var _weekFilesBackup = [];
 var _weekUploadArea = document.getElementById('week-upload-area');
 var _weekPhotosInput = document.getElementById('week-photos');
 if (_weekUploadArea && _weekPhotosInput) {
     _weekUploadArea.addEventListener('click', function() {
-        if (Date.now() < _weekPickLock) return;
-        _weekPickLock = Date.now() + 1500;
+        if (_weekPickLock) return;
+        _weekPickLock = true;
         _weekPhotosInput.click();
     });
+    window.addEventListener('focus', function() {
+        setTimeout(function() { _weekPickLock = false; }, 300);
+    }, true);
+    _weekPhotosInput.addEventListener('change', function() { _weekPickLock = false; });
 }
 
 var _weekForm = document.getElementById('week-form');
