@@ -1777,13 +1777,18 @@ function previewDriveFiles() {
 
 /* ── Auto-refresh ── */
 setInterval(() => {
+    loadWeekGrid();
     fetch('/api/status').then(r => r.json()).then(data => {
         if (data.pending_notifications > 0) {
             document.title = '(' + data.pending_notifications + ') Postay';
+            loadWeekGrid();
             if (!isMainPostFormDirty()) location.reload();
         }
     }).catch(() => {});
 }, 30000);
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') loadWeekGrid();
+});
 
 /* ════════════════════════════════════════════════
    GRADE SEMANAL
@@ -1830,16 +1835,18 @@ function renderWeekGrid(data) {
 
         /* Thumbnails */
         let thumbs = '';
-        day.posts.slice(0, 2).forEach(p => {
+        day.posts.slice(0, 3).forEach(p => {
+            const st = p.status === 'posted' ? '✅' : (p.status === 'processing' ? '⏳' : '');
+            const tBorder = p.status === 'posted' ? '#2a5a3a' : '#333';
             if (p.thumb_url) {
-                const icon = p.is_video ? '🎬' : '';
                 thumbs += `<div style="position:relative;display:inline-block;">
-                    <img src="${p.thumb_url}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #333;"
+                    <img src="${p.thumb_url}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid ${tBorder};"
                          onerror="this.style.display='none'">
+                    ${st ? `<span style="position:absolute;top:-2px;right:-2px;font-size:0.55rem;">${st}</span>` : ''}
                     ${p.time ? `<div style="position:absolute;bottom:-1px;left:0;right:0;background:rgba(0,0,0,0.7);font-size:0.52rem;color:#ccc;text-align:center;border-radius:0 0 4px 4px;">${p.time}</div>` : ''}
                 </div>`;
             } else {
-                thumbs += `<div style="width:36px;height:36px;background:#1a1a2e;border-radius:5px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:#555;">${p.is_video ? '🎬' : '📷'}</div>`;
+                thumbs += `<div style="width:36px;height:36px;background:#1a1a2e;border-radius:5px;border:1px solid ${tBorder};display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:#555;">${p.is_video ? '🎬' : '📷'}${st || ''}</div>`;
             }
         });
 

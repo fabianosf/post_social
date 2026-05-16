@@ -94,10 +94,11 @@ def api_week_schedule():
             )
 
             for p in posts:
-                if p.post_to_instagram:
-                    ig_count += 1
-                if p.post_to_facebook:
-                    fb_count += 1
+                if p.status in ("pending", "processing"):
+                    if p.post_to_instagram:
+                        ig_count += 1
+                    if p.post_to_facebook:
+                        fb_count += 1
 
                 thumb_url = ""
                 raw_path = p.image_path or ""

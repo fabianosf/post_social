@@ -25,7 +25,7 @@ function PixelTracker() {
 
 export default function DashboardPage() {
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats, refetchInterval: 60_000 });
-  const week  = useQuery({ queryKey: ["week-schedule"],   queryFn: getWeekSchedule,   refetchInterval: 120_000 });
+  const week  = useQuery({ queryKey: ["week-schedule"],   queryFn: getWeekSchedule,   refetchInterval: 30_000, refetchOnWindowFocus: true });
   const growth= useQuery({ queryKey: ["growth-summary"],  queryFn: getGrowthSummary,  staleTime: 5 * 60_000 });
 
   return (
