@@ -819,11 +819,11 @@ loadSlotsConfig();
     <h2>Nova Postagem</h2>
     {% if accounts %}
     <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data">
-        <div class="upload-area" onclick="document.getElementById('photos').click()">
+        <label class="upload-area" id="main-upload-area">
             <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
             <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">
-        </div>
+        </label>
         <div id="preview-container" class="preview-grid"></div>
 
         <!-- Preview Instagram Feed Mockup -->
@@ -1389,6 +1389,7 @@ function saveTelegramConfig() {
 /* ── File Preview + Instagram Mockup ── */
 var photosInput = document.getElementById('photos');
 var _mainBlobUrls = [];
+var _mainFilesBackup = [];
 
 function revokeMainBlobUrls() {
     _mainBlobUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch (e) {} });
@@ -1434,6 +1435,7 @@ function renderMainPostPreview() {
             ev.stopPropagation();
             var arr = Array.from(photosInput.files);
             arr.splice(idx, 1);
+            _mainFilesBackup = arr;
             syncPhotosInput(arr);
             renderMainPostPreview();
         });
@@ -1493,12 +1495,24 @@ function renderMainPostPreview() {
     });
 }
 
+function onMainPhotosChange() {
+    if (!photosInput) return;
+    var n = photosInput.files ? photosInput.files.length : 0;
+    if (n === 0 && _mainFilesBackup.length) {
+        syncPhotosInput(_mainFilesBackup);
+        return;
+    }
+    if (n > 0) _mainFilesBackup = Array.from(photosInput.files);
+    renderMainPostPreview();
+}
+
 if (photosInput) {
-    photosInput.addEventListener('change', renderMainPostPreview);
+    photosInput.addEventListener('click', function(e) { e.stopPropagation(); });
+    photosInput.addEventListener('change', onMainPhotosChange);
 }
 
 /* ── Drag & Drop ── */
-const area = document.querySelector('.upload-area');
+const area = document.getElementById('main-upload-area');
 if (area) {
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
