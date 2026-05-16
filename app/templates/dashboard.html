@@ -740,7 +740,7 @@ loadSlotsConfig();
             <input type="hidden" name="scheduled_at" id="week-sched-at">
 
             <!-- Upload -->
-            <div id="week-upload-area" onclick="document.getElementById('week-photos').click()"
+            <div id="week-upload-area"
                 style="border:2px dashed #3a3a5a; border-radius:8px; padding:1.2rem; text-align:center; cursor:pointer; margin-bottom:0.8rem; transition:border-color 0.2s;">
                 <p id="week-upload-label" style="margin:0; color:#888; font-size:0.85rem;">📁 Clique para selecionar foto ou vídeo</p>
                 <input type="file" id="week-photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none;">
@@ -2006,6 +2006,7 @@ function updateSchedAt() {
 /* Preview de arquivo no modal */
 function clearWeekMedia(ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    _weekFilesBackup = [];
     var inp = document.getElementById('week-photos');
     if (inp) inp.value = '';
     var label = document.getElementById('week-upload-label');
@@ -2022,6 +2023,8 @@ document.getElementById('week-photos')?.addEventListener('change', function(e) {
     var pic = document.getElementById('week-preview-img');
     var vid = document.getElementById('week-preview-vid');
     var file = e.target.files && e.target.files[0];
+    /* Backup de segurança para restaurar na submissão */
+    _weekFilesBackup = file ? Array.from(e.target.files) : [];
     document.getElementById('week-upload-label').textContent = file ? ('✅ ' + file.name + (e.target.files.length > 1 ? ' (+' + (e.target.files.length - 1) + ' mais)' : ''))
         : '📁 Clique para selecionar foto ou vídeo';
     if (!file) {
@@ -2045,6 +2048,37 @@ document.getElementById('week-photos')?.addEventListener('change', function(e) {
         }
     }
 });
+
+/* Lock evita click sintético pós-file-dialog no modal semanal */
+var _weekPickLock = 0;
+var _weekFilesBackup = [];
+var _weekUploadArea = document.getElementById('week-upload-area');
+var _weekPhotosInput = document.getElementById('week-photos');
+if (_weekUploadArea && _weekPhotosInput) {
+    _weekUploadArea.addEventListener('click', function() {
+        if (Date.now() < _weekPickLock) return;
+        _weekPickLock = Date.now() + 1500;
+        _weekPhotosInput.click();
+    });
+}
+
+var _weekForm = document.getElementById('week-form');
+if (_weekForm) {
+    _weekForm.addEventListener('submit', function(e) {
+        if ((!_weekPhotosInput.files || !_weekPhotosInput.files.length) && _weekFilesBackup.length) {
+            var dt = new DataTransfer();
+            _weekFilesBackup.forEach(function(f) { dt.items.add(f); });
+            _weekPhotosInput.files = dt.files;
+            if (!_weekPhotosInput.files.length) {
+                e.preventDefault();
+                var errEl = document.getElementById('week-form-error');
+                errEl.textContent = '⚠️ Não foi possível anexar o arquivo. Selecione novamente.';
+                errEl.style.display = 'block';
+                return;
+            }
+        }
+    });
+}
 
 /* Fechar modais clicando no backdrop */
 ['modal-week-day','modal-week-limit'].forEach(id => {
