@@ -91,7 +91,8 @@ def index():
     target = (request.args.get("plan") or "pro").lower()
     if target not in ("pro", "agency"):
         target = "pro"
-    if current_user.plan == target and not current_user.is_admin:
+    is_trial = (current_user.plan_expires_at is not None and not current_user.mp_subscription_id)
+    if current_user.plan == target and not current_user.is_admin and not is_trial:
         flash(f"Você já tem o plano {target.upper()}!", "info")
         return redirect(url_for("dashboard.index"))
     if current_user.plan == "agency" and target == "pro" and not current_user.is_admin:
