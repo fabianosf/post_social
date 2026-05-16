@@ -820,11 +820,11 @@ loadSlotsConfig();
     {% if accounts %}
     <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="upload-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,image/*,video/*" style="display:none">
-        <button type="button" class="upload-area" id="main-upload-area" style="width:100%;font:inherit;color:inherit;background:transparent;">
-            <p id="upload-label" style="margin:0;">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
+        <div class="upload-area" id="main-upload-area" onclick="document.getElementById('photos').click()">
+            <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
-        </button>
+            <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">
+        </div>
         <div id="preview-container" class="preview-grid"></div>
 
         <!-- Preview Instagram Feed Mockup -->
@@ -1391,7 +1391,6 @@ function saveTelegramConfig() {
 var photosInput = document.getElementById('photos');
 var _mainBlobUrls = [];
 var _mainFilesBackup = [];
-var _mainPickLock = 0;
 
 function revokeMainBlobUrls() {
     _mainBlobUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch (e) {} });
@@ -1552,29 +1551,11 @@ function renderMainPostPreview(filesOverride) {
     });
 }
 
-function onMainPhotosChange(ev, filesPassed) {
-    if (!photosInput) return;
-    _mainPickLock = Date.now() + 1200;
-    var picked = filesPassed ? Array.from(filesPassed) : (ev && ev.target && ev.target.files ? Array.from(ev.target.files) : []);
-    if (!picked.length && photosInput.files && photosInput.files.length)
-        picked = Array.from(photosInput.files);
-    console.log('[postay upload] change', picked.map(function(f) {
-        return { name: f.name, type: f.type || '(empty)', size: f.size };
-    }));
-    if (!picked.length) {
-        console.log('[postay upload] sem arquivos no change');
-        return;
-    }
-    _mainFilesBackup = picked;
-    var synced = syncPhotosInput(picked);
-    console.log('[postay upload] sync=', synced, 'input=', photosInput.files ? photosInput.files.length : 0);
+function onMainPhotosChange() {
+    if (!photosInput || !photosInput.files || !photosInput.files.length) return;
+    _mainFilesBackup = Array.from(photosInput.files);
     saveMainDraft();
-    try {
-        renderMainPostPreview(picked);
-        console.log('[postay upload] preview ok');
-    } catch (err) {
-        console.error('[postay upload] preview erro', err);
-    }
+    renderMainPostPreview(photosInput.files);
 }
 
 function isMainPostFormDirty() {
@@ -1592,14 +1573,7 @@ if (photosInput) {
 
 var uploadForm = document.getElementById('upload-form');
 if (uploadForm) {
-    uploadForm.addEventListener('submit', function(e) {
-        if ((!photosInput.files || !photosInput.files.length) && _mainFilesBackup.length) {
-            if (!syncPhotosInput(_mainFilesBackup)) {
-                e.preventDefault();
-                alert('Não foi possível anexar o vídeo. Selecione o arquivo novamente.');
-                return;
-            }
-        }
+    uploadForm.addEventListener('submit', function() {
         try { sessionStorage.removeItem('postay_main_draft'); } catch (x) {}
     });
 }
@@ -1607,21 +1581,12 @@ if (uploadForm) {
 /* ── Drag & Drop ── */
 const area = document.getElementById('main-upload-area');
 if (area) {
-    area.addEventListener('click', function() {
-        if (Date.now() < _mainPickLock) return;
-        photosInput.click();
-    });
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
     area.addEventListener('drop', (e) => {
         e.preventDefault(); area.style.borderColor = '#3a3a5a';
-        var dropped = Array.from(e.dataTransfer.files || []);
-        if (!dropped.length) return;
-        _mainFilesBackup = dropped;
-        if (!syncPhotosInput(dropped)) {
-            try { photosInput.files = e.dataTransfer.files; } catch (err) {}
-        }
-        onMainPhotosChange(null, dropped);
+        photosInput.files = e.dataTransfer.files;
+        onMainPhotosChange();
     });
 }
 
