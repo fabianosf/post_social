@@ -245,6 +245,8 @@ def mp_webhook():
 def success():
     payment_id = request.args.get("payment_id") or request.args.get("collection_id")
     status = (request.args.get("status") or request.args.get("collection_status") or "").lower()
+    activated = False
+    plan_label = "PRO"
 
     if status == "approved" and payment_id:
         sdk = _mp_sdk()
@@ -255,23 +257,28 @@ def success():
                 mp_status = payment.get("status")
                 ext_ref = str(payment.get("external_reference", "") or "")
                 client_id, plan = _parse_external_reference(ext_ref)
-
+                plan_label = plan.upper()
                 if mp_status == "approved" and client_id == current_user.id:
-                    if _activate_plan(current_user, plan, str(payment_id)):
-                        flash(f"Pagamento aprovado! Plano {plan.upper()} ativado.", "success")
-                    else:
-                        flash(f"Plano {plan.upper()} já está ativo.", "info")
-                else:
-                    flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
+                    _activate_plan(current_user, plan, str(payment_id))
+                    activated = True
             except Exception as exc:
                 logger.warning("MP success callback verify failed: %s", exc)
-                flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
         else:
-            flash("Pagamento recebido. Seu plano será ativado após confirmação.", "info")
-    else:
-        flash("Pagamento em processamento. Seu plano será ativado em breve.", "info")
+            activated = True  # sem SDK, confia no retorno do MP
 
-    return redirect(url_for("dashboard.index"))
+    from datetime import timezone as _tz
+    expires_str = None
+    if current_user.plan_expires_at:
+        from zoneinfo import ZoneInfo
+        brt = current_user.plan_expires_at.replace(tzinfo=_tz.utc).astimezone(ZoneInfo("America/Sao_Paulo"))
+        expires_str = brt.strftime("%d/%m/%Y")
+
+    return render_template(
+        "payment_success.html",
+        activated=activated,
+        plan_label=plan_label,
+        expires_str=expires_str,
+    )
 
 
 @payment_bp.route("/pendente")

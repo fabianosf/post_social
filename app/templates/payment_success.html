@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Pagamento confirmado{% endblock %}
+{% block content %}
+<div style="max-width:480px; margin:4rem auto; text-align:center;">
+    <div class="card" style="border-color:#4ade80; padding:2.5rem 2rem;">
+        {% if activated %}
+        <div style="font-size:3rem; margin-bottom:1rem;">🎉</div>
+        <h1 style="color:#4ade80; font-size:1.5rem; margin-bottom:0.5rem;">Pagamento recebido com sucesso!</h1>
+        <p style="color:#ccc; margin-bottom:0.3rem;">Seu plano agora é <strong style="color:#7c5cff;">{{ plan_label }}</strong></p>
+        {% if expires_str %}
+        <p style="color:#888; font-size:0.9rem;">Sua assinatura é válida até: <strong style="color:#ccc;">{{ expires_str }}</strong></p>
+        {% endif %}
+        {% else %}
+        <div style="font-size:3rem; margin-bottom:1rem;">⏳</div>
+        <h1 style="color:#fbbf24; font-size:1.4rem; margin-bottom:0.5rem;">Pagamento em processamento</h1>
+        <p style="color:#888;">Seu plano será ativado assim que o pagamento for confirmado.</p>
+        {% endif %}
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-success" style="margin-top:1.5rem; display:inline-block;">
+            Ir para o painel →
+        </a>
+    </div>
+</div>
+{% endblock %}
