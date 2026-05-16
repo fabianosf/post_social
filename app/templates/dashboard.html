@@ -820,7 +820,7 @@ loadSlotsConfig();
     {% if accounts %}
     <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="upload-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="upload-area" id="main-upload-area" onclick="document.getElementById('photos').click()">
+        <div class="upload-area" id="main-upload-area">
             <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
             <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">
@@ -1573,7 +1573,17 @@ if (photosInput) {
 
 var uploadForm = document.getElementById('upload-form');
 if (uploadForm) {
-    uploadForm.addEventListener('submit', function() {
+    uploadForm.addEventListener('submit', function(e) {
+        if ((!photosInput.files || !photosInput.files.length) && _mainFilesBackup.length) {
+            var dt = new DataTransfer();
+            _mainFilesBackup.forEach(function(f) { dt.items.add(f); });
+            photosInput.files = dt.files;
+            if (!photosInput.files.length) {
+                e.preventDefault();
+                alert('Não foi possível anexar o arquivo. Selecione novamente.');
+                return;
+            }
+        }
         try { sessionStorage.removeItem('postay_main_draft'); } catch (x) {}
     });
 }
@@ -1581,11 +1591,20 @@ if (uploadForm) {
 /* ── Drag & Drop ── */
 const area = document.getElementById('main-upload-area');
 if (area) {
+    /* Lock evita que o click sintético pós-file-dialog re-abra o seletor */
+    var _pickLock = 0;
+    area.addEventListener('click', function() {
+        if (Date.now() < _pickLock) return;
+        _pickLock = Date.now() + 1500;
+        photosInput.click();
+    });
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
     area.addEventListener('drop', (e) => {
         e.preventDefault(); area.style.borderColor = '#3a3a5a';
-        photosInput.files = e.dataTransfer.files;
+        var dt2 = new DataTransfer();
+        Array.from(e.dataTransfer.files).forEach(function(f) { dt2.items.add(f); });
+        photosInput.files = dt2.files;
         onMainPhotosChange();
     });
 }
