@@ -818,11 +818,11 @@ loadSlotsConfig();
 <div class="card">
     <h2>Nova Postagem</h2>
     {% if accounts %}
-    <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data">
-        <label class="upload-area" id="main-upload-area">
+    <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="upload-form">
+        <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none">
+        <label class="upload-area" id="main-upload-area" for="photos">
             <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
-            <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov">
         </label>
         <div id="preview-container" class="preview-grid"></div>
 
@@ -1390,6 +1390,7 @@ function saveTelegramConfig() {
 var photosInput = document.getElementById('photos');
 var _mainBlobUrls = [];
 var _mainFilesBackup = [];
+var _mainPickLock = 0;
 
 function revokeMainBlobUrls() {
     _mainBlobUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch (e) {} });
@@ -1497,13 +1498,26 @@ function renderMainPostPreview() {
 
 function onMainPhotosChange() {
     if (!photosInput) return;
+    _mainPickLock = Date.now() + 700;
     var n = photosInput.files ? photosInput.files.length : 0;
-    if (n === 0 && _mainFilesBackup.length) {
-        syncPhotosInput(_mainFilesBackup);
+    if (n === 0) {
+        if (_mainFilesBackup.length) {
+            syncPhotosInput(_mainFilesBackup);
+            renderMainPostPreview();
+        }
         return;
     }
-    if (n > 0) _mainFilesBackup = Array.from(photosInput.files);
+    _mainFilesBackup = Array.from(photosInput.files);
     renderMainPostPreview();
+}
+
+function isMainPostFormDirty() {
+    var cap = document.getElementById('caption-input');
+    var hash = document.getElementById('hashtags-input');
+    if (cap && cap.value.trim()) return true;
+    if (hash && hash.value.trim()) return true;
+    if (_mainFilesBackup.length) return true;
+    return photosInput && photosInput.files && photosInput.files.length > 0;
 }
 
 if (photosInput) {
@@ -1514,12 +1528,15 @@ if (photosInput) {
 /* ── Drag & Drop ── */
 const area = document.getElementById('main-upload-area');
 if (area) {
+    area.addEventListener('click', function(e) {
+        if (Date.now() < _mainPickLock) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
     area.addEventListener('drop', (e) => {
         e.preventDefault(); area.style.borderColor = '#3a3a5a';
-        document.getElementById('photos').files = e.dataTransfer.files;
-        document.getElementById('photos').dispatchEvent(new Event('change'));
+        photosInput.files = e.dataTransfer.files;
+        onMainPhotosChange();
     });
 }
 
@@ -1709,7 +1726,7 @@ setInterval(() => {
     fetch('/api/status').then(r => r.json()).then(data => {
         if (data.pending_notifications > 0) {
             document.title = '(' + data.pending_notifications + ') Postay';
-            location.reload();
+            if (!isMainPostFormDirty()) location.reload();
         }
     }).catch(() => {});
 }, 30000);
