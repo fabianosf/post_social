@@ -226,12 +226,17 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
     image_url = f"{_PUBLIC_BASE}/uploads/{quote(rel, safe='/')}"
     token = account.get_ig_password()
 
-    mid, err = ig_graph.publish_single_image(ig_uid, token, image_url, caption)
+    mid, err, ig_permalink, ig_media_url = ig_graph.publish_single_image(
+        ig_uid, token, image_url, caption
+    )
     if mid:
         post.instagram_media_id = mid
+        post.ig_permalink = ig_permalink
+        post.ig_media_url = ig_media_url
         post.status = "posted"
         post.posted_at = datetime.now(timezone.utc)
         post.error_message = None
+        post.fb_error_message = None
 
         client = db.session.get(Client, post.client_id)
         if client:
@@ -249,8 +254,19 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
                     str(account.client_id),
                     logger,
                 )
-                fb.post_photo(paths[0], caption)
+                fb_id, fb_link, fb_err = fb.post_photo(paths[0], caption)
+                if fb_id:
+                    post.fb_post_id = fb_id
+                    post.fb_permalink = fb_link
+                    if not fb_link:
+                        post.fb_error_message = (
+                            "Facebook: publicado (post_id %s), mas a API não retornou permalink."
+                            % fb_id
+                        )
+                elif fb_err:
+                    post.fb_error_message = fb_err
             except Exception as fb_e:
+                post.fb_error_message = f"{type(fb_e).__name__}: {fb_e}"
                 logger.warning(f"Post #{post.id} — Facebook espelho falhou: {fb_e}")
 
         db.session.commit()
@@ -385,6 +401,17 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
 
         if media_id:
             post.instagram_media_id = media_id
+            post.ig_permalink = None
+            post.ig_media_url = None
+            try:
+                info = cl.media_info(int(media_id))
+                if info and getattr(info, "code", None):
+                    post.ig_permalink = f"https://www.instagram.com/p/{info.code}/"
+                thumb = getattr(info, "thumbnail_url", None)
+                if thumb:
+                    post.ig_media_url = str(thumb)
+            except Exception:
+                pass
             post.status = "posted"
             post.posted_at = datetime.now(timezone.utc)
             post.error_message = None

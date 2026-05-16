@@ -120,7 +120,7 @@ def post_to_facebook(client_config: dict, image_path: str, caption: str, logger)
         logger.error("[Facebook] Token inválido.")
         return False
 
-    post_id = poster.post_photo(image_path, caption)
+    post_id, _permalink, _err = poster.post_photo(image_path, caption)
 
     if post_id:
         logger.info(f"[Facebook] Sucesso! Post ID: {post_id}")

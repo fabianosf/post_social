@@ -87,12 +87,20 @@ def notify_post_success(client, post, account):
     if post.caption:
         caption_preview = f"\n📝 <i>{post.caption[:80]}{'...' if len(post.caption) > 80 else ''}</i>"
 
+    links = ""
+    if getattr(post, "ig_permalink", None):
+        links += f'\n📸 <a href="{post.ig_permalink}">Abrir postagem (Instagram)</a>'
+    if getattr(post, "fb_permalink", None):
+        links += f'\n📘 <a href="{post.fb_permalink}">Abrir postagem (Facebook)</a>'
+    elif getattr(post, "fb_error_message", None):
+        links += f"\n⚠️ Facebook: {post.fb_error_message[:200]}"
+
     msg = (
         f"✅ <b>Post publicado com sucesso!</b>\n\n"
         f"👤 Conta: <b>@{account.ig_username}</b>\n"
         f"🌐 Plataformas: {plats}\n"
         f"🗂 Arquivo: {post.image_filename[:40]}"
-        f"{caption_preview}"
+        f"{caption_preview}{links}"
     )
     send_telegram(client.telegram_bot_token, client.telegram_chat_id, msg)
 

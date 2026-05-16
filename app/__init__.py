@@ -300,6 +300,11 @@ def create_app():
             # clients — conta padrão
             "ALTER TABLE clients ADD COLUMN default_account_id INTEGER REFERENCES instagram_accounts(id)",
             "ALTER TABLE user_ai_keys ADD COLUMN last_validated_at TIMESTAMP",
+            "ALTER TABLE post_queue ADD COLUMN ig_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN ig_media_url VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN fb_post_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN fb_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN fb_error_message TEXT",
         ]
 
         # PostgreSQL: usa IF NOT EXISTS (suportado desde PG 9.6)
@@ -342,6 +347,11 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS insights_updated_at TIMESTAMP",
             "ALTER TABLE clients ADD COLUMN IF NOT EXISTS default_account_id INTEGER REFERENCES instagram_accounts(id)",
             "ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_validated_at TIMESTAMP",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_media_url VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_post_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_error_message TEXT",
         ]
 
         # user_ai_keys: tabela criada pelo db.create_all() acima

@@ -181,10 +181,10 @@ def publish_single_image(
     page_access_token: str,
     image_url: str,
     caption: str,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None]:
     """
     Publica uma imagem no feed do Instagram.
-    Retorna (instagram_media_id, erro).
+    Retorna (instagram_media_id, erro, permalink, media_url).
     """
     cap = (caption or "")[:2200]
     try:
@@ -197,14 +197,14 @@ def publish_single_image(
             },
         )
     except Exception as e:
-        return None, str(e)
+        return None, str(e), None, None
     creation_id = created.get("id")
     if not creation_id:
-        return None, str(created)[:400]
+        return None, str(created)[:400], None, None
 
     ok, err = wait_media_container_ready(str(creation_id), page_access_token)
     if not ok:
-        return None, err or "Falha na fila de mídia"
+        return None, err or "Falha na fila de mídia", None, None
 
     try:
         pub = _post(
@@ -215,8 +215,18 @@ def publish_single_image(
             },
         )
     except Exception as e:
-        return None, str(e)
+        return None, str(e), None, None
     mid = pub.get("id")
     if not mid:
-        return None, str(pub)[:400]
-    return str(mid), None
+        return None, str(pub)[:400], None, None
+    permalink = media_url = None
+    try:
+        meta = _get(
+            f"/{mid}",
+            {"fields": "permalink,media_url", "access_token": page_access_token},
+        )
+        permalink = meta.get("permalink")
+        media_url = meta.get("media_url")
+    except Exception as e:
+        logger.debug("permalink media %s: %s", mid, e)
+    return str(mid), None, permalink, media_url
