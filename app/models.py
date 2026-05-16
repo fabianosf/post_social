@@ -230,6 +230,9 @@ class PostQueue(db.Model):
     fb_post_id = db.Column(db.String(100))
     fb_permalink = db.Column(db.String(500))
     fb_error_message = db.Column(db.Text)
+    tiktok_publish_id = db.Column(db.String(100))
+    tiktok_permalink = db.Column(db.String(500))
+    tiktok_link_error = db.Column(db.Text)
     notified = db.Column(db.Boolean, default=False)
     retry_count = db.Column(db.Integer, default=0)
 

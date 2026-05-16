@@ -485,24 +485,24 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
 def _try_post_tiktok(post: PostQueue, client: Client):
     """Tenta postar no TikTok se a conta estiver conectada. Suporta foto e vídeo."""
     try:
-        from app.routes_tiktok import post_to_tiktok
+        from app.routes_tiktok import fetch_tiktok_post_url, post_to_tiktok
+
         tiktok_acc = TikTokAccount.query.filter_by(client_id=post.client_id).first()
         if not tiktok_acc:
+            post.tiktok_link_error = "Nenhuma conta TikTok conectada"
             logger.warning(f"Post #{post.id} — TikTok marcado mas nenhuma conta conectada.")
             return
-        caption = ((post.caption or "") + " " + (post.hashtags or "")).strip()
         publish_id = post_to_tiktok(tiktok_acc, post)
-        logger.info(f"Post #{post.id} — POSTADO TikTok! publish_id: {publish_id}")
-        if client:
-            from modules.telegram_notify import send_telegram
-            send_telegram(client.telegram_bot_token or "", client.telegram_chat_id or "",
-                          f"✅ <b>TikTok publicado!</b>\n@{tiktok_acc.username or ''}\n{caption[:80]}")
+        post.tiktok_publish_id = publish_id
+        url, video_id, link_err = fetch_tiktok_post_url(tiktok_acc, publish_id)
+        post.tiktok_permalink = url
+        post.tiktok_link_error = link_err if not url else None
+        logger.info(
+            f"Post #{post.id} — TikTok publish_id={publish_id} video_id={video_id} url={url}"
+        )
     except Exception as e:
+        post.tiktok_link_error = f"{type(e).__name__}: {str(e)[:300]}"
         logger.error(f"Post #{post.id} — Erro TikTok: {e}")
-        if client:
-            from modules.telegram_notify import send_telegram
-            send_telegram(client.telegram_bot_token or "", client.telegram_chat_id or "",
-                          f"❌ <b>Falha no TikTok!</b>\nErro: {str(e)[:200]}")
 
 
 def _reset_stuck_processing():

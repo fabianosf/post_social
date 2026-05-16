@@ -89,13 +89,20 @@ def notify_post_success(client, post, account):
 
     links = ""
     if getattr(post, "ig_permalink", None):
-        links += f'\n📸 <a href="{post.ig_permalink}">Abrir postagem (Instagram)</a>'
+        links += f'\n📸 <a href="{post.ig_permalink}">Abrir postagem (IG)</a>'
     elif getattr(post, "ig_link_error", None):
-        links += f"\n⚠️ Instagram: {post.ig_link_error[:200]}"
+        pid = getattr(post, "instagram_media_id", "") or ""
+        links += f"\n⚠️ Instagram: {post.ig_link_error[:180]}" + (f" (id {pid})" if pid else "")
     if getattr(post, "fb_permalink", None):
-        links += f'\n📘 <a href="{post.fb_permalink}">Abrir postagem (Facebook)</a>'
+        links += f'\n📘 <a href="{post.fb_permalink}">Abrir postagem (FB)</a>'
     elif getattr(post, "fb_error_message", None):
-        links += f"\n⚠️ Facebook: {post.fb_error_message[:200]}"
+        pid = getattr(post, "fb_post_id", "") or ""
+        links += f"\n⚠️ Facebook: {post.fb_error_message[:180]}" + (f" (id {pid})" if pid else "")
+    if getattr(post, "tiktok_permalink", None):
+        links += f'\n🎵 <a href="{post.tiktok_permalink}">Abrir postagem (TikTok)</a>'
+    elif getattr(post, "post_to_tiktok", False) and getattr(post, "tiktok_link_error", None):
+        pid = getattr(post, "tiktok_publish_id", "") or ""
+        links += f"\n⚠️ TikTok: {post.tiktok_link_error[:180]}" + (f" (publish_id {pid})" if pid else "")
 
     msg = (
         f"✅ <b>Post publicado com sucesso!</b>\n\n"

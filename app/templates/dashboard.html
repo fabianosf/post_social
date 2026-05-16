@@ -149,14 +149,19 @@ function onbSkip() {
                 <br><small style="color:#888;">{{ n.posted_at | tobrt if n.posted_at }}</small>
                 <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.35rem;">
                 {% if n.ig_permalink %}
-                <a href="{{ n.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir postagem (IG)</a>
+                <a href="{{ n.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir postagem</a>
                 {% elif n.post_to_instagram %}
-                <small style="color:#f87171;">Instagram: {{ n.ig_link_error or ('link indisponível (id ' ~ n.instagram_media_id ~ ')') }}</small>
+                <small style="color:#f87171;">IG: {{ n.ig_link_error or 'sem link' }}{% if n.instagram_media_id %} (id {{ n.instagram_media_id }}){% endif %}</small>
                 {% endif %}
                 {% if n.fb_permalink %}
-                <a href="{{ n.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir postagem (FB)</a>
+                <a href="{{ n.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir FB</a>
                 {% elif n.post_to_facebook and n.fb_error_message %}
-                <small style="color:#f87171;">{{ n.fb_error_message }}</small>
+                <small style="color:#f87171;">FB: {{ n.fb_error_message }}{% if n.fb_post_id %} (id {{ n.fb_post_id }}){% endif %}</small>
+                {% endif %}
+                {% if n.tiktok_permalink %}
+                <a href="{{ n.tiktok_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir TikTok</a>
+                {% elif n.post_to_tiktok and n.tiktok_link_error %}
+                <small style="color:#f87171;">TK: {{ n.tiktok_link_error }}{% if n.tiktok_publish_id %} (id {{ n.tiktok_publish_id }}){% endif %}</small>
                 {% endif %}
                 </div>
             {% else %}
@@ -1324,20 +1329,26 @@ function saveTelegramConfig() {
                     </span>
                     {% endif %}
                     {% if post.ig_link_error and not post.ig_permalink %}
-                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.ig_link_error }}">IG: {{ post.ig_link_error[:50] }}{% if post.ig_link_error|length > 50 %}…{% endif %}</span>
+                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.ig_link_error }}">IG: {{ post.ig_link_error[:40] }}{% if post.instagram_media_id %} ({{ post.instagram_media_id }}){% endif %}</span>
                     {% endif %}
                     {% if post.fb_error_message and not post.fb_permalink %}
-                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.fb_error_message }}">FB: {{ post.fb_error_message[:50] }}{% if post.fb_error_message|length > 50 %}…{% endif %}</span>
+                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.fb_error_message }}">FB: {{ post.fb_error_message[:40] }}{% if post.fb_post_id %} ({{ post.fb_post_id }}){% endif %}</span>
+                    {% endif %}
+                    {% if post.tiktok_link_error and not post.tiktok_permalink %}
+                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.tiktok_link_error }}">TK: {{ post.tiktok_link_error[:40] }}{% if post.tiktok_publish_id %} ({{ post.tiktok_publish_id }}){% endif %}</span>
                     {% endif %}
                 </div>
             </div>
             <!-- Ações -->
             <div style="display:flex; gap:0.3rem; flex-shrink:0; flex-wrap:wrap;">
                 {% if post.ig_permalink %}
-                <a href="{{ post.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.65rem; padding:0.2rem 0.4rem;">Abrir IG</a>
+                <a href="{{ post.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.65rem; padding:0.2rem 0.4rem;" title="Instagram">Abrir</a>
                 {% endif %}
                 {% if post.fb_permalink %}
-                <a href="{{ post.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.65rem; padding:0.2rem 0.4rem;">Abrir FB</a>
+                <a href="{{ post.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.65rem; padding:0.2rem 0.4rem;" title="Facebook">FB</a>
+                {% endif %}
+                {% if post.tiktok_permalink %}
+                <a href="{{ post.tiktok_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.65rem; padding:0.2rem 0.4rem;" title="TikTok">TK</a>
                 {% endif %}
                 {% if post.instagram_media_id %}
                 <button class="btn btn-outline btn-sm" type="button" title="Ver métricas"

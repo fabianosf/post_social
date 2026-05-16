@@ -306,6 +306,9 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN fb_permalink VARCHAR(500)",
             "ALTER TABLE post_queue ADD COLUMN fb_error_message TEXT",
             "ALTER TABLE post_queue ADD COLUMN ig_link_error TEXT",
+            "ALTER TABLE post_queue ADD COLUMN tiktok_publish_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN tiktok_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN tiktok_link_error TEXT",
         ]
 
         # PostgreSQL: usa IF NOT EXISTS (suportado desde PG 9.6)
@@ -354,6 +357,9 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_permalink VARCHAR(500)",
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_error_message TEXT",
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_link_error TEXT",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_publish_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_permalink VARCHAR(500)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_link_error TEXT",
         ]
 
         # user_ai_keys: tabela criada pelo db.create_all() acima

@@ -4,6 +4,7 @@ Posta fotos em Páginas do Facebook usando Page Access Token.
 """
 
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -49,20 +50,33 @@ class FacebookPoster:
             self.logger.error(f"Erro ao validar token Facebook: {e}")
             return False
 
-    def _permalink_for_id(self, post_id: str) -> Optional[str]:
-        try:
-            with httpx.Client(timeout=15) as client:
-                resp = client.get(
-                    f"{GRAPH_API_URL}/{post_id}",
-                    params={"fields": "permalink_url", "access_token": self.access_token},
-                )
-            if resp.status_code == 200:
-                return resp.json().get("permalink_url")
-            err = resp.json().get("error", {})
-            self.logger.warning(f"[Facebook] permalink: {err.get('message', resp.text[:200])}")
-        except Exception as e:
-            self.logger.warning(f"[Facebook] permalink: {e}")
-        return None
+    def _permalink_for_id(self, post_id: str) -> tuple[Optional[str], Optional[str]]:
+        last_err = None
+        for attempt in range(6):
+            try:
+                with httpx.Client(timeout=15) as client:
+                    resp = client.get(
+                        f"{GRAPH_API_URL}/{post_id}",
+                        params={
+                            "fields": "permalink_url,link",
+                            "access_token": self.access_token,
+                        },
+                    )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    url = data.get("permalink_url") or data.get("link")
+                    if url:
+                        return str(url), None
+                    last_err = f"API sem permalink (tentativa {attempt + 1}/6)"
+                else:
+                    err = resp.json().get("error", {})
+                    last_err = err.get("message", resp.text[:200])
+            except Exception as e:
+                last_err = str(e)[:200]
+            if attempt + 1 < 6:
+                time.sleep(2)
+        self.logger.warning(f"[Facebook] permalink {post_id}: {last_err}")
+        return None, last_err
 
     def post_photo(self, image_path: str, caption: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """
@@ -93,8 +107,12 @@ class FacebookPoster:
             if resp.status_code == 200:
                 data = resp.json()
                 post_id = str(data.get("post_id") or data.get("id") or "")
-                link = self._permalink_for_id(post_id) if post_id else None
+                link, link_err = (None, None)
+                if post_id:
+                    link, link_err = self._permalink_for_id(post_id)
                 self.logger.info(f"[Facebook] Postagem realizada! Post ID: {post_id}")
+                if post_id and not link:
+                    return post_id, None, link_err or f"Sem permalink (post_id {post_id})"
                 return post_id or None, link, None
 
             error = resp.json().get("error", {})

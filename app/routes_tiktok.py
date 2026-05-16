@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -390,6 +391,69 @@ def post_photo_to_tiktok(account: TikTokAccount, image_paths: list[str], caption
             pass
 
     return publish_id
+
+
+STATUS_FETCH_URL = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+VIDEO_QUERY_URL = "https://open.tiktokapis.com/v2/video/query/?fields=share_url,id"
+
+
+def fetch_tiktok_post_url(
+    account: TikTokAccount, publish_id: str
+) -> tuple[str | None, str | None, str | None]:
+    """Após publish: poll status + share_url. Retorna (url, post_id, erro)."""
+    token = get_valid_token(account)
+    if not token:
+        return None, None, "Token TikTok inválido ou expirado"
+    username = (account.username or "").strip().lstrip("@")
+    last_err = "Aguardando moderação TikTok"
+    post_id = None
+    for attempt in range(25):
+        try:
+            resp = _post_json(STATUS_FETCH_URL, {"publish_id": publish_id}, token)
+            err = resp.get("error") or {}
+            if err.get("code", "ok") != "ok":
+                last_err = str(err.get("message") or err)[:400]
+            else:
+                data = resp.get("data") or {}
+                status = data.get("status") or ""
+                if status == "FAILED":
+                    reason = data.get("fail_reason") or "Falha na publicação"
+                    return None, publish_id, f"{reason} (publish_id {publish_id})"
+                ids = (
+                    data.get("publicaly_available_post_id")
+                    or data.get("publicly_available_post_id")
+                    or []
+                )
+                if ids:
+                    post_id = str(ids[0])
+                if status == "PUBLISH_COMPLETE" and post_id:
+                    break
+                last_err = f"Status {status}" + (f" (publish_id {publish_id})" if status else "")
+        except Exception as e:
+            last_err = str(e)[:400]
+        if attempt + 1 < 25:
+            time.sleep(3)
+    if not post_id:
+        return None, publish_id, last_err
+    share_url = None
+    try:
+        q = _post_json(
+            VIDEO_QUERY_URL,
+            {"filters": {"video_ids": [post_id]}},
+            token,
+        )
+        if q.get("error", {}).get("code", "ok") == "ok":
+            for v in (q.get("data") or {}).get("videos") or []:
+                if v.get("share_url"):
+                    share_url = str(v["share_url"])
+                    break
+    except Exception:
+        pass
+    if not share_url and username:
+        share_url = f"https://www.tiktok.com/@{username}/video/{post_id}"
+    elif not share_url:
+        share_url = f"https://www.tiktok.com/video/{post_id}"
+    return share_url, post_id, None
 
 
 def post_to_tiktok(account: TikTokAccount, post) -> str | None:
