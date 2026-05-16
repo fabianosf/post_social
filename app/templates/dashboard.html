@@ -820,7 +820,7 @@ loadSlotsConfig();
     {% if accounts %}
     <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="upload-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="file" id="photos" name="photos" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none">
+        <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,image/*,video/*" style="display:none">
         <button type="button" class="upload-area" id="main-upload-area" style="width:100%;font:inherit;color:inherit;background:transparent;">
             <p id="upload-label" style="margin:0;">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
@@ -1453,7 +1453,19 @@ function setIgPreviewMedia(url, isVideo) {
     igPreview.style.display = 'block';
 }
 
-function renderMainPostPreview() {
+function isVideoFile(file) {
+    var t = (file.type || '').toLowerCase();
+    if (t.indexOf('video/') === 0) return true;
+    return /\.(mp4|mov|m4v|webm)$/i.test(file.name || '');
+}
+
+function isImageFile(file) {
+    var t = (file.type || '').toLowerCase();
+    if (t.indexOf('image/') === 0) return true;
+    return /\.(jpe?g|png|webp)$/i.test(file.name || '');
+}
+
+function renderMainPostPreview(filesOverride) {
     if (!photosInput) return;
     revokeMainBlobUrls();
     var container = document.getElementById('preview-container');
@@ -1463,7 +1475,7 @@ function renderMainPostPreview() {
     if (!container) return;
     container.innerHTML = '';
 
-    var files = photosInput.files;
+    var files = filesOverride ? Array.from(filesOverride) : Array.from(photosInput.files || []);
     if (!files.length) {
         if (label) label.innerHTML = 'Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br><small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small>';
         if (igPreview) igPreview.style.display = 'none';
@@ -1471,7 +1483,7 @@ function renderMainPostPreview() {
     }
 
     var count = files.length;
-    var isVid = /\.(mp4|mov)$/i.test(files[0].name || '') || (files[0].type || '').indexOf('video') === 0;
+    var isVid = isVideoFile(files[0]);
     var type = count > 1 ? 'Carrossel' : (isVid ? 'Reels' : 'Post');
     if (label) label.innerHTML = '<strong>' + count + ' arquivo(s) — ' + type + '</strong>';
 
@@ -1487,7 +1499,7 @@ function renderMainPostPreview() {
             arr.splice(idx, 1);
             _mainFilesBackup = arr;
             syncPhotosInput(arr);
-            renderMainPostPreview();
+            renderMainPostPreview(arr);
         });
         return b;
     }
@@ -1497,10 +1509,10 @@ function renderMainPostPreview() {
         wrap.className = 'preview-item';
         wrap.appendChild(btnRm(idx));
 
-        var isImg = (file.type || '').indexOf('image') === 0;
-        var isVidFile = (file.type || '').indexOf('video') === 0 || /\.(mp4|mov)$/i.test(file.name);
+        var isVidFile = isVideoFile(file);
+        var isImg = isImageFile(file) && !isVidFile;
 
-        if (isImg && !isVidFile) {
+        if (isImg) {
             var u = URL.createObjectURL(file);
             _mainBlobUrls.push(u);
             var img = document.createElement('img');
@@ -1540,16 +1552,29 @@ function renderMainPostPreview() {
     });
 }
 
-function onMainPhotosChange() {
+function onMainPhotosChange(ev, filesPassed) {
     if (!photosInput) return;
     _mainPickLock = Date.now() + 1200;
-    setTimeout(function() {
-        var n = photosInput.files ? photosInput.files.length : 0;
-        if (n === 0) return;
-        _mainFilesBackup = Array.from(photosInput.files);
-        saveMainDraft();
-        renderMainPostPreview();
-    }, 0);
+    var picked = filesPassed ? Array.from(filesPassed) : (ev && ev.target && ev.target.files ? Array.from(ev.target.files) : []);
+    if (!picked.length && photosInput.files && photosInput.files.length)
+        picked = Array.from(photosInput.files);
+    console.log('[postay upload] change', picked.map(function(f) {
+        return { name: f.name, type: f.type || '(empty)', size: f.size };
+    }));
+    if (!picked.length) {
+        console.log('[postay upload] sem arquivos no change');
+        return;
+    }
+    _mainFilesBackup = picked;
+    var synced = syncPhotosInput(picked);
+    console.log('[postay upload] sync=', synced, 'input=', photosInput.files ? photosInput.files.length : 0);
+    saveMainDraft();
+    try {
+        renderMainPostPreview(picked);
+        console.log('[postay upload] preview ok');
+    } catch (err) {
+        console.error('[postay upload] preview erro', err);
+    }
 }
 
 function isMainPostFormDirty() {
@@ -1596,7 +1621,7 @@ if (area) {
         if (!syncPhotosInput(dropped)) {
             try { photosInput.files = e.dataTransfer.files; } catch (err) {}
         }
-        onMainPhotosChange();
+        onMainPhotosChange(null, dropped);
     });
 }
 
