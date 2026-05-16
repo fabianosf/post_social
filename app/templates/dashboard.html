@@ -819,11 +819,12 @@ loadSlotsConfig();
     <h2>Nova Postagem</h2>
     {% if accounts %}
     <form method="POST" action="{{ url_for('dashboard.upload') }}" enctype="multipart/form-data" id="upload-form">
-        <input type="file" id="photos" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none">
-        <label class="upload-area" id="main-upload-area" for="photos">
-            <p id="upload-label">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="file" id="photos" name="photos" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.jpg,.jpeg,.png,.webp,.mp4,.mov" style="display:none">
+        <button type="button" class="upload-area" id="main-upload-area" style="width:100%;font:inherit;color:inherit;background:transparent;">
+            <p id="upload-label" style="margin:0;">Clique ou arraste — Fotos (JPG, PNG) ou Vídeos (MP4, MOV)<br>
             <small>1 foto = post | Várias fotos = carrossel | 1 vídeo = Reels</small></p>
-        </label>
+        </button>
         <div id="preview-container" class="preview-grid"></div>
 
         <!-- Preview Instagram Feed Mockup -->
@@ -1398,10 +1399,58 @@ function revokeMainBlobUrls() {
 }
 
 function syncPhotosInput(filesArr) {
-    if (!photosInput) return;
-    var dt = new DataTransfer();
-    filesArr.forEach(function(f) { dt.items.add(f); });
-    photosInput.files = dt.files;
+    if (!photosInput || !filesArr || !filesArr.length) return false;
+    try {
+        var dt = new DataTransfer();
+        for (var i = 0; i < filesArr.length; i++) dt.items.add(filesArr[i]);
+        photosInput.files = dt.files;
+        return photosInput.files.length === filesArr.length;
+    } catch (err) {
+        console.warn('[postay upload] syncPhotosInput', err);
+        return false;
+    }
+}
+
+function saveMainDraft() {
+    try {
+        sessionStorage.setItem('postay_main_draft', JSON.stringify({
+            cap: (document.getElementById('caption-input') || {}).value || '',
+            hash: (document.getElementById('hashtags-input') || {}).value || '',
+            when: (document.getElementById('scheduled-input') || {}).value || ''
+        }));
+    } catch (e) {}
+}
+
+function restoreMainDraft() {
+    try {
+        var d = JSON.parse(sessionStorage.getItem('postay_main_draft') || '{}');
+        var cap = document.getElementById('caption-input');
+        var hash = document.getElementById('hashtags-input');
+        if (cap && d.cap && !cap.value) cap.value = d.cap;
+        if (hash && d.hash && !hash.value) hash.value = d.hash;
+    } catch (e) {}
+}
+
+function setIgPreviewMedia(url, isVideo) {
+    var igImgBox = document.getElementById('ig-preview-image');
+    var igPreview = document.getElementById('ig-preview');
+    if (!igImgBox || !igPreview) return;
+    igImgBox.innerHTML = '';
+    if (isVideo) {
+        var vid = document.createElement('video');
+        vid.src = url;
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.preload = 'metadata';
+        vid.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        igImgBox.appendChild(vid);
+    } else {
+        var img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        igImgBox.appendChild(img);
+    }
+    igPreview.style.display = 'block';
 }
 
 function renderMainPostPreview() {
@@ -1462,10 +1511,7 @@ function renderMainPostPreview() {
             var sp = document.createElement('span');
             sp.textContent = file.name;
             wrap.appendChild(sp);
-            if (idx === 0) {
-                igPreview.style.display = 'block';
-                igImgBox.innerHTML = '<img src="' + u + '" style="width:100%; height:100%; object-fit:cover;">';
-            }
+            if (idx === 0) setIgPreviewMedia(u, false);
         } else if (isVidFile) {
             var vu = URL.createObjectURL(file);
             _mainBlobUrls.push(vu);
@@ -1473,6 +1519,7 @@ function renderMainPostPreview() {
             v.src = vu;
             v.muted = true;
             v.playsInline = true;
+            v.preload = 'metadata';
             v.style.maxWidth = '80px';
             v.style.maxHeight = '80px';
             v.style.borderRadius = '8px';
@@ -1480,10 +1527,7 @@ function renderMainPostPreview() {
             var sp2 = document.createElement('span');
             sp2.textContent = file.name;
             wrap.appendChild(sp2);
-            if (idx === 0) {
-                igPreview.style.display = 'block';
-                igImgBox.innerHTML = '<video src="' + vu + '" muted playsinline style="width:100%;height:100%;object-fit:cover;"></video>';
-            }
+            if (idx === 0) setIgPreviewMedia(vu, true);
         } else {
             var d = document.createElement('span');
             d.style.fontSize = '0.72rem';
@@ -1498,17 +1542,14 @@ function renderMainPostPreview() {
 
 function onMainPhotosChange() {
     if (!photosInput) return;
-    _mainPickLock = Date.now() + 700;
-    var n = photosInput.files ? photosInput.files.length : 0;
-    if (n === 0) {
-        if (_mainFilesBackup.length) {
-            syncPhotosInput(_mainFilesBackup);
-            renderMainPostPreview();
-        }
-        return;
-    }
-    _mainFilesBackup = Array.from(photosInput.files);
-    renderMainPostPreview();
+    _mainPickLock = Date.now() + 1200;
+    setTimeout(function() {
+        var n = photosInput.files ? photosInput.files.length : 0;
+        if (n === 0) return;
+        _mainFilesBackup = Array.from(photosInput.files);
+        saveMainDraft();
+        renderMainPostPreview();
+    }, 0);
 }
 
 function isMainPostFormDirty() {
@@ -1521,35 +1562,58 @@ function isMainPostFormDirty() {
 }
 
 if (photosInput) {
-    photosInput.addEventListener('click', function(e) { e.stopPropagation(); });
     photosInput.addEventListener('change', onMainPhotosChange);
+}
+
+var uploadForm = document.getElementById('upload-form');
+if (uploadForm) {
+    uploadForm.addEventListener('submit', function(e) {
+        if ((!photosInput.files || !photosInput.files.length) && _mainFilesBackup.length) {
+            if (!syncPhotosInput(_mainFilesBackup)) {
+                e.preventDefault();
+                alert('Não foi possível anexar o vídeo. Selecione o arquivo novamente.');
+                return;
+            }
+        }
+        try { sessionStorage.removeItem('postay_main_draft'); } catch (x) {}
+    });
 }
 
 /* ── Drag & Drop ── */
 const area = document.getElementById('main-upload-area');
 if (area) {
-    area.addEventListener('click', function(e) {
-        if (Date.now() < _mainPickLock) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
+    area.addEventListener('click', function() {
+        if (Date.now() < _mainPickLock) return;
+        photosInput.click();
+    });
     area.addEventListener('dragover', (e) => { e.preventDefault(); area.style.borderColor = '#7c5cff'; });
     area.addEventListener('dragleave', () => { area.style.borderColor = '#3a3a5a'; });
     area.addEventListener('drop', (e) => {
         e.preventDefault(); area.style.borderColor = '#3a3a5a';
-        photosInput.files = e.dataTransfer.files;
+        var dropped = Array.from(e.dataTransfer.files || []);
+        if (!dropped.length) return;
+        _mainFilesBackup = dropped;
+        if (!syncPhotosInput(dropped)) {
+            try { photosInput.files = e.dataTransfer.files; } catch (err) {}
+        }
         onMainPhotosChange();
     });
 }
+
+restoreMainDraft();
 
 /* ── Caption input atualiza preview ── */
 const captionInput = document.getElementById('caption-input');
 if (captionInput) {
     captionInput.addEventListener('input', function() {
+        saveMainDraft();
         const previewText = document.getElementById('ig-preview-text');
         if (previewText) {
             previewText.textContent = this.value || 'Sua legenda aparecerá aqui...';
         }
     });
 }
+document.getElementById('hashtags-input')?.addEventListener('input', saveMainDraft);
 
 /* ── Account select atualiza preview username ── */
 const accountSelect = document.getElementById('account-select');
