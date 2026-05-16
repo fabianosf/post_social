@@ -226,13 +226,14 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
     image_url = f"{_PUBLIC_BASE}/uploads/{quote(rel, safe='/')}"
     token = account.get_ig_password()
 
-    mid, err, ig_permalink, ig_media_url = ig_graph.publish_single_image(
+    mid, err, ig_permalink, ig_media_url, ig_link_err = ig_graph.publish_single_image(
         ig_uid, token, image_url, caption
     )
     if mid:
         post.instagram_media_id = mid
         post.ig_permalink = ig_permalink
         post.ig_media_url = ig_media_url
+        post.ig_link_error = ig_link_err if not ig_permalink else None
         post.status = "posted"
         post.posted_at = datetime.now(timezone.utc)
         post.error_message = None

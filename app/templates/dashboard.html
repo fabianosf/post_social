@@ -151,7 +151,7 @@ function onbSkip() {
                 {% if n.ig_permalink %}
                 <a href="{{ n.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir postagem (IG)</a>
                 {% elif n.post_to_instagram %}
-                <small style="color:#f87171;">Instagram: link indisponível{% if n.instagram_media_id %} (id {{ n.instagram_media_id }}){% endif %}</small>
+                <small style="color:#f87171;">Instagram: {{ n.ig_link_error or ('link indisponível (id ' ~ n.instagram_media_id ~ ')') }}</small>
                 {% endif %}
                 {% if n.fb_permalink %}
                 <a href="{{ n.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir postagem (FB)</a>
@@ -1322,6 +1322,9 @@ function saveTelegramConfig() {
                     <span style="color:#4ade80; font-size:0.65rem;">
                         ✓ {{ post.posted_at | tobrt('%H:%M') }}
                     </span>
+                    {% endif %}
+                    {% if post.ig_link_error and not post.ig_permalink %}
+                    <span style="font-size:0.6rem; color:#f87171;" title="{{ post.ig_link_error }}">IG: {{ post.ig_link_error[:50] }}{% if post.ig_link_error|length > 50 %}…{% endif %}</span>
                     {% endif %}
                     {% if post.fb_error_message and not post.fb_permalink %}
                     <span style="font-size:0.6rem; color:#f87171;" title="{{ post.fb_error_message }}">FB: {{ post.fb_error_message[:50] }}{% if post.fb_error_message|length > 50 %}…{% endif %}</span>

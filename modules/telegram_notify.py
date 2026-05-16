@@ -90,6 +90,8 @@ def notify_post_success(client, post, account):
     links = ""
     if getattr(post, "ig_permalink", None):
         links += f'\n📸 <a href="{post.ig_permalink}">Abrir postagem (Instagram)</a>'
+    elif getattr(post, "ig_link_error", None):
+        links += f"\n⚠️ Instagram: {post.ig_link_error[:200]}"
     if getattr(post, "fb_permalink", None):
         links += f'\n📘 <a href="{post.fb_permalink}">Abrir postagem (Facebook)</a>'
     elif getattr(post, "fb_error_message", None):

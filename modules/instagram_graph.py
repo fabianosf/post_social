@@ -176,15 +176,45 @@ def wait_media_container_ready(creation_id: str, access_token: str, timeout: flo
     return False, last_err or "Timeout aguardando processamento da mídia"
 
 
+def fetch_media_permalink(
+    media_id: str, access_token: str, max_attempts: int = 8
+) -> tuple[str | None, str | None, str | None]:
+    """Consulta Graph API (permalink, shortcode). Retorna (permalink, media_url, erro)."""
+    last_err: str | None = None
+    for attempt in range(max_attempts):
+        try:
+            meta = _get(
+                f"/{media_id}",
+                {
+                    "fields": "permalink,shortcode,media_url",
+                    "access_token": access_token,
+                },
+            )
+            permalink = meta.get("permalink")
+            shortcode = meta.get("shortcode")
+            if not permalink and shortcode:
+                permalink = f"https://www.instagram.com/p/{shortcode}/"
+            if permalink:
+                return str(permalink), meta.get("media_url"), None
+            last_err = f"API sem permalink (tentativa {attempt + 1}/{max_attempts})"
+            if meta:
+                last_err += f": {str(meta)[:200]}"
+        except Exception as e:
+            last_err = str(e)[:400]
+        if attempt + 1 < max_attempts:
+            time.sleep(2.0)
+    return None, None, last_err
+
+
 def publish_single_image(
     ig_user_id: str,
     page_access_token: str,
     image_url: str,
     caption: str,
-) -> tuple[str | None, str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
     """
     Publica uma imagem no feed do Instagram.
-    Retorna (instagram_media_id, erro, permalink, media_url).
+    Retorna (instagram_media_id, erro, permalink, media_url, erro_link).
     """
     cap = (caption or "")[:2200]
     try:
@@ -197,14 +227,14 @@ def publish_single_image(
             },
         )
     except Exception as e:
-        return None, str(e), None, None
+        return None, str(e), None, None, None
     creation_id = created.get("id")
     if not creation_id:
-        return None, str(created)[:400], None, None
+        return None, str(created)[:400], None, None, None
 
     ok, err = wait_media_container_ready(str(creation_id), page_access_token)
     if not ok:
-        return None, err or "Falha na fila de mídia", None, None
+        return None, err or "Falha na fila de mídia", None, None, None
 
     try:
         pub = _post(
@@ -215,18 +245,11 @@ def publish_single_image(
             },
         )
     except Exception as e:
-        return None, str(e), None, None
+        return None, str(e), None, None, None
     mid = pub.get("id")
     if not mid:
-        return None, str(pub)[:400], None, None
-    permalink = media_url = None
-    try:
-        meta = _get(
-            f"/{mid}",
-            {"fields": "permalink,media_url", "access_token": page_access_token},
-        )
-        permalink = meta.get("permalink")
-        media_url = meta.get("media_url")
-    except Exception as e:
-        logger.debug("permalink media %s: %s", mid, e)
-    return str(mid), None, permalink, media_url
+        return None, str(pub)[:400], None, None, None
+    permalink, media_url, link_err = fetch_media_permalink(str(mid), page_access_token)
+    if not permalink:
+        logger.warning("permalink IG %s: %s", mid, link_err)
+    return str(mid), None, permalink, media_url, link_err
