@@ -48,6 +48,22 @@
 </div>
 {% endmacro %}
 
+{% macro post_analytics_display(post) %}
+{% if post.insights_updated_at or post.ig_likes or post.fb_likes or post.tt_likes or post.ig_views or post.tt_views %}
+<div class="post-analytics-row" style="display:flex;gap:0.45rem;flex-wrap:wrap;font-size:0.62rem;margin-top:0.3rem;color:#aaa;">
+{% if post.post_to_instagram and (post.instagram_media_id or post.ig_likes) %}
+<span title="Instagram">IG 👁{{ post.ig_views or 0 }} ♥{{ post.ig_likes or 0 }} 💬{{ post.ig_comments or 0 }} ↗{{ post.ig_shares or 0 }}</span>
+{% endif %}
+{% if post.post_to_facebook and (post.fb_post_id or post.fb_likes) %}
+<span title="Facebook">FB 👁{{ post.fb_views or 0 }} ♥{{ post.fb_likes or 0 }} 💬{{ post.fb_comments or 0 }} ↗{{ post.fb_shares or 0 }}</span>
+{% endif %}
+{% if post.post_to_tiktok and (post.tiktok_publish_id or post.tt_likes) %}
+<span title="TikTok">TK 👁{{ post.tt_views or 0 }} ♥{{ post.tt_likes or 0 }} 💬{{ post.tt_comments or 0 }} ↗{{ post.tt_shares or 0 }}</span>
+{% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
 <!-- ── Onboarding Modal (aparece apenas para novos usuários) ── -->
 {% if not accounts %}
 <div id="onboarding-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2000; align-items:center; justify-content:center; padding:1rem; display:none;">
@@ -1326,7 +1342,7 @@ function saveTelegramConfig() {
             <div style="flex:1; height:1px; background:#2a2a3a;"></div>
         </div>
         {% for post in day.posts %}
-        <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem 0.25rem; border-bottom:1px solid #1e1e2e;">
+        <div data-post-row style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem 0.25rem; border-bottom:1px solid #1e1e2e;">
             {{ post_media_thumb(post, 52) }}
             <div style="flex:1; min-width:0;">
                 <div style="font-size:0.8rem; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -1337,10 +1353,11 @@ function saveTelegramConfig() {
                     {% if post.posted_at %}<span style="color:#888; font-size:0.65rem;">{{ post.posted_at | tobrt('%d/%m %H:%M') }}</span>{% endif %}
                 </div>
                 {{ post_link_row(post) }}
+                {{ post_analytics_display(post) }}
             </div>
             <div style="display:flex; gap:0.3rem; flex-shrink:0; flex-wrap:wrap;">
-                {% if post.instagram_media_id %}
-                <button class="btn btn-outline btn-sm" type="button" title="Ver métricas"
+                {% if post.instagram_media_id or post.fb_post_id or post.tiktok_publish_id %}
+                <button class="btn btn-outline btn-sm" type="button" title="Atualizar métricas"
                         onclick="fetchMetrics({{ post.id }}, this)" style="font-size:0.65rem; padding:0.2rem 0.4rem;">&#128200;</button>
                 {% endif %}
                 <form method="POST" action="{{ url_for('dashboard.duplicate_post', post_id=post.id) }}" style="margin:0;">
@@ -1601,6 +1618,12 @@ function copyPostLink(url, btn) {
     }
 }
 
+function _fmtPlat(label, m) {
+    if (!m) return '';
+    return '<span style="margin-right:0.5rem;" title="' + label + '">' + label +
+        ' \u{1F441}' + (m.views || 0) + ' \u2764' + (m.likes || 0) +
+        ' \u{1F4AC}' + (m.comments || 0) + ' \u21AA' + (m.shares || 0) + '</span>';
+}
 function fetchMetrics(postId, btn) {
     btn.textContent = '...';
     btn.disabled = true;
@@ -1613,18 +1636,17 @@ function fetchMetrics(postId, btn) {
             alert(data.error);
             return;
         }
-        const row = btn.closest('.post-item');
-        let metricsDiv = row.nextElementSibling;
-        if (metricsDiv && metricsDiv.classList.contains('metrics-row')) {
-            metricsDiv.remove();
+        const row = btn.closest('[data-post-row]') || btn.closest('.post-item');
+        let box = row && row.querySelector('.post-analytics-row');
+        const html = _fmtPlat('IG', data.instagram) + _fmtPlat('FB', data.facebook) + _fmtPlat('TK', data.tiktok);
+        if (row && !box) {
+            box = document.createElement('div');
+            box.className = 'post-analytics-row';
+            box.style.cssText = 'display:flex;gap:0.45rem;flex-wrap:wrap;font-size:0.62rem;margin-top:0.3rem;color:#aaa;';
+            const col = row.querySelector('div[style*="flex:1"]');
+            if (col) col.appendChild(box);
         }
-        const div = document.createElement('div');
-        div.className = 'metrics-row';
-        div.style.cssText = 'background:#1a2a3a; padding:0.5rem 1rem; border-radius:0 0 8px 8px; margin-top:-0.5rem; margin-bottom:0.5rem; display:flex; gap:1.5rem;';
-        div.innerHTML = '<span style="color:#f87171; font-size:0.85rem;">\u2764 ' + (data.likes || 0) + '</span>' +
-            '<span style="color:#60a5fa; font-size:0.85rem;">\u{1F4AC} ' + (data.comments || 0) + '</span>' +
-            '<span style="color:#ccc; font-size:0.85rem;">\u{1F441} ' + (data.views || 0) + '</span>';
-        row.after(div);
+        if (box) box.innerHTML = html || '<span>Sem dados</span>';
         btn.textContent = '\u{1F4C8}';
         btn.disabled = false;
     })

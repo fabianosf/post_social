@@ -642,6 +642,7 @@ def _try_post_tiktok(post: PostQueue, client: Client | None) -> bool:
         post.tiktok_publish_id = publish_id
         url, video_id, link_err = fetch_tiktok_post_url(tiktok_acc, publish_id)
         post.tiktok_permalink = url
+        post.tiktok_video_id = video_id
         post.tiktok_link_error = link_err if not url else None
         logger.info(
             f"Post #{post.id} — TikTok publish_id={publish_id} video_id={video_id} url={url}"

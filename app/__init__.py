@@ -309,6 +309,16 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN tiktok_publish_id VARCHAR(100)",
             "ALTER TABLE post_queue ADD COLUMN tiktok_permalink VARCHAR(500)",
             "ALTER TABLE post_queue ADD COLUMN tiktok_link_error TEXT",
+            "ALTER TABLE post_queue ADD COLUMN ig_shares INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN fb_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN fb_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN fb_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN fb_shares INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN tiktok_video_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN tt_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN tt_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN tt_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN tt_shares INTEGER DEFAULT 0",
         ]
 
         # PostgreSQL: usa IF NOT EXISTS (suportado desde PG 9.6)
@@ -360,6 +370,16 @@ def create_app():
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_publish_id VARCHAR(100)",
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_permalink VARCHAR(500)",
             "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_link_error TEXT",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS ig_shares INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS fb_shares INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tiktok_video_id VARCHAR(100)",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tt_views INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tt_likes INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tt_comments INTEGER DEFAULT 0",
+            "ALTER TABLE post_queue ADD COLUMN IF NOT EXISTS tt_shares INTEGER DEFAULT 0",
         ]
 
         # user_ai_keys: tabela criada pelo db.create_all() acima

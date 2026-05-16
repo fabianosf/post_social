@@ -165,22 +165,25 @@ def api_generate_caption():
 @login_required
 def api_post_metrics(post_id):
     post = PostQueue.query.filter_by(id=post_id, client_id=current_user.id).first()
-    if not post or not post.instagram_media_id:
-        return jsonify({"error": "Post sem métricas disponíveis"}), 404
+    if not post or post.status != "posted":
+        return jsonify({"error": "Post não publicado"}), 404
+    if not (post.instagram_media_id or post.fb_post_id or post.tiktok_publish_id):
+        return jsonify({"error": "Post sem ID de plataforma"}), 404
 
     account = InstagramAccount.query.filter_by(
         id=post.account_id, client_id=current_user.id
     ).first()
-    if not account:
+    if not account and (post.instagram_media_id or post.fb_post_id):
         return jsonify({"error": "Conta não encontrada"}), 404
 
-    from modules.metrics import fetch_post_metrics
-    session_dir = str(Path(current_app.root_path).parent / "sessions")
-    metrics = fetch_post_metrics(account, post.instagram_media_id, session_dir)
+    from modules.post_analytics import refresh_post_analytics
 
-    if metrics:
-        return jsonify(metrics)
-    return jsonify({"error": "Não foi possível buscar métricas"}), 500
+    session_dir = str(Path(current_app.root_path).parent / "sessions")
+    data = refresh_post_analytics(post, account, session_dir)
+    db.session.commit()
+    if not data:
+        return jsonify({"error": "Não foi possível buscar métricas"}), 500
+    return jsonify(data)
 
 
 @dashboard_bp.route("/api/best-time", methods=["POST"])
