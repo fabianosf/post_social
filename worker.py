@@ -962,6 +962,15 @@ def process_queue():
                 logger.info(f"Aguardando {delay}s entre contas...")
                 time.sleep(delay)
 
+        with app.app_context():
+            failed_n = PostQueue.query.filter_by(status="failed").count()
+            proc_n = PostQueue.query.filter_by(status="processing").count()
+            pend_n = PostQueue.query.filter_by(status="pending").count()
+            if failed_n >= 10 or proc_n >= 5:
+                logger.warning(
+                    "CRITICAL fila: pending=%s processing=%s failed=%s",
+                    pend_n, proc_n, failed_n,
+                )
         logger.info("Fila processada.")
 
 
@@ -1002,3 +1011,4 @@ if __name__ == "__main__":
         run_daemon(interval)
     else:
         process_queue()
+        _write_heartbeat()

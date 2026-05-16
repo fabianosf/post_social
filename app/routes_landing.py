@@ -46,17 +46,53 @@ def privacy():
 @landing_bp.route("/health")
 def health():
     """Health check para Docker, load balancer e uptime monitoring."""
+    import os
+    from pathlib import Path
     from sqlalchemy import text
     from .models import db
+
     try:
         db.session.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
         db_ok = False
-    status = 200 if db_ok else 503
+
+    redis_ok = None
+    try:
+        import redis
+        r = redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"), socket_timeout=2)
+        redis_ok = r.ping()
+    except Exception:
+        redis_ok = False
+
+    worker_ok = None
+    hb = Path(__file__).resolve().parent.parent / "logs" / "worker_heartbeat.txt"
+    try:
+        if hb.exists():
+            age = datetime.now(timezone.utc).timestamp() - hb.stat().st_mtime
+            worker_ok = age < 900
+        else:
+            worker_ok = False
+    except Exception:
+        worker_ok = False
+
+    failed_n = pending_n = 0
+    if db_ok:
+        try:
+            from .models import PostQueue
+            failed_n = PostQueue.query.filter_by(status="failed").count()
+            pending_n = PostQueue.query.filter_by(status="pending").count()
+        except Exception:
+            pass
+
+    ok = db_ok and redis_ok is not False and worker_ok is not False
+    status = 200 if ok else 503
     return jsonify({
-        "status": "ok" if db_ok else "degraded",
+        "status": "ok" if ok else "degraded",
         "db": db_ok,
+        "redis": redis_ok,
+        "worker": worker_ok,
+        "queue": {"pending": pending_n, "failed": failed_n},
         "ts": datetime.now(timezone.utc).isoformat(),
     }), status
 

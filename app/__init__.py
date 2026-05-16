@@ -88,6 +88,20 @@ def create_app():
     app.config["WTF_CSRF_TIME_LIMIT"] = 3600  # 1 hora
     app.config["META_PIXEL_ID"] = os.environ.get("META_PIXEL_ID", "").strip()
 
+    if _is_prod:
+        _sec_warn = []
+        if not os.environ.get("SECRET_KEY", "").strip() or os.environ.get("SECRET_KEY") == "troque-por-uma-chave-segura":
+            _sec_warn.append("SECRET_KEY ausente ou padrão — defina no .env")
+        if not os.environ.get("FERNET_KEY", "").strip():
+            _sec_warn.append("FERNET_KEY ausente — tokens IG não criptografados")
+        _fp = os.environ.get("FLOWER_PASS", "")
+        if not _fp or _fp == "postay123":
+            _sec_warn.append("FLOWER_PASS fraco — use openssl rand -hex 16")
+        if not os.environ.get("POSTGRES_PASSWORD", "").strip():
+            _sec_warn.append("POSTGRES_PASSWORD ausente")
+        for msg in _sec_warn:
+            logging.getLogger("postay.security").warning("PROD: %s", msg)
+
     db.init_app(app)
 
     login_manager.init_app(app)

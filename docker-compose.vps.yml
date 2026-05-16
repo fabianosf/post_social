@@ -151,26 +151,34 @@ services:
     build: .
     container_name: postay-flower
     restart: always
-    command: celery -A celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASS:-postay123}
+    command: celery -A celery_app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASS}
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
     env_file: .env
     depends_on:
       - redis
 
   backup:
-    image: alpine
+    image: postgres:16-alpine
     container_name: postay-backup
     restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: postay
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postay
     volumes:
       - ./data:/data:ro
       - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
     entrypoint: >
       sh -c "while true; do
-        if [ -f /data/postsocial.db ]; then
-          cp /data/postsocial.db /backups/postsocial_$$(date +%Y%m%d_%H%M).db;
-        fi;
-        find /backups -name '*.db' -mtime +7 -delete;
+        pg_dump -h postgres -U postay -d postay | gzip > /backups/postay_$$(date +%Y%m%d_%H%M).sql.gz;
+        if [ -f /data/postsocial.db ]; then cp /data/postsocial.db /backups/sqlite_$$(date +%Y%m%d_%H%M).db; fi;
+        find /backups -name 'postay_*.sql.gz' -mtime +7 -delete;
+        find /backups -name 'sqlite_*.db' -mtime +7 -delete;
         sleep 86400;
       done"
 
