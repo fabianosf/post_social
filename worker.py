@@ -52,6 +52,82 @@ logger = setup_global_logger(str(BASE_DIR))
 _LOGIN_ERROR_COOLDOWN_MINUTES = 30    # Erro genérico: retry após 30 min
 _NOT_FOUND_COOLDOWN_MINUTES   = 1440  # Usuário não encontrado: retry após 24h
 
+MAX_PUBLISH_RETRIES = 3
+RETRY_DELAYS_MIN = [15, 30, 60]
+
+
+def _is_transient_error(msg: str) -> bool:
+    m = (msg or "").lower()
+    if not m:
+        return False
+    if any(
+        x in m
+        for x in (
+            "expired",
+            "invalid oauth",
+            "session has been invalidated",
+            "190",
+            "auth_removed",
+            "spam_risk",
+            "user_banned",
+            "publish_cancelled",
+            "access_token_invalid",
+            "token_not_authorized",
+            "reconecte",
+            "não encontrado",
+            "arquivo(s) não encontrado",
+        )
+    ):
+        return False
+    return any(
+        x in m
+        for x in (
+            "timeout",
+            "temporarily",
+            "rate limit",
+            "try again",
+            "internal",
+            "503",
+            "502",
+            "429",
+            "500",
+            "service unavailable",
+            "network",
+            "connection",
+            "busy",
+            "throttle",
+            "please wait",
+            "aguardando",
+            "processing",
+            "tentativa",
+        )
+    )
+
+
+def _schedule_publish_retry(post: PostQueue, err_s: str, label: str = "") -> bool:
+    """Agenda retry em pending. True=agendado, False=falha final."""
+    err_s = (err_s or "Erro temporário na API")[:500]
+    post.retry_count = (post.retry_count or 0) + 1
+    tag = f"({label}) " if label else ""
+    if post.retry_count <= MAX_PUBLISH_RETRIES and _is_transient_error(err_s):
+        delay = RETRY_DELAYS_MIN[min(post.retry_count - 1, len(RETRY_DELAYS_MIN) - 1)]
+        post.status = "pending"
+        post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
+            minutes=delay
+        )
+        post.error_message = (
+            f"Tentativa {post.retry_count}/{MAX_PUBLISH_RETRIES} {tag}{err_s}"
+        )[:500]
+        logger.warning(
+            f"Post #{post.id} — retry {post.retry_count}/{MAX_PUBLISH_RETRIES} em {delay}min"
+        )
+        return True
+    post.status = "failed"
+    post.error_message = (
+        f"Falhou após {post.retry_count} tentativa(s). {tag}{err_s}"
+    )[:500]
+    return False
+
 
 def get_ig_client(account: InstagramAccount) -> IGClient | None:
     if _ig_connection_type(account) == "graph_oauth":
@@ -178,6 +254,57 @@ def generate_caption(post: PostQueue) -> str:
     return caption
 
 
+def _resume_partial_publish(post: PostQueue, account: InstagramAccount) -> bool:
+    """Continua FB/TikTok sem republicar no Instagram."""
+    client = db.session.get(Client, post.client_id)
+    paths = post.image_path.split("|")
+    caption = post.caption or generate_caption(post)
+    post.caption = caption
+    token = account.get_ig_password()
+
+    if (
+        post.post_to_facebook
+        and account.share_to_facebook
+        and account.ig_graph_page_id
+        and not post.fb_post_id
+    ):
+        try:
+            from modules.facebook_poster import FacebookPoster
+
+            fb = FacebookPoster(
+                str(account.ig_graph_page_id), token, str(account.client_id), logger
+            )
+            fb_id, fb_link, fb_err = fb.post_photo(paths[0], caption)
+            if fb_id:
+                post.fb_post_id = fb_id
+                post.fb_permalink = fb_link
+                post.fb_error_message = None if fb_link else f"Sem permalink (post_id {fb_id})"
+            elif fb_err:
+                post.fb_error_message = fb_err
+        except Exception as e:
+            post.fb_error_message = f"{type(e).__name__}: {e}"
+
+    if post.post_to_tiktok and not post.tiktok_publish_id:
+        if not _try_post_tiktok(post, client):
+            err = post.tiktok_link_error or "Falha TikTok"
+            if _schedule_publish_retry(post, err, "TikTok"):
+                db.session.commit()
+                return False
+
+    was_new = post.status != "posted"
+    post.status = "posted"
+    if not post.posted_at:
+        post.posted_at = datetime.now(timezone.utc)
+    post.error_message = None
+    if client and was_new:
+        client.increment_post_count()
+        send_email_notification(client, post, success=True)
+        notify_post_success(client, post, account)
+    db.session.commit()
+    logger.info(f"Post #{post.id} — retomada parcial concluída (sem duplicar IG)")
+    return True
+
+
 def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool:
     """Publica foto no feed via Instagram Graph API (conta conectada por OAuth Meta)."""
     from urllib.parse import quote
@@ -185,6 +312,9 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
     from flask import current_app
 
     from modules import instagram_graph as ig_graph
+
+    if post.instagram_media_id:
+        return _resume_partial_publish(post, account)
 
     paths = post.image_path.split("|")
     if not all(os.path.exists(p) for p in paths):
@@ -234,16 +364,10 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
         post.ig_permalink = ig_permalink
         post.ig_media_url = ig_media_url
         post.ig_link_error = ig_link_err if not ig_permalink else None
-        post.status = "posted"
-        post.posted_at = datetime.now(timezone.utc)
         post.error_message = None
         post.fb_error_message = None
 
         client = db.session.get(Client, post.client_id)
-        if client:
-            client.increment_post_count()
-            send_email_notification(client, post, success=True)
-            notify_post_success(client, post, account)
 
         if post.post_to_facebook and account.share_to_facebook and account.ig_graph_page_id:
             try:
@@ -270,11 +394,22 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
                 post.fb_error_message = f"{type(fb_e).__name__}: {fb_e}"
                 logger.warning(f"Post #{post.id} — Facebook espelho falhou: {fb_e}")
 
+        if getattr(post, "post_to_tiktok", False) and not post.tiktok_publish_id:
+            if not _try_post_tiktok(post, client):
+                err = post.tiktok_link_error or "Falha TikTok"
+                if _schedule_publish_retry(post, err, "TikTok"):
+                    db.session.commit()
+                    return False
+
+        post.status = "posted"
+        post.posted_at = datetime.now(timezone.utc)
         db.session.commit()
         logger.info(f"Post #{post.id} — POSTADO Instagram (Meta Graph)! ID: {mid}")
 
-        if getattr(post, "post_to_tiktok", False):
-            _try_post_tiktok(post, client)
+        if client:
+            client.increment_post_count()
+            send_email_notification(client, post, success=True)
+            notify_post_success(client, post, account)
 
         return True
 
@@ -284,24 +419,22 @@ def process_post_graph_oauth(post: PostQueue, account: InstagramAccount) -> bool
         account.status = "login_error"
         account.status_message = "Acesso Meta expirado. Use «Conectar com Meta» no painel para reconectar."
         account.last_login_at = datetime.now(timezone.utc)
-
-    post.retry_count = (post.retry_count or 0) + 1
-    MAX_RETRIES = 3
-    retry_delays = [15, 30, 60]
-    if post.retry_count <= MAX_RETRIES:
-        delay = retry_delays[min(post.retry_count - 1, len(retry_delays) - 1)]
-        post.status = "pending"
-        post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)
-        post.error_message = f"Tentativa {post.retry_count}/{MAX_RETRIES} (Meta): {err_s}"
-        db.session.commit()
-        logger.warning(f"Post #{post.id} — retry Meta em {delay}min")
-    else:
         post.status = "failed"
         post.error_message = err_s
         client = db.session.get(Client, post.client_id)
         if client:
             send_email_notification(client, post, success=False)
             notify_post_failed(client, post, account, err_s)
+        db.session.commit()
+        return False
+
+    client = db.session.get(Client, post.client_id)
+    if _schedule_publish_retry(post, err_s, "Meta"):
+        db.session.commit()
+    else:
+        if client:
+            send_email_notification(client, post, success=False)
+            notify_post_failed(client, post, account, post.error_message or err_s)
         db.session.commit()
         logger.error(f"Post #{post.id} — falha final Meta: {err_s}")
 
@@ -378,6 +511,21 @@ def send_email_notification(client: Client, post: PostQueue, success: bool):
 
 
 def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bool:
+    if post.instagram_media_id:
+        client = db.session.get(Client, post.client_id)
+        if getattr(post, "post_to_tiktok", False) and not post.tiktok_publish_id:
+            if not _try_post_tiktok(post, client):
+                err = post.tiktok_link_error or "Falha TikTok"
+                if _schedule_publish_retry(post, err, "TikTok"):
+                    db.session.commit()
+                    return False
+        post.status = "posted"
+        if not post.posted_at:
+            post.posted_at = datetime.now(timezone.utc)
+        post.error_message = None
+        db.session.commit()
+        return True
+
     # Verificar arquivos
     paths = post.image_path.split("|")
     if not all(os.path.exists(p) for p in paths):
@@ -413,23 +561,25 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
                     post.ig_media_url = str(thumb)
             except Exception:
                 pass
+            post.error_message = None
+            client = db.session.get(Client, post.client_id)
+
+            if getattr(post, "post_to_tiktok", False) and not post.tiktok_publish_id:
+                if not _try_post_tiktok(post, client):
+                    err = post.tiktok_link_error or "Falha TikTok"
+                    if _schedule_publish_retry(post, err, "TikTok"):
+                        db.session.commit()
+                        return False
+
             post.status = "posted"
             post.posted_at = datetime.now(timezone.utc)
-            post.error_message = None
+            db.session.commit()
+            logger.info(f"Post #{post.id} — POSTADO Instagram! ID: {media_id}")
 
-            # Incrementar contagem mensal
-            client = db.session.get(Client, post.client_id)
             if client:
                 client.increment_post_count()
                 send_email_notification(client, post, success=True)
                 notify_post_success(client, post, account)
-
-            db.session.commit()
-            logger.info(f"Post #{post.id} — POSTADO Instagram/Facebook! ID: {media_id}")
-
-            # ── TikTok (apenas vídeos/reels) ──────────────────────────
-            if getattr(post, "post_to_tiktok", False):
-                _try_post_tiktok(post, client)
 
             return True
 
@@ -441,15 +591,18 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
         db.session.commit()
         return False
 
-    except PleaseWaitFewMinutes:
-        post.status = "pending"
-        post.error_message = "Rate limit — será tentado novamente"
-        db.session.commit()
+    except PleaseWaitFewMinutes as e:
+        if _schedule_publish_retry(post, str(e) or "Rate limit Instagram", "IG"):
+            db.session.commit()
+        else:
+            post.status = "failed"
+            post.error_message = "Rate limit — limite de tentativas atingido"
+            db.session.commit()
         return False
 
     except LoginRequired:
-        post.status = "pending"
-        post.error_message = "Sessão expirada"
+        post.status = "failed"
+        post.error_message = "Sessão expirada — reconecte a conta no painel"
         session_file = SESSION_DIR / f"account_{account.id}.json"
         session_file.unlink(missing_ok=True)
         db.session.commit()
@@ -457,33 +610,23 @@ def process_post(post: PostQueue, cl: IGClient, account: InstagramAccount) -> bo
 
     except Exception as e:
         err_msg = f"{type(e).__name__}: {str(e)[:200]}"
-        post.retry_count = (post.retry_count or 0) + 1
-        MAX_RETRIES = 3
-        # Delays: 15min, 30min, 60min
-        retry_delays = [15, 30, 60]
-
-        if post.retry_count <= MAX_RETRIES:
-            delay = retry_delays[min(post.retry_count - 1, len(retry_delays) - 1)]
-            post.status = "pending"
-            post.scheduled_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=delay)  # UTC naive, igual ao worker
-            post.error_message = f"Tentativa {post.retry_count}/{MAX_RETRIES}: {err_msg}"
+        client = db.session.get(Client, post.client_id)
+        if _schedule_publish_retry(post, err_msg, "IG"):
             db.session.commit()
-            logger.warning(f"Post #{post.id} — Retry {post.retry_count}/{MAX_RETRIES} em {delay}min: {e}")
+            logger.warning(f"Post #{post.id} — retry agendado: {e}")
         else:
-            post.status = "failed"
-            post.error_message = err_msg
-            client = db.session.get(Client, post.client_id)
             if client:
                 send_email_notification(client, post, success=False)
-                notify_post_failed(client, post, account, f"Falhou após {MAX_RETRIES} tentativas. {err_msg}")
+                notify_post_failed(
+                    client, post, account, post.error_message or err_msg
+                )
             db.session.commit()
-            logger.error(f"Post #{post.id} — FALHA FINAL após {MAX_RETRIES} tentativas: {e}")
-
+            logger.error(f"Post #{post.id} — FALHA FINAL: {e}")
         return False
 
 
-def _try_post_tiktok(post: PostQueue, client: Client):
-    """Tenta postar no TikTok se a conta estiver conectada. Suporta foto e vídeo."""
+def _try_post_tiktok(post: PostQueue, client: Client | None) -> bool:
+    """Tenta postar no TikTok. Retorna True se publicou (publish_id)."""
     try:
         from app.routes_tiktok import fetch_tiktok_post_url, post_to_tiktok
 
@@ -491,8 +634,11 @@ def _try_post_tiktok(post: PostQueue, client: Client):
         if not tiktok_acc:
             post.tiktok_link_error = "Nenhuma conta TikTok conectada"
             logger.warning(f"Post #{post.id} — TikTok marcado mas nenhuma conta conectada.")
-            return
+            return False
         publish_id = post_to_tiktok(tiktok_acc, post)
+        if not publish_id:
+            post.tiktok_link_error = "TikTok não retornou publish_id"
+            return False
         post.tiktok_publish_id = publish_id
         url, video_id, link_err = fetch_tiktok_post_url(tiktok_acc, publish_id)
         post.tiktok_permalink = url
@@ -500,9 +646,11 @@ def _try_post_tiktok(post: PostQueue, client: Client):
         logger.info(
             f"Post #{post.id} — TikTok publish_id={publish_id} video_id={video_id} url={url}"
         )
+        return True
     except Exception as e:
         post.tiktok_link_error = f"{type(e).__name__}: {str(e)[:300]}"
         logger.error(f"Post #{post.id} — Erro TikTok: {e}")
+        return False
 
 
 def _reset_stuck_processing():
