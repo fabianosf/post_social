@@ -1000,6 +1000,10 @@ def run_daemon(interval: int = 300):
             process_queue()
         except Exception as e:
             logger.error(f"Erro no ciclo: {repr(e)}", exc_info=True)
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
         _write_heartbeat()
         logger.info(f"Próximo ciclo em {interval}s...")
         time.sleep(interval)

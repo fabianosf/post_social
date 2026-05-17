@@ -224,8 +224,8 @@ class PostQueue(db.Model):
 
     error_message = db.Column(db.Text)
     instagram_media_id = db.Column(db.String(100))
-    ig_permalink = db.Column(db.String(500))
-    ig_media_url = db.Column(db.String(500))
+    ig_permalink = db.Column(db.Text)
+    ig_media_url = db.Column(db.Text)
     ig_link_error = db.Column(db.Text)
     fb_post_id = db.Column(db.String(100))
     fb_permalink = db.Column(db.String(500))
