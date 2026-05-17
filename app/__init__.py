@@ -431,6 +431,11 @@ def create_app():
                     except Exception:
                         pass
             else:
+                try:
+                    conn.execute(text("SET lock_timeout = '3s'"))
+                    conn.commit()
+                except Exception:
+                    pass
                 for stmt in pg_migrations:
                     try:
                         conn.execute(text(stmt))
