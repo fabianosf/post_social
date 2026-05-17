@@ -31,11 +31,10 @@ def oauth_redirect_uri() -> str:
 def oauth_authorize_url(state: str) -> str:
     scopes = ",".join(
         (
-            "pages_show_list",
-            "pages_read_engagement",
-            "pages_manage_posts",
             "instagram_basic",
             "instagram_content_publish",
+            "pages_show_list",
+            "pages_read_engagement",
         )
     )
     q = urllib.parse.urlencode(
