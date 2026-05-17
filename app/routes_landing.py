@@ -33,6 +33,11 @@ def faq():
     return render_template("landing.html", scroll_to="faq")
 
 
+@landing_bp.route("/exclusao-de-dados")
+def data_deletion():
+    return render_template("data_deletion.html")
+
+
 @landing_bp.route("/termos")
 def terms():
     return render_template("terms.html")
