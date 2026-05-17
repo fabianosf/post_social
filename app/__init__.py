@@ -76,6 +76,10 @@ def create_app():
         if _database_url.startswith("postgres://"):
             _database_url = _database_url.replace("postgres://", "postgresql://", 1)
         app.config["SQLALCHEMY_DATABASE_URI"] = _database_url
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+        }
     else:
         app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "data", "postsocial.db"
