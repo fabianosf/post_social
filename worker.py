@@ -478,11 +478,19 @@ def post_story(cl: IGClient, post: PostQueue, caption: str) -> str | None:
     if not path.exists():
         return None
     ext = path.suffix.lower()
-    if ext in (".mp4", ".mov"):
-        media = cl.video_upload_to_story(path=path)
-    else:
-        media = cl.photo_upload_to_story(path=path)
-    return str(media.pk)
+    last_exc = None
+    for attempt in range(3):
+        try:
+            if ext in (".mp4", ".mov"):
+                media = cl.video_upload_to_story(path=path)
+            else:
+                media = cl.photo_upload_to_story(path=path)
+            return str(media.pk)
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(5)
+    raise last_exc
 
 
 def send_email_notification(client: Client, post: PostQueue, success: bool):
