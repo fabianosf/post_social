@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import flash, redirect, request, url_for, session, jsonify, current_app
 from flask_login import login_required, current_user
 
-from ..models import db, InstagramAccount
+from ..models import db, InstagramAccount, PostQueue
 from . import dashboard_bp
 
 
@@ -313,9 +313,14 @@ def connect_instagram_session():
 def disconnect_instagram(account_id):
     account = InstagramAccount.query.filter_by(id=account_id, client_id=current_user.id).first()
     if account:
-        db.session.delete(account)
-        db.session.commit()
-        flash("Conta desconectada.", "info")
+        try:
+            PostQueue.query.filter_by(account_id=account.id).update({"account_id": None})
+            db.session.delete(account)
+            db.session.commit()
+            flash("Conta desconectada.", "info")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Erro ao desconectar conta: {e}", "error")
     return redirect(url_for("dashboard.index"))
 
 
