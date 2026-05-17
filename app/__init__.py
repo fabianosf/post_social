@@ -254,7 +254,7 @@ def create_app():
             "https://sf-security.ibytedtos.com https://*.tiktokcdn.com https://*.ttwstatic.com https://mon.tiktokv.com; "
             "style-src 'self' 'unsafe-inline' https://*.ttwstatic.com https://*.tiktokcdn.com; "
             "img-src 'self' data: blob: https:; "
-            "connect-src 'self' https://api.mercadopago.com https://connect.facebook.net https://open.tiktokapis.com https://www.tiktok.com https://accounts.tiktok.com "
+            "connect-src 'self' https://api.mercadopago.com https://connect.facebook.net https://www.facebook.com https://open.tiktokapis.com https://www.tiktok.com https://accounts.tiktok.com "
             "https://sf-security.ibytedtos.com https://*.tiktokcdn.com https://*.ttwstatic.com https://mon.tiktokv.com; "
             "frame-src https://www.mercadopago.com.br https://mercadopago.com.br https://www.tiktok.com https://accounts.tiktok.com "
             "https://sf-security.ibytedtos.com https://*.tiktokcdn.com https://*.ttwstatic.com; "
