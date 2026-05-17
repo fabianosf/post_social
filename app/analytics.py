@@ -118,7 +118,8 @@ def best_time_analysis(posts: list) -> dict:
             hm_flat[(wd, blk)] = avg
             all_scores.append(avg)
 
-    max_score = max(all_scores) if all_scores else 1
+    max_score = max(all_scores) if all_scores else 0
+    max_score = max_score or 1
     heatmap_norm = {k: round(v / max_score * 100) for k, v in hm_flat.items()}
 
     return {
