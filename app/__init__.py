@@ -79,6 +79,10 @@ def create_app():
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_pre_ping": True,
             "pool_recycle": 300,
+            "pool_size": 3,
+            "max_overflow": 2,
+            "pool_timeout": 10,
+            "connect_args": {"connect_timeout": 5},
         }
     else:
         app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
