@@ -195,7 +195,8 @@ def connect_instagram():
     try:
         from instagrapi import Client as _IGClient
         _cl = _IGClient()
-        _cl.delay_range = [1, 3]
+        _cl.delay_range = [0, 1]
+        _cl.request_timeout = 20
         _session_path = Path(current_app.config["UPLOAD_FOLDER"]).parent / "sessions" / f"test_{current_user.id}.json"
         _cl.login(ig_username, ig_password)
         _cl.dump_settings(_session_path)
