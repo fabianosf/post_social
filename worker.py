@@ -138,7 +138,14 @@ def get_ig_client(account: InstagramAccount) -> IGClient | None:
 
     session_file = SESSION_DIR / f"account_{account.id}.json"
     username = account.ig_username.lstrip("@")
-    password = account.get_ig_password()
+    try:
+        password = account.get_ig_password()
+    except Exception as e:
+        logger.error(f"[@{username}] Falha ao descriptografar senha: {type(e).__name__}: {repr(e)}")
+        account.status = "login_error"
+        account.status_message = "Erro de configuração — reconecte a conta."
+        db.session.commit()
+        return None
 
     # Cooldown: se login_error recente, não retentar ainda
     if account.status == "login_error" and account.last_login_at:
@@ -992,7 +999,7 @@ def run_daemon(interval: int = 300):
         try:
             process_queue()
         except Exception as e:
-            logger.error(f"Erro no ciclo: {e}")
+            logger.error(f"Erro no ciclo: {repr(e)}", exc_info=True)
         _write_heartbeat()
         logger.info(f"Próximo ciclo em {interval}s...")
         time.sleep(interval)
