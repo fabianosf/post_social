@@ -68,7 +68,7 @@ def create_app():
     _is_prod = bool(os.environ.get("DATABASE_URL", ""))  # prod tem postgres
     app.config["SESSION_COOKIE_SECURE"]   = _is_prod
     app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SAMESITE"] = "None" if _is_prod else "Lax"
     app.config["REMEMBER_COOKIE_SECURE"]  = _is_prod
     _database_url = os.environ.get("DATABASE_URL", "")
     if _database_url:
