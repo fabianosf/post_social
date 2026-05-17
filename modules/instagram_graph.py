@@ -49,31 +49,30 @@ def oauth_authorize_url(state: str) -> str:
     return f"https://www.facebook.com/v21.0/dialog/oauth?{q}"
 
 
-_http = httpx.Client(timeout=30.0, http2=False)
-
-
 def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
-    r = _http.get(f"{GRAPH}{path}", params=params)
-    try:
-        data = r.json()
-    except Exception:
-        data = {"error": {"message": r.text[:500]}}
-    if r.status_code >= 400:
-        err = data.get("error", {})
-        raise RuntimeError(err.get("message", str(data))[:500])
-    return data
+    with httpx.Client(timeout=30.0) as client:
+        r = client.get(f"{GRAPH}{path}", params=params)
+        try:
+            data = r.json()
+        except Exception:
+            data = {"error": {"message": r.text[:500]}}
+        if r.status_code >= 400:
+            err = data.get("error", {})
+            raise RuntimeError(err.get("message", str(data))[:500])
+        return data
 
 
 def _post(path: str, data: dict[str, Any]) -> dict[str, Any]:
-    r = _http.post(f"{GRAPH}{path}", data=data)
-    try:
-        out = r.json()
-    except Exception:
-        out = {"error": {"message": r.text[:500]}}
-    if r.status_code >= 400:
-        err = out.get("error", {})
-        raise RuntimeError(err.get("message", str(out))[:500])
-    return out
+    with httpx.Client(timeout=30.0) as client:
+        r = client.post(f"{GRAPH}{path}", data=data)
+        try:
+            out = r.json()
+        except Exception:
+            out = {"error": {"message": r.text[:500]}}
+        if r.status_code >= 400:
+            err = out.get("error", {})
+            raise RuntimeError(err.get("message", str(out))[:500])
+        return out
 
 
 def exchange_code_for_short_user_token(code: str) -> str:
