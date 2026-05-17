@@ -44,8 +44,14 @@ def privacy():
 
 
 @landing_bp.route("/health")
+@landing_bp.route("/api/health")
 def health():
-    """Health check para Docker, load balancer e uptime monitoring."""
+    return jsonify({"status": "ok", "ts": datetime.now(timezone.utc).isoformat()}), 200
+
+
+@landing_bp.route("/health/full")
+def health_full():
+    """Health check detalhado — não usar no Docker healthcheck (pode bloquear worker)."""
     import os
     from pathlib import Path
     from sqlalchemy import text
