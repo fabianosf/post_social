@@ -196,8 +196,8 @@ def connect_instagram():
         existing.set_ig_password(ig_password)
         existing.share_to_facebook = share_fb
         existing.label = label
-        existing.status = "pending"
-        existing.status_message = "Aguardando verificação pelo worker."
+        existing.status = "active"
+        existing.status_message = None
         existing.ig_connection_type = "password"
         existing.ig_graph_user_id = None
         existing.ig_graph_page_id = None
@@ -207,15 +207,14 @@ def connect_instagram():
             ig_username=ig_username,
             share_to_facebook=share_fb,
             label=label,
-            status="pending",
-            status_message="Aguardando verificação pelo worker.",
+            status="active",
             ig_connection_type="password",
         )
         account.set_ig_password(ig_password)
         db.session.add(account)
 
     db.session.commit()
-    flash(f"@{ig_username} salvo! O worker verificará o login em instantes.", "success")
+    flash(f"@{ig_username} conectado com sucesso!", "success")
     return redirect(url_for("dashboard.index"))
 
 
