@@ -1,3 +1,8 @@
 def post_fork(server, worker):
-    from app.models import db
-    db.engine.dispose()
+    try:
+        from run import app
+        with app.app_context():
+            from app.models import db
+            db.engine.dispose()
+    except Exception:
+        pass
