@@ -267,7 +267,6 @@ def create_app():
 
     with app.app_context():
         db.create_all()
-        # Auto-migração: adiciona colunas novas sem quebrar o banco existente
         from sqlalchemy import text
         _is_sqlite = "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]
         _is_pg = not _is_sqlite
@@ -412,41 +411,11 @@ def create_app():
             "CREATE INDEX IF NOT EXISTS ix_user_ai_keys_client ON user_ai_keys (client_id)",
         ]
 
-        with db.engine.connect() as conn:
-            if _is_sqlite:
+        if _is_sqlite:
+            with db.engine.connect() as conn:
                 conn.execute(text("PRAGMA journal_mode=WAL"))
                 conn.execute(text("PRAGMA synchronous=NORMAL"))
                 conn.execute(text("PRAGMA busy_timeout=5000"))
                 conn.commit()
-                for stmt in sqlite_migrations:
-                    try:
-                        conn.execute(text(stmt))
-                        conn.commit()
-                    except Exception:
-                        pass  # Coluna já existe
-                for stmt in _index_stmts:
-                    try:
-                        conn.execute(text(stmt))
-                        conn.commit()
-                    except Exception:
-                        pass
-            else:
-                try:
-                    conn.execute(text("SET lock_timeout = '3s'"))
-                    conn.commit()
-                except Exception:
-                    pass
-                for stmt in pg_migrations:
-                    try:
-                        conn.execute(text(stmt))
-                        conn.commit()
-                    except Exception:
-                        conn.rollback()
-                for stmt in _index_stmts:
-                    try:
-                        conn.execute(text(stmt))
-                        conn.commit()
-                    except Exception:
-                        conn.rollback()
 
     return app
