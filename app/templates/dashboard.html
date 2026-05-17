@@ -1806,8 +1806,6 @@ setInterval(() => {
     fetch('/api/status').then(r => r.json()).then(data => {
         if (data.pending_notifications > 0) {
             document.title = '(' + data.pending_notifications + ') Postay';
-            loadWeekGrid();
-            if (!isMainPostFormDirty()) location.reload();
         }
     }).catch(() => {});
 }, 30000);

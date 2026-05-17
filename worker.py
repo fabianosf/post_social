@@ -487,6 +487,9 @@ def post_story(cl: IGClient, post: PostQueue, caption: str) -> str | None:
                 media = cl.photo_upload_to_story(path=path)
             return str(media.pk)
         except Exception as e:
+            if "PhotoConfigureStoryError" in type(e).__name__ or "succeeded without media payload" in str(e):
+                logger.warning(f"Story upload OK mas sem payload — tratando como sucesso")
+                return "story_ok"
             last_exc = e
             if attempt < 2:
                 time.sleep(5)
