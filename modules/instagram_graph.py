@@ -49,30 +49,31 @@ def oauth_authorize_url(state: str) -> str:
     return f"https://www.facebook.com/v21.0/dialog/oauth?{q}"
 
 
+_http = httpx.Client(timeout=30.0, http2=False)
+
+
 def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
-    with httpx.Client(timeout=45.0) as client:
-        r = client.get(f"{GRAPH}{path}", params=params)
-        try:
-            data = r.json()
-        except Exception:
-            data = {"error": {"message": r.text[:500]}}
-        if r.status_code >= 400:
-            err = data.get("error", {})
-            raise RuntimeError(err.get("message", str(data))[:500])
-        return data
+    r = _http.get(f"{GRAPH}{path}", params=params)
+    try:
+        data = r.json()
+    except Exception:
+        data = {"error": {"message": r.text[:500]}}
+    if r.status_code >= 400:
+        err = data.get("error", {})
+        raise RuntimeError(err.get("message", str(data))[:500])
+    return data
 
 
 def _post(path: str, data: dict[str, Any]) -> dict[str, Any]:
-    with httpx.Client(timeout=120.0) as client:
-        r = client.post(f"{GRAPH}{path}", data=data)
-        try:
-            out = r.json()
-        except Exception:
-            out = {"error": {"message": r.text[:500]}}
-        if r.status_code >= 400:
-            err = out.get("error", {})
-            raise RuntimeError(err.get("message", str(out))[:500])
-        return out
+    r = _http.post(f"{GRAPH}{path}", data=data)
+    try:
+        out = r.json()
+    except Exception:
+        out = {"error": {"message": r.text[:500]}}
+    if r.status_code >= 400:
+        err = out.get("error", {})
+        raise RuntimeError(err.get("message", str(out))[:500])
+    return out
 
 
 def exchange_code_for_short_user_token(code: str) -> str:
@@ -124,10 +125,11 @@ def exchange_for_long_lived_page_token(page_access_token: str) -> str:
 
 
 def list_pages_with_instagram(user_access_token: str) -> list[dict[str, Any]]:
+    # username inline evita request extra por conta; page token via long-lived user já é long-lived
     raw = _get(
         "/me/accounts",
         {
-            "fields": "name,access_token,instagram_business_account",
+            "fields": "name,access_token,instagram_business_account{id,username}",
             "access_token": user_access_token,
         },
     )
@@ -140,16 +142,12 @@ def list_pages_with_instagram(user_access_token: str) -> list[dict[str, Any]]:
         page_token = page.get("access_token") or ""
         if not page_token:
             continue
-        long_page = exchange_for_long_lived_page_token(page_token)
-        ig_username = ig.get("username")
-        if not ig_username:
-            info = _get(f"/{ig_id}", {"fields": "username", "access_token": long_page})
-            ig_username = info.get("username") or str(ig_id)
+        ig_username = ig.get("username") or str(ig_id)
         rows.append(
             {
                 "page_id": str(page.get("id", "")),
                 "page_name": page.get("name", ""),
-                "page_access_token": long_page,
+                "page_access_token": page_token,
                 "ig_user_id": str(ig_id),
                 "ig_username": str(ig_username).lstrip("@"),
             }
