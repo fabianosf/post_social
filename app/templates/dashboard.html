@@ -30,8 +30,10 @@
 {% if post.ig_permalink %}
 <a href="{{ post.ig_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">Abrir</a>
 <button type="button" class="btn btn-outline btn-sm btn-copy-link" title="Copiar link IG" onclick="copyPostLink({{ post.ig_permalink|tojson }}, this)">&#128203;</button>
+{% elif post.instagram_media_id == 'story_ok' or post.post_type == 'story' %}
+<small style="color:#4ade80;">IG: Story publicado ✓</small>
 {% elif post.post_to_instagram and post.status == 'posted' %}
-<small style="color:#f87171;">IG: {{ post.ig_link_error or 'sem link' }}{% if post.instagram_media_id %} ({{ post.instagram_media_id }}){% endif %}</small>
+<small style="color:#f87171;">IG: {{ post.ig_link_error or 'sem link' }}</small>
 {% endif %}
 {% if post.fb_permalink %}
 <a href="{{ post.fb_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="font-size:0.7rem;">FB</a>
